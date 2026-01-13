@@ -1,0 +1,62 @@
+[
+  {
+    "id": "qingpao_zhongnian",
+    "name": "青袍中年男子",
+    "t": 1,
+    "states": {
+      "alive": true,
+      "health": "injured",
+      "relations": {}
+    },
+    "history": [
+      {
+        "field": "health",
+        "from": "unknown",
+        "to": "injured",
+        "eventId": "c1_e3",
+        "reason": "一个穿着青色长袍的中年男子从暗红色光晕中坠落，落地踉跄，单膝跪地，咳出一口暗红色的血",
+        "createdAt": 1
+      }
+    ]
+  },
+  {
+    "id": "mocang",
+    "name": "墨沧",
+    "t": 2,
+    "states": {
+      "alive": false,
+      "health": "unknown",
+      "relations": {}
+    },
+    "history": [
+      {
+        "field": "alive",
+        "from": true,
+        "to": false,
+        "eventId": "c2_e1",
+        "reason": "墨沧声称数据表明，每个修行者死亡会释放一生积累的元素，七成回归天地，三成永久消散；用特殊法门引导，消散率可降到一成",
+        "createdAt": 2
+      }
+    ]
+  },
+  {
+    "id": "qingxuzi",
+    "name": "清虚子",
+    "t": 3,
+    "states": {
+      "alive": true,
+      "health": "injured",
+      "relations": {}
+    },
+    "history": [
+      {
+        "field": "health",
+        "from": "unknown",
+        "to": "injured",
+        "eventId": "c3_e1",
+        "reason": "中年道士闷哼一声，嘴角溢血，拂尘上的金丝黯淡大半",
+        "createdAt": 3
+      }
+    ]
+  }
+]

@@ -1,0 +1,77 @@
+{
+  "name": "novel-electron",
+  "version": "1.0.0",
+  "description": "小说管理桌面应用",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:vite\" \"wait-on http://localhost:5173 && npm run dev:electron\"",
+    "dev:vite": "vite",
+    "dev:electron": "electron .",
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+    "build": "vite build && electron-builder",
+    "build:win": "vite build && electron-builder --win",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "electron",
+    "vue3",
+    "novel"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.2",
+    "@vitejs/plugin-vue": "^5.0.0",
+    "concurrently": "^8.2.2",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1",
+    "vite": "^5.0.0",
+    "vite-plugin-electron": "^0.28.0",
+    "vite-plugin-electron-renderer": "^0.14.5",
+    "wait-on": "^7.2.0"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "@iconify-json/carbon": "^1.1.0",
+    "@iconify-json/mdi": "^1.1.0",
+    "@unocss/preset-attributify": "^0.58.0",
+    "@unocss/preset-icons": "^0.58.0",
+    "@unocss/preset-uno": "^0.58.0",
+    "better-sqlite3": "^9.2.2",
+    "element-plus": "^2.5.0",
+    "pinia": "^2.1.7",
+    "unocss": "^0.58.0",
+    "vue": "^3.4.0",
+    "vue-router": "^4.2.5"
+  },
+  "build": {
+    "appId": "com.novel.electron",
+    "productName": "小说管理",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "node_modules/better-sqlite3/**/*",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
