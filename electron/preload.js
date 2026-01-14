@@ -19,8 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     update: (id, data) => ipcRenderer.invoke('chapter:update', id, data),
     updateContent: (id, content) => ipcRenderer.invoke('chapter:updateContent', id, content),
     delete: (id) => ipcRenderer.invoke('chapter:delete', id),
-    deleteAll: (novelId) => ipcRenderer.invoke('chapter:deleteAll', novelId),
-    reorder: (novelId) => ipcRenderer.invoke('chapter:reorder', novelId)
+    deleteAll: (novelId) => ipcRenderer.invoke('chapter:deleteAll', novelId)
   },
   
   // 设置相关 API

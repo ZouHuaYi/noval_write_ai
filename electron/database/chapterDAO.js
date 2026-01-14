@@ -8,35 +8,21 @@ function createChapter(novelId, data = {}) {
   const db = getDatabase()
   const id = randomUUID()
   const now = Date.now()
-  
-  // 获取当前最大索引（用于小说内的章节顺序）
-  const maxIdx = db.prepare(`
-    SELECT COALESCE(MAX(idx), 0) as maxIdx FROM chapter WHERE novelId = ?
-  `).get(novelId).maxIdx
-
-  // 获取全局最大章节编号（用于全局唯一标识）
-  const maxChapterNumber = db.prepare(`
-    SELECT COALESCE(MAX(chapterNumber), 0) as maxChapterNumber FROM chapter
-  `).get().maxChapterNumber
-
-  const chapterNumber = maxChapterNumber + 1
 
   db.prepare(`
-    INSERT INTO chapter (id, novelId, idx, chapterNumber, title, content, status, wordCount, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO chapter (id, novelId, chapterNumber, title, content, status, wordCount, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     novelId,
-    maxIdx + 1,
-    chapterNumber,
-    data.title || `第${maxIdx + 1}章`,
+    data.chapterNumber,
+    data.title || `第${data.chapterNumber}章`,
     data.content || '',
     data.status || 'draft',
     0,
     now,
     now
   )
-
   return id
 }
 
@@ -55,15 +41,16 @@ function getChapterById(id) {
  */
 function getChaptersByNovel(novelId) {
   const db = getDatabase()
+  // chapterNumber 倒序
   return db.prepare(`
-    SELECT * FROM chapter WHERE novelId = ? ORDER BY idx ASC
+    SELECT * FROM chapter WHERE novelId = ? ORDER BY chapterNumber DESC
   `).all(novelId)
 }
 
 /**
  * 更新章节内容
  */
-function updateChapterContent(chapterId, content) {
+function updateChapterContent(chapterId, content, chapterNumber) {
   const db = getDatabase()
   const now = Date.now()
   // 简单的中文字数统计（去除空格和标点）
@@ -71,9 +58,9 @@ function updateChapterContent(chapterId, content) {
   
   db.prepare(`
     UPDATE chapter
-    SET content = ?, wordCount = ?, updatedAt = ?
+    SET content = ?, wordCount = ?, updatedAt = ?, chapterNumber = ?
     WHERE id = ?
-  `).run(content, wordCount, now, chapterId)
+  `).run(content, wordCount, now, chapterNumber, chapterId)
   
   return getChapterById(chapterId)
 }
@@ -147,28 +134,6 @@ function deleteAllChaptersByNovel(novelId) {
   return result.changes // 返回删除的章节数量
 }
 
-/**
- * 重新排序章节索引
- */
-function reorderChapters(novelId) {
-  const db = getDatabase()
-  const chapters = db.prepare(`
-    SELECT id FROM chapter WHERE novelId = ? ORDER BY idx ASC
-  `).all(novelId)
-  
-  const updateStmt = db.prepare(`
-    UPDATE chapter SET idx = ? WHERE id = ?
-  `)
-  
-  const transaction = db.transaction((chapters) => {
-    for (let i = 0; i < chapters.length; i++) {
-      updateStmt.run(i + 1, chapters[i].id)
-    }
-  })
-  
-  transaction(chapters)
-}
-
 module.exports = {
   createChapter,
   getChapterById,
@@ -176,6 +141,5 @@ module.exports = {
   updateChapterContent,
   updateChapter,
   deleteChapter,
-  deleteAllChaptersByNovel,
-  reorderChapters
+  deleteAllChaptersByNovel
 }

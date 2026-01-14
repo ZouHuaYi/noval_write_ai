@@ -16,12 +16,11 @@ declare global {
       chapter: {
         list: (novelId: string) => Promise<any[]>
         get: (id: string) => Promise<any>
-        create: (novelId: string, data?: { title?: string; content?: string; status?: string }) => Promise<any>
+        create: (novelId: string, data?: { title?: string; content?: string; status?: string; chapterNumber?: number }) => Promise<any>
         update: (id: string, data: Partial<{ title: string; content: string; status: string; idx: number; chapterNumber: number }>) => Promise<any>
         updateContent: (id: string, content: string) => Promise<any>
         delete: (id: string) => Promise<{ success: boolean }>
         deleteAll: (novelId: string) => Promise<{ success: boolean; deletedCount: number }>
-        reorder: (novelId: string) => Promise<{ success: boolean }>
       }
       
       // 实体相关 API

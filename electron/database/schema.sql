@@ -12,8 +12,7 @@ CREATE TABLE IF NOT EXISTS novel (
 CREATE TABLE IF NOT EXISTS chapter (
   id TEXT PRIMARY KEY,
   novelId TEXT NOT NULL,
-  idx INTEGER,
-  chapterNumber INTEGER UNIQUE,
+  chapterNumber INTEGER UNIQUE NOT NULL,
   title TEXT,
   content TEXT,
   status TEXT, -- draft, published, archived

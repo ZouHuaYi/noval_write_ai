@@ -114,16 +114,6 @@ function registerIpcHandlers() {
     }
   })
 
-  ipcMain.handle('chapter:reorder', (_, novelId) => {
-    try {
-      chapterDAO.reorderChapters(novelId)
-      return { success: true }
-    } catch (error) {
-      console.error('重新排序章节失败:', error)
-      throw error
-    }
-  })
-
   ipcMain.handle('chapter:deleteAll', (_, novelId) => {
     try {
       const deletedCount = chapterDAO.deleteAllChaptersByNovel(novelId)

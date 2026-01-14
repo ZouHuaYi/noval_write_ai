@@ -10,16 +10,22 @@
       </div>
       <div class="flex items-center space-x-2">
         <el-button 
-          size="small" 
+          type="primary" 
+          @click="markMemory"
+          class="shadow-sm hover:shadow-md transition-shadow"
+        >
+          <el-icon class="mr-1"><MagicStick /></el-icon>
+          记忆
+        </el-button>
+        <el-button 
           type="success" 
           @click="markComplete"
           class="shadow-sm hover:shadow-md transition-shadow"
         >
-          <el-icon class="mr-1"><Check /></el-icon>
-          标记完成
+          标记
         </el-button>
-        <el-tag size="small" type="info" effect="plain" class="px-2">{{ wordCount }} 字</el-tag>
-        <el-tag size="small" :type="statusType" effect="plain" class="px-2">{{ statusText }}</el-tag>
+        <el-tag size="large" type="info" effect="plain" class="px-2">{{ wordCount }} 字</el-tag>
+        <el-tag size="large" :type="statusType" effect="plain" class="px-2">{{ statusText }}</el-tag>
       </div>
     </div>
 
@@ -36,7 +42,6 @@
                 :min="1"
                 :precision="0"
                 class="w-full"
-                @change="handleChapterNumberChange"
               />
             </div>
             <div class="flex-1">
@@ -62,6 +67,7 @@
             class="editor-textarea"
             @input="updateWordCount"
             @select="handleTextSelect"
+            @change="autoSave"
           />
         </div>
       </div>
@@ -70,7 +76,7 @@
 </template>
 
 <script setup lang="ts">
-import { Check, Edit } from '@element-plus/icons-vue';
+import { Edit, MagicStick } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { computed, ref, watch } from 'vue';
 
@@ -165,57 +171,38 @@ const handleTextSelect = (event: Event) => {
   }
 }
 
-// 自动保存（防抖）
-let saveTimer: any = null
-watch([() => content.value, () => chapterTitle.value, () => chapterNumber.value], () => {
-  updateWordCount()
-  if (props.chapterId) {
-    clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => {
-      autoSave()
-    }, 2000) // 2秒后自动保存
-  }
-})
-
+/**
+ * 自动保存
+ */
 async function autoSave() {
   if (!props.chapterId || saving.value) return
-  
   try {
     if (window.electronAPI?.chapter) {
       const updateData: any = {
         title: chapterTitle.value,
         content: content.value,
-        status: status.value
+        status: 'draft' // 草稿状态
       }
       if (chapterNumber.value !== null) {
         updateData.chapterNumber = chapterNumber.value
       }
       await window.electronAPI.chapter.update(props.chapterId, updateData)
       // 静默保存，不显示消息
+      status.value = 'draft'
     }
-  } catch (error) {
-    console.error('自动保存失败:', error)
+  } catch (error: any) {
+    ElMessage.error('保存失败: ' + (error.message || '未知错误'))
   }
 }
 
-function handleChapterNumberChange(value: number | null) {
-  if (props.chapterId && value !== null) {
-    // 立即保存章节编号
-    clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => {
-      autoSave()
-    }, 500) // 0.5秒后保存
-  }
-}
-
-async function markComplete() {
+async function markMemory() {
   if (!props.chapterId) {
     ElMessage.warning('请先选择章节')
     return
   }
-  
   saving.value = true
   try {
+    // 调用相关的记忆功能的接口
     if (window.electronAPI?.chapter) {
       const updateData: any = {
         title: chapterTitle.value,
@@ -228,11 +215,38 @@ async function markComplete() {
       const chapter = await window.electronAPI.chapter.update(props.chapterId, updateData)
       status.value = 'completed'
       emit('chapter-updated', chapter)
-      ElMessage.success('章节已标记为完成')
+      ElMessage.success('章节已完成')
     }
   } catch (error: any) {
-    console.error('更新失败:', error)
-    ElMessage.error('更新失败')
+    ElMessage.error('更新失败: ' + (error.message || '未知错误'))
+  } finally {
+    saving.value = false
+  }
+}
+
+async function markComplete() {
+  if (!props.chapterId) {
+    ElMessage.warning('请先选择章节')
+    return
+  }
+  saving.value = true
+  try {
+    if (window.electronAPI?.chapter) {
+      const updateData: any = {
+        title: chapterTitle.value,
+        content: content.value,
+        status: 'writing'
+      }
+      if (chapterNumber.value !== null) {
+        updateData.chapterNumber = chapterNumber.value
+      }
+      const chapter = await window.electronAPI.chapter.update(props.chapterId, updateData)
+      status.value = 'writing'
+      emit('chapter-updated', chapter)
+      ElMessage.success('章节已标记为写作中')
+    }
+  } catch (error: any) {
+    ElMessage.error('更新失败: ' + (error.message || '未知错误'))
   } finally {
     saving.value = false
   }

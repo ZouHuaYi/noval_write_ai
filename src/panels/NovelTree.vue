@@ -58,6 +58,7 @@
         >
           <div class="flex items-start justify-between gap-3">
             <div class="flex-1 min-w-0">
+              <div class="text-xs text-gray-500 font-medium">第 {{ chapter.chapterNumber }} 章</div>
               <div class="font-semibold text-sm text-gray-900 truncate mb-2 leading-tight">
                 {{ chapter.title }}
               </div>
@@ -112,7 +113,7 @@
         type="primary"
         size="default"
         class="shadow-md hover:shadow-lg transition-all duration-200 font-medium"
-        @click="createChapter"
+        @click="showCreateDialog"
         :loading="creating"
       >
         <el-icon class="mr-1.5"><Plus /></el-icon>
@@ -131,16 +132,62 @@
         清空所有
       </el-button>
     </div>
+
+    <!-- 新建章节对话框 -->
+    <el-dialog
+      v-model="dialogVisible"
+      title="新建章节"
+      width="500px"
+      :close-on-click-modal="false"
+      @close="resetForm"
+    >
+      <el-form
+        ref="formRef"
+        :model="chapterForm"
+        :rules="formRules"
+        label-width="80px"
+        label-position="left"
+      >
+        <el-form-item label="章节编号" prop="chapterNumber">
+          <el-input-number
+            v-model="chapterForm.chapterNumber"
+            :min="1"
+            :max="9999"
+            placeholder="请输入章节编号"
+            style="width: 200px"
+          />
+        </el-form-item>
+        <el-form-item label="章节标题" prop="title">
+          <el-input
+            v-model="chapterForm.title"
+            placeholder="请输入章节标题"
+            clearable
+            maxlength="100"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="handleCreateChapter" :loading="creating">
+            确定
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Delete, Document, Loading, Plus, Search } from '@element-plus/icons-vue'
+import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 type Chapter = {
   id: string
+  chapterNumber: number
   title: string
   wordCount: number
   status?: string
@@ -163,6 +210,26 @@ const clearing = ref(false)
 const searchKeyword = ref('')
 const currentPage = ref(1)
 const pageSize = ref(10) // 每页显示10个章节
+
+// 新建章节对话框相关
+const dialogVisible = ref(false)
+const formRef = ref<FormInstance>()
+const chapterForm = ref({
+  chapterNumber: 1,
+  title: ''
+})
+
+// 表单验证规则
+const formRules: FormRules = {
+  chapterNumber: [
+    { required: true, message: '请输入章节编号', trigger: 'blur' },
+    { type: 'number', min: 1, max: 9999, message: '章节编号必须在1-9999之间', trigger: 'blur' }
+  ],
+  title: [
+    { required: true, message: '请输入章节标题', trigger: 'blur' },
+    { min: 1, max: 100, message: '标题长度在1到100个字符之间', trigger: 'blur' }
+  ]
+}
 
 // 过滤后的章节列表
 const filteredChapters = computed(() => {
@@ -267,18 +334,50 @@ const selectChapter = (id: string) => {
   emit('chapter-selected', id)
 }
 
-const createChapter = async () => {
+// 显示新建章节对话框
+const showCreateDialog = () => {
   if (!props.novelId) {
     ElMessage.warning('请先选择或创建小说')
     return
   }
+  // 设置默认章节编号为当前章节数+1
+  chapterForm.value.chapterNumber = chapters.value.length + 1
+  chapterForm.value.title = ''
+  dialogVisible.value = true
+}
 
+// 重置表单
+const resetForm = () => {
+  formRef.value?.resetFields()
+  chapterForm.value = {
+    chapterNumber: chapters.value.length + 1,
+    title: ''
+  }
+}
+
+// 创建章节
+const handleCreateChapter = async () => {
+  if (!formRef.value) return
+  // 验证表单
+  try {
+    await formRef.value.validate()
+  } catch {
+    return // 验证失败，直接返回
+  }
+  if (!props.novelId) {
+    ElMessage.warning('请先选择或创建小说')
+    return
+  }
   creating.value = true
   try {
     if (window.electronAPI?.chapter) {
+      // 构建章节标题：如果标题为空，使用默认格式；否则使用用户输入的标题
+      const title = chapterForm.value.title.trim() 
+      const chapterNumber: number = Number(chapterForm.value.chapterNumber)
       const chapter = await window.electronAPI.chapter.create(props.novelId, {
-        title: `第${chapters.value.length + 1}章 新章节`,
-        status: 'draft'
+        title: title,
+        status: 'draft',
+        chapterNumber: chapterNumber
       })
       
       if (chapter?.id) {
@@ -286,6 +385,8 @@ const createChapter = async () => {
         activeChapterId.value = chapter.id
         emit('chapter-selected', chapter.id)
         ElMessage.success('创建成功')
+        dialogVisible.value = false
+        resetForm()
       }
     } else {
       ElMessage.error('Electron API 未加载')
@@ -317,7 +418,6 @@ const handleDeleteChapter = async (chapterId: string, chapterTitle: string) => {
       if (window.electronAPI?.chapter) {
         // 删除章节
         await window.electronAPI.chapter.delete(chapterId)
-        
         // 如果是当前选中的章节，需要切换到其他章节
         if (chapterId === activeChapterId.value) {
           const remainingChapters = chapters.value.filter(c => c.id !== chapterId)
@@ -328,17 +428,9 @@ const handleDeleteChapter = async (chapterId: string, chapterTitle: string) => {
             activeChapterId.value = null
           }
         }
-        
-        // 重新排序章节索引（删除后需要重新排序）
-        if (window.electronAPI?.chapter?.reorder && props.novelId) {
-          await window.electronAPI.chapter.reorder(props.novelId)
-        }
-        
         // 重新加载章节列表
         await loadChapters()
-        
         ElMessage.success('章节删除成功')
-        
         // 如果当前页没有内容了，跳转到上一页
         if (paginatedChapters.value.length === 0 && currentPage.value > 1) {
           currentPage.value--
