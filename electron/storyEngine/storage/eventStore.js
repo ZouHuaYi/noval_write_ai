@@ -1,8 +1,11 @@
-const { JsonStore } = require("./jsonStore")
+const { getEventsByNovel, createEvent, updateEvent, deleteEventsByChapter } = require("../../database/eventDAO")
 
-class EventStore extends JsonStore {
-  constructor() {
-    super("data/events.json", [])
+class EventStore {
+  constructor(novelId) {
+    if (!novelId) {
+      throw new Error("EventStore 需要 novelId 参数")
+    }
+    this.novelId = novelId
     // 增量索引：Map<eventId, Set<characterId>>
     // 记录哪些事件仍然影响哪些人物状态
     this.activeEventIndex = new Map()
@@ -13,21 +16,26 @@ class EventStore extends JsonStore {
   }
 
   /**
-   * 重建索引（从现有数据）
+   * 重建索引（从数据库加载数据）
    */
   rebuildIndex() {
     this.activeEventIndex.clear()
     this.store.clear()
     
-    for (const event of this.data || []) {
+    // 从数据库加载所有事件
+    const events = getEventsByNovel(this.novelId)
+    
+    for (const event of events || []) {
       if (!event.id) continue
       
-      this.store.set(event.id, event)
+      // 转换数据库格式到内存格式
+      const memEvent = this.dbToMemory(event)
+      this.store.set(event.id, memEvent)
       
       // 建立反向索引：event -> characters
       const charSet = new Set()
-      if (Array.isArray(event.effects)) {
-        for (const eff of event.effects) {
+      if (Array.isArray(memEvent.effects)) {
+        for (const eff of memEvent.effects) {
           if (eff.targetType === "character" && eff.targetId) {
             charSet.add(eff.targetId)
           }
@@ -39,42 +47,94 @@ class EventStore extends JsonStore {
       }
     }
   }
+
+  /**
+   * 将数据库格式转换为内存格式
+   */
+  dbToMemory(dbEvent) {
+    return {
+      id: dbEvent.eventId || dbEvent.id,
+      t: dbEvent.chapterNumber,
+      chapter: dbEvent.chapterNumber,
+      type: dbEvent.type,
+      summary: dbEvent.summary,
+      detail: dbEvent.detail,
+      actors: dbEvent.actors || [],
+      effects: dbEvent.effects || []
+    }
+  }
+
+  /**
+   * 将内存格式转换为数据库格式
+   */
+  memoryToDb(memEvent) {
+    return {
+      eventId: memEvent.id,
+      chapterNumber: memEvent.t || memEvent.chapter,
+      type: memEvent.type,
+      summary: memEvent.summary,
+      detail: memEvent.detail,
+      actors: memEvent.actors,
+      effects: memEvent.effects
+    }
+  }
   
   get(id) {
     // 优先从 store 中获取（更快）
     if (this.store && this.store.has(id)) {
       return this.store.get(id)
     }
-    return this.data?.find(e => e.id === id)
+    // 如果不在内存中，从数据库加载并重建索引
+    this.rebuildIndex()
+    return this.store.get(id)
   }
 
   getAll() {
-    return [...this.data].sort((a, b) => a.t - b.t)
+    // 从数据库重新加载以确保数据最新
+    this.rebuildIndex()
+    return Array.from(this.store.values()).sort((a, b) => a.t - b.t)
   }
   
   getUntilChapter(chapter) {
-    return this.data.filter(e => e.t <= chapter)
+    this.rebuildIndex()
+    return Array.from(this.store.values()).filter(e => e.t <= chapter)
   }
-  
+
   clear() {
-    this.data.length = 0
+    // 删除该小说所有章节的事件
+    // 注意：这里需要知道章节号，如果没有传入，可能需要删除所有
+    // 为了安全，我们只清空内存索引，不删除数据库数据
+    // 如果需要删除数据库数据，应该传入 chapterNumber
     this.activeEventIndex.clear()
     this.store.clear()
-    this.save()
+  }
+
+  clearByChapter(chapterNumber) {
+    // 删除指定章节的事件
+    deleteEventsByChapter(this.novelId, chapterNumber)
+    this.rebuildIndex()
   }
 
   add(rawEvent) {
-    // 如果已存在，更新；否则添加
-    const index = this.data?.findIndex(e => e.id === rawEvent.id)
-    if (index >= 0) {
-      this.data[index] = rawEvent
+    // 转换为数据库格式
+    const dbData = this.memoryToDb(rawEvent)
+    
+    // 检查是否已存在（通过 eventId 和 chapterNumber）
+    const existing = getEventsByNovel(this.novelId, dbData.chapterNumber)
+      .find(e => e.eventId === dbData.eventId)
+    
+    if (existing) {
+      // 更新现有事件
+      updateEvent(existing.id, dbData)
     } else {
-      this.data?.push(rawEvent)
+      // 创建新事件
+      createEvent(this.novelId, dbData)
     }
     
-    // 更新索引
+    // 更新内存索引
     this.updateIndexForEvent(rawEvent.id, rawEvent)
-    this.save()
+    // 重新加载以确保同步
+    this.rebuildIndex()
   }
 
   /**

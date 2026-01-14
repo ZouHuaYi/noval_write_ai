@@ -14,7 +14,7 @@ const { randomUUID } = require('crypto')
  */
 function createEntity(novelId, data) {
   const db = getDatabase()
-  const id = randomUUID()
+  const id = data.id || randomUUID() // 支持自定义 id
   const now = Date.now()
 
   db.prepare(`

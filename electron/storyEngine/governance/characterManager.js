@@ -1,8 +1,4 @@
-const { CharacterStore } = require("../storage/characterStore")
-
-const characterStore = new CharacterStore()
-
-function apply(effects, chapter) {
+function apply(effects, chapter, characterStore) {
   for (const e of effects) {
     if (e.targetType !== "character") continue
 

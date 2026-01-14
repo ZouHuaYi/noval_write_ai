@@ -1,29 +1,44 @@
-const { JsonStore } = require("./jsonStore")
+const { getEntitiesByNovel, getEntitiesByName, createEntity, updateEntity, deleteEntitiesByChapter } = require("../../database/entityDAO")
 
-class CharacterStore extends JsonStore {
-  constructor() {
-    super("data/characters.json", [])
+class CharacterStore {
+  constructor(novelId) {
+    if (!novelId) {
+      throw new Error("CharacterStore 需要 novelId 参数")
+    }
+    this.novelId = novelId
     // 增量索引：Map<characterId, Map<field, Effect>>
     // 只保留当前仍然生效的 effect
     this.activeEffectsIndex = new Map()
+    // 角色存储：Map<characterId, character>（用于快速查找）
+    this.store = new Map()
     // 加载数据后重建索引
     this.rebuildIndex()
   }
 
   /**
-   * 重建 activeEffectsIndex（从现有数据）
+   * 重建 activeEffectsIndex（从数据库加载数据）
    */
   rebuildIndex() {
     this.activeEffectsIndex.clear()
+    this.store.clear()
     
-    for (const ch of this.data || []) {
-      if (!ch.id) continue
+    // 从数据库加载所有实体（角色）
+    const entities = getEntitiesByNovel(this.novelId)
+    
+    for (const entity of entities || []) {
+      if (!entity.name) continue // 使用 name 作为角色的唯一标识
+      
+      // 转换数据库格式到内存格式
+      const memChar = this.dbToMemory(entity)
+      // 使用 name 作为 id（如果内存中没有 id 字段）
+      const charId = memChar.id || entity.name
+      this.store.set(charId, memChar)
       
       const fieldMap = new Map()
       
       // 遍历 history，找出每个字段的最后状态
-      if (Array.isArray(ch.history)) {
-        for (const h of ch.history) {
+      if (Array.isArray(memChar.history)) {
+        for (const h of memChar.history) {
           if (!h.field) continue
           // 同字段，后面的覆盖前面的
           fieldMap.set(h.field, {
@@ -39,26 +54,76 @@ class CharacterStore extends JsonStore {
       
       // 如果字段索引不为空，则添加到索引中
       if (fieldMap.size > 0) {
-        this.activeEffectsIndex.set(ch.id, fieldMap)
+        this.activeEffectsIndex.set(charId, fieldMap)
       }
     }
   }
 
+  /**
+   * 将数据库格式转换为内存格式
+   */
+  dbToMemory(dbEntity) {
+    return {
+      id: dbEntity.name, // 使用 name 作为 id
+      name: dbEntity.name,
+      t: dbEntity.chapterNumber,
+      states: dbEntity.states || {},
+      history: dbEntity.history || []
+    }
+  }
+
+  /**
+   * 将内存格式转换为数据库格式
+   */
+  memoryToDb(memChar) {
+    return {
+      id: memChar.id,
+      eventId: memChar.eventId || '',
+      chapterNumber: memChar.t || memChar.chapterNumber || 0,
+      name: memChar.name,
+      states: memChar.states,
+      history: memChar.history
+    }
+  }
+
   get(id) {
-    return this.data?.find(c => c.id === id) 
+    // 优先从 store 中获取
+    if (this.store && this.store.has(id)) {
+      return this.store.get(id)
+    }
+    // 如果不在内存中，尝试通过 name 查找
+    const entities = getEntitiesByName(this.novelId, id)
+    if (entities.length > 0) {
+      const memChar = this.dbToMemory(entities[0])
+      this.store.set(id, memChar)
+      return memChar
+    }
+    return null
   }
   
   add(ch) {
-    // 如果已存在，更新；否则添加
-    const index = this.data?.findIndex(c => c.id === ch.id)
-    if (index >= 0) {
-      this.data[index] = ch
+    // 转换为数据库格式
+    const dbData = this.memoryToDb(ch)
+    
+    // 检查是否已存在（通过 name）
+    const existing = getEntitiesByName(this.novelId, dbData.name)
+      .find(e => e.name === dbData.name)
+    
+    if (existing) {
+      // 更新现有实体
+      updateEntity(existing.id, dbData)
     } else {
-      this.data?.push(ch)
+      // 创建新实体，使用 name 作为 id（如果提供了）
+      createEntity(this.novelId, {
+        ...dbData,
+        id: ch.id || dbData.name
+      })
     }
-    this.save()
-    // 更新索引
-    this.updateIndexForCharacter(ch.id)
+    
+    // 更新内存索引
+    this.updateIndexForCharacter(ch.id || ch.name)
+    // 重新加载以确保同步
+    this.rebuildIndex()
   }
 
   /**
@@ -99,17 +164,26 @@ class CharacterStore extends JsonStore {
   }
   
   getAll() {
-    return [...this.data].sort((a, b) => a.t - b.t)
+    // 从数据库重新加载以确保数据最新
+    this.rebuildIndex()
+    return Array.from(this.store.values()).sort((a, b) => a.t - b.t)
   }
   
   clear() {
-    this.data.length = 0
+    // 只清空内存索引，不删除数据库数据
     this.activeEffectsIndex.clear()
-    this.save()
+    this.store.clear()
+  }
+
+  clearByChapter(chapterNumber) {
+    // 删除指定章节的实体
+    deleteEntitiesByChapter(this.novelId, chapterNumber)
+    this.rebuildIndex()
   }
   
- ensure(id, name, chapter) {
-    if (!this.data.find(c => c.id === id)) {
+  ensure(id, name, chapter) {
+    const existing = this.get(id)
+    if (!existing) {
       this.add({
         id,
         name,
@@ -125,12 +199,13 @@ class CharacterStore extends JsonStore {
   }
 
   /**
-   * 获取截至某章为止，每个角色的“最新状态”
+   * 获取截至某章为止，每个角色的"最新状态"
    */
   getLatestStates(chapter) {
+    this.rebuildIndex()
     const map = new Map()
   
-    for (const ch of this.data) {
+    for (const ch of this.store.values()) {
       // 找到 <= chapter 的最后一次状态
       const last = [...ch.history]
         .find(h => h.createdAt <= chapter)
@@ -333,7 +408,9 @@ class CharacterStore extends JsonStore {
    * 可选：获取某个角色的完整时间线
    */
   getTimeline(name) {
-    return this.data?.filter(s => s.name === name)
+    this.rebuildIndex()
+    return Array.from(this.store.values())
+      .filter(s => s.name === name)
       .sort((a, b) => a.t - b.t)
   }
 }

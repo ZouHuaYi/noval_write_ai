@@ -12,21 +12,22 @@ const llm = new OpenAIClient({
   model: "deepseek-chat"
 })
 
-// 1. 初始化 stores
-const characterStore = new CharacterStore()
-const eventStore = new EventStore()
-const dependencyStore = new DependencyStore()
+// 注意：这里需要一个 novelId，暂时使用占位符
+// 在实际使用时，应该从调用方传入 novelId
+const DEFAULT_NOVEL_ID = "default-novel-id" // 这应该从实际的小说ID获取
 
-const compressor = new ContextCompressor(
-  characterStore,
-  eventStore,
-  dependencyStore
-)
+// 1. 初始化 stores（需要 novelId）
+const characterStore = new CharacterStore(DEFAULT_NOVEL_ID)
+const eventStore = new EventStore(DEFAULT_NOVEL_ID)
+const dependencyStore = new DependencyStore(DEFAULT_NOVEL_ID)
 
-async function run() {
+const compressor = new ContextCompressor(DEFAULT_NOVEL_ID)
+
+async function run(novelId = DEFAULT_NOVEL_ID) {
   const chapters = scanChapters()
   for (const ch of chapters) {
     const result = await processChapterFull({
+      novelId,
       chapter: ch.chapter,
       text: ch.text,
       llm
@@ -39,7 +40,8 @@ async function run() {
 }
 
 // 处理压缩输出
-function processCompressOutput(chapter) {
+function processCompressOutput(chapter, novelId = DEFAULT_NOVEL_ID) {
+  const compressor = new ContextCompressor(novelId)
   const context = compressor.compress(chapter)
   console.log(context)
 }

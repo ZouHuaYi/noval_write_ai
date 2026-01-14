@@ -1,8 +1,11 @@
-const { JsonStore } = require("./jsonStore")
+const { getDependenciesByNovel, createDependency, updateDependency, deleteDependenciesByChapter } = require("../../database/dependencyDAO")
 
-class DependencyStore extends JsonStore {
-  constructor() {
-    super("data/dependencies.json", [])
+class DependencyStore {
+  constructor(novelId) {
+    if (!novelId) {
+      throw new Error("DependencyStore 需要 novelId 参数")
+    }
+    this.novelId = novelId
     // 增量索引：Map<chapterNumber, Set<dependencyId>>
     // 记录每个章节的开放依赖
     this.openByChapter = new Map()
@@ -13,21 +16,26 @@ class DependencyStore extends JsonStore {
   }
 
   /**
-   * 重建索引（从现有数据）
+   * 重建索引（从数据库加载数据）
    */
   rebuildIndex() {
     this.openByChapter.clear()
     this.store.clear()
     
-    for (const dep of this.data || []) {
+    // 从数据库加载所有依赖
+    const dependencies = getDependenciesByNovel(this.novelId)
+    
+    for (const dep of dependencies || []) {
       if (!dep.id) continue
       
-      this.store.set(dep.id, dep)
+      // 转换数据库格式到内存格式
+      const memDep = this.dbToMemory(dep)
+      this.store.set(dep.id, memDep)
       
       // 注册章节区间（只预注册短区间，避免爆炸）
-      if (dep.status === "open" && typeof dep.createdAt === "number") {
-        const start = dep.createdAt
-        const end = dep.resolvedAt ?? Infinity
+      if (memDep.status === "open" && typeof memDep.createdAt === "number") {
+        const start = memDep.createdAt
+        const end = memDep.resolvedAt ?? Infinity
         const maxChapters = 50 // 最多预注册50章
         
         for (let c = start; c <= Math.min(end, start + maxChapters); c++) {
@@ -40,18 +48,64 @@ class DependencyStore extends JsonStore {
     }
   }
 
+  /**
+   * 将数据库格式转换为内存格式
+   */
+  dbToMemory(dbDep) {
+    return {
+      id: dbDep.id,
+      description: dbDep.description,
+      type: dbDep.type,
+      relatedCharacters: dbDep.relatedCharacters || [],
+      status: dbDep.status,
+      createdAt: dbDep.chapterNumber, // 使用 chapterNumber 作为 createdAt
+      resolveWhen: dbDep.resolveWhen || [],
+      violateWhen: dbDep.violateWhen || [],
+      resolvedAt: dbDep.resolvedAt,
+      resolvedBy: dbDep.resolvedBy,
+      violatedBy: dbDep.violatedBy
+    }
+  }
+
+  /**
+   * 将内存格式转换为数据库格式
+   */
+  memoryToDb(memDep) {
+    return {
+      eventId: memDep.eventId || '',
+      chapterNumber: memDep.createdAt || memDep.chapterNumber || 0,
+      description: memDep.description,
+      type: memDep.type,
+      relatedCharacters: memDep.relatedCharacters,
+      resolveWhen: memDep.resolveWhen,
+      violateWhen: memDep.violateWhen,
+      status: memDep.status
+    }
+  }
+
   add(dep) {
-    // 如果已存在，更新；否则添加
-    const index = this.data?.findIndex(d => d.id === dep.id)
-    if (index >= 0) {
-      this.data[index] = dep
+    // 转换为数据库格式
+    const dbData = this.memoryToDb(dep)
+    
+    // 检查是否已存在
+    const existing = getDependenciesByNovel(this.novelId)
+      .find(d => d.id === dep.id)
+    
+    if (existing) {
+      // 更新现有依赖
+      updateDependency(existing.id, dbData)
     } else {
-      this.data?.push(dep)
+      // 创建新依赖，使用传入的 id
+      createDependency(this.novelId, {
+        ...dbData,
+        id: dep.id
+      })
     }
     
-    // 更新索引
+    // 更新内存索引
     this.updateIndexForDependency(dep.id, dep)
-    this.save()
+    // 重新加载以确保同步
+    this.rebuildIndex()
   }
 
   /**
@@ -98,25 +152,35 @@ class DependencyStore extends JsonStore {
     if (this.store && this.store.has(id)) {
       return this.store.get(id)
     }
-    return this.data?.find(d => d.id === id)
+    // 如果不在内存中，从数据库加载并重建索引
+    this.rebuildIndex()
+    return this.store.get(id)
   }
   
   getOpenRelated(actors) {
-    return this.data.filter(
+    this.rebuildIndex()
+    return Array.from(this.store.values()).filter(
       d => d.status === "open" &&
            d.relatedCharacters.some(a => actors.includes(a))
     ) || []
   }
   
   getAll() {
-    return [...this.data]
+    // 从数据库重新加载以确保数据最新
+    this.rebuildIndex()
+    return Array.from(this.store.values())
   }
   
   clear() {
-    this.data.length = 0
+    // 只清空内存索引，不删除数据库数据
     this.openByChapter.clear()
     this.store.clear()
-    this.save()
+  }
+
+  clearByChapter(chapterNumber) {
+    // 删除指定章节的依赖
+    deleteDependenciesByChapter(this.novelId, chapterNumber)
+    this.rebuildIndex()
   }
 
   getOpenByChapter(chapter) {

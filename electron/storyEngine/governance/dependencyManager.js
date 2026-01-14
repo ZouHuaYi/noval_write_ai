@@ -1,7 +1,4 @@
-const { DependencyStore } = require("../storage/dependencyStore")
-const dependencyStore = new DependencyStore()
-
-function registerCandidates(candidates) {
+function registerCandidates(candidates, dependencyStore) {
   for (const c of candidates) {
     dependencyStore.add({
       id: c.candidateId,
@@ -40,8 +37,8 @@ function matchDependencyConditions(conditions = [], event) {
   return false
 }
 
-function update(candidates, events) {
-  registerCandidates(candidates)
+function update(candidates, events, dependencyStore) {
+  registerCandidates(candidates, dependencyStore)
 
   for (const event of events) {
     const deps = dependencyStore.getOpenRelated(event.actors)
@@ -54,6 +51,7 @@ function update(candidates, events) {
       if (matchDependencyConditions(dep.resolveWhen, event)) {
         dep.status = "resolved"
         dep.resolvedBy = event.id
+        dependencyStore.add(dep) // 更新依赖状态
         continue
       }
 
@@ -61,6 +59,7 @@ function update(candidates, events) {
       if (matchDependencyConditions(dep.violateWhen, event)) {
         dep.status = "violated"
         dep.violatedBy = event.id
+        dependencyStore.add(dep) // 更新依赖状态
       }
     }
   }

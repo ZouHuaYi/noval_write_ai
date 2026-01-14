@@ -2,12 +2,15 @@ const { CharacterStore } = require("../storage/characterStore")
 const { EventStore } = require("../storage/eventStore")
 const { DependencyStore } = require("../storage/dependencyStore")
 class ContextCompressor {
-  constructor(
-    options = {}
-  ) {
-    this.characterStore = new CharacterStore()
-    this.eventStore = new EventStore()
-    this.dependencyStore = new DependencyStore()
+  constructor(novelId, options = {}) {
+    if (!novelId) {
+      throw new Error("ContextCompressor 需要 novelId 参数")
+    }
+    
+    this.novelId = novelId
+    this.characterStore = new CharacterStore(novelId)
+    this.eventStore = new EventStore(novelId)
+    this.dependencyStore = new DependencyStore(novelId)
 
     this.options = {
       maxCharacters: options.maxCharacters ?? 8,
@@ -31,7 +34,9 @@ class ContextCompressor {
 
     // ① 来自 active effects
     for (const ch of this.characterStore.getAll()) {
-      if (this.characterStore.isEffectActive(ch.id, chapter)) {
+      // 检查角色是否有活跃的 effects
+      const activeEffects = this.characterStore.getActiveEffects(ch.id)
+      if (activeEffects.length > 0) {
         picked.set(ch.id, ch)
       }
     }
