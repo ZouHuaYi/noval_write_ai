@@ -76,13 +76,66 @@
         </div>
       </div>
     </div>
+
+    <!-- 新建大纲对话框 -->
+    <el-dialog
+      v-model="dialogVisible"
+      title="新建大纲"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <el-form
+        ref="formRef"
+        :model="formData"
+        :rules="formRules"
+        label-width="100px"
+        label-position="left"
+      >
+        <el-form-item label="大纲标题" prop="title">
+          <el-input
+            v-model="formData.title"
+            placeholder="请输入大纲标题"
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="起始章节" prop="startChapter">
+          <el-input-number
+            v-model="formData.startChapter"
+            :min="1"
+            :precision="0"
+            placeholder="请输入起始章节号"
+            style="width: 100%"
+            clearable
+          />
+        </el-form-item>
+        <el-form-item label="结束章节" prop="endChapter">
+          <el-input-number
+            v-model="formData.endChapter"
+            :min="formData.startChapter || 1"
+            :precision="0"
+            placeholder="请输入结束章节号"
+            style="width: 100%"
+            clearable
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="dialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="submitCreateOutline" :loading="creating">
+            创建
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Delete, Document, Loading, Plus } from '@element-plus/icons-vue'
+import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 
 type Outline = {
   id: string
@@ -107,6 +160,43 @@ const activeOutlineId = ref<string | null>(null)
 const loading = ref(false)
 const creating = ref(false)
 const deleting = ref(false)
+const dialogVisible = ref(false)
+const formRef = ref<FormInstance>()
+
+const formData = reactive({
+  title: '',
+  startChapter: null as number | null,
+  endChapter: null as number | null
+})
+
+const formRules: FormRules = {
+  title: [
+    { required: true, message: '请输入大纲标题', trigger: 'blur' },
+    { min: 1, max: 100, message: '标题长度在 1 到 100 个字符', trigger: 'blur' }
+  ],
+  startChapter: [
+    { required: true, message: '请输入起始章节', trigger: 'blur' },
+    { type: 'number', min: 1, message: '起始章节必须大于0', trigger: 'blur' }
+  ],
+  endChapter: [
+    { required: true, message: '请输入结束章节', trigger: 'blur' },
+    { type: 'number', min: 1, message: '结束章节必须大于0', trigger: 'blur' },
+    {
+      validator: (_rule, value, callback) => {
+        if (formData.startChapter !== null && value !== null) {
+          if (value < formData.startChapter) {
+            callback(new Error('结束章节不能小于起始章节'))
+          } else {
+            callback()
+          }
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur'
+    }
+  ]
+}
 
 watch(() => props.novelId, (novelId) => {
   if (novelId) {
@@ -151,38 +241,38 @@ const selectOutline = (id: string) => {
   emit('outline-selected', id)
 }
 
-const handleCreateOutline = async () => {
+const handleCreateOutline = () => {
   if (!props.novelId) {
     ElMessage.warning('请先选择小说')
     return
   }
+  
+  // 重置表单
+  formData.title = ''
+  formData.startChapter = null
+  formData.endChapter = null
+  formRef.value?.clearValidate()
+  dialogVisible.value = true
+}
 
+const submitCreateOutline = async () => {
+  if (!formRef.value) return
+  
   try {
-    const { value: formData } = await ElMessageBox.prompt(
-      '请输入大纲标题',
-      '新建大纲',
-      {
-        confirmButtonText: '创建',
-        cancelButtonText: '取消',
-        inputPlaceholder: '大纲标题',
-        inputValidator: (value) => {
-          if (!value || value.trim() === '') {
-            return '大纲标题不能为空'
-          }
-          return true
-        }
-      }
-    )
-
+    await formRef.value.validate()
+    
     creating.value = true
     try {
       if (window.electronAPI?.outline) {
-        const outline = await window.electronAPI.outline.create(props.novelId, {
-          title: formData.trim(),
-          content: ''
+        const outline = await window.electronAPI.outline.create(props.novelId!, {
+          title: formData.title.trim(),
+          content: '',
+          startChapter: formData.startChapter!,
+          endChapter: formData.endChapter!
         })
         
         if (outline?.id) {
+          dialogVisible.value = false
           await loadOutlines()
           activeOutlineId.value = outline.id
           emit('outline-selected', outline.id)
@@ -198,7 +288,7 @@ const handleCreateOutline = async () => {
       creating.value = false
     }
   } catch {
-    // 用户取消
+    // 表单验证失败
   }
 }
 

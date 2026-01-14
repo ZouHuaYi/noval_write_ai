@@ -143,11 +143,12 @@
 <script setup lang="ts">
 import { Brush, Cpu, InfoFilled, List, Loading, Warning } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 const props = defineProps<{
   novelId?: string
   outlineId?: string | null
+  novelTitle?: string
 }>()
 
 const processing = ref(false)
@@ -155,6 +156,26 @@ const showDialog = ref(false)
 const dialogType = ref<'generate' | 'polish' | 'logic'>('generate')
 const dialogTitle = ref('')
 const dialogPrompt = ref('')
+const outlineInfo = ref<any>(null)
+// 获取大纲内容
+const getOutlineContent = async () => {
+  if (!props.outlineId) return ''
+  try { 
+    if (window.electronAPI?.outline) {
+      const outline = await window.electronAPI.outline.get(props.outlineId)
+      console.log('outline', outline)
+      outlineInfo.value = outline
+    }
+  } catch (error: any) {
+    ElMessage.error('获取大纲内容失败' + (error.message || '未知错误'))
+  }
+}
+
+watch(() => props.outlineId, (newId) => {
+  if (newId) {
+    getOutlineContent()
+  }
+})
 
 const ensureOutlineSelected = (): boolean => {
   if (!props.outlineId) {
@@ -227,14 +248,98 @@ const confirmAction = async () => {
 const handleGenerateChapters = async () => {
   if (!ensureOutlineSelected()) return
   try {
-    const prompt = dialogPrompt.value.trim()
-    ElMessage.info(
-      prompt
-        ? `根据你的要求生成大纲建议（示例）：${prompt}`
-        : '基于当前大纲和章节范围生成大纲建议（示例）'
-    )
-    await new Promise(resolve => setTimeout(resolve, 1200))
-    ElMessage.success('大纲建议已生成（示例）')
+    const systemPrompt = `
+你是【小说章节阶段大纲 Agent】。
+
+你的职责是：
+为“指定章节区间”生成【写作指导型大纲】，用于后续章节创作与剧情一致性维护。
+
+你不是：
+- 全书大纲设计者
+- 世界观创造者
+- 具体章节作者
+
+==============================
+【核心约束（必须遵守）】
+1. 你只对给定的章节范围负责
+2. 不得提前解决长期主线或终极矛盾
+3. 不得输出正文、对白、具体场景描写
+4. 不得引入当前阶段无法验证的新世界规则
+
+==============================
+【你允许做的事】
+- 规划阶段性剧情目标
+- 拆解关键剧情节点（事件级）
+- 指导人物关系与状态变化方向
+- 设计伏笔，但不回收长期伏笔
+
+==============================
+【输出定位】
+你的输出将被下游 Agent 用于：
+- 章节拆分
+- 事件抽取
+- 角色状态管理
+- 一致性校验
+
+因此，输出必须：
+- 结构清晰
+- 因果明确
+- 可被程序解析和再利用
+
+==============================
+【默认输出结构（Markdown）】
+
+## 一、阶段目标
+- 主线目标：
+- 主角状态变化（起点 → 终点）：
+
+## 二、核心冲突
+- 主冲突：
+- 次级冲突（可选）：
+
+## 三、关键剧情节点（有序）
+- 节点 1：
+  - 触发：
+  - 概述：
+  - 影响：
+- 节点 2：
+  ...
+
+## 四、人物变化
+- 角色名：
+  - 变化方向：
+
+## 五、伏笔与信息控制
+- 新伏笔：
+- 延迟揭示的信息：
+
+## 六、节奏与情绪
+- 节奏建议：
+- 情绪曲线：
+
+==============================
+如果输入信息不足，请在不发散世界观的前提下，做最小合理补全。
+`;
+
+const userPrompt = `
+【任务类型】
+章节区间大纲规划
+
+【小说标题】
+${outlineInfo.value.title}
+
+【章节范围】
+第 ${outlineInfo.value.startChapter} 章 ～ 第 ${outlineInfo.value.endChapter} 章
+
+【作者提示】
+${dialogPrompt.value.trim() || "（无写作要求提示）"}
+
+请基于以上信息，
+仅针对【本章节范围】生成写作指导型大纲。
+`;
+
+/** 传给AI的提示 */
+
   } catch (e) {}
 }
 

@@ -91,6 +91,7 @@
         <AgentPanel 
           v-if="leftTab === 'chapters'"
           :novel-id="novelId"
+          :novel-title="novel.title"
           :chapter-id="currentChapterId"
           :chapter-content="currentChapterContent"
           :selected-text="selectedText"
@@ -100,6 +101,7 @@
         <OutlineAgentPanel
           v-else
           :novel-id="novelId"
+          :novel-title="novel.title"
           :outline-id="currentOutlineId"
         />
       </template>

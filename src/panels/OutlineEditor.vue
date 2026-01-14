@@ -10,7 +10,6 @@
       </div>
       <div class="flex items-center space-x-2">
         <el-button 
-          size="small" 
           type="primary" 
           @click="saveOutline" 
           :loading="saving"
@@ -38,15 +37,9 @@
             size="default"
             clearable
           />
-        </div>
-
         <!-- 章节范围 -->
-        <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-          <div class="flex items-center justify-between mb-3">
-            <div class="text-xs font-medium text-gray-600">章节范围</div>
-          </div>
-          <div class="flex items-end space-x-3">
-            <div class="flex-1">
+        <div class="flex items-end space-x-3 mt-16px">
+           <div class="flex-1">
               <div class="text-xs text-gray-500 mb-1.5">起始章节</div>
               <el-input-number
                 v-model="startChapter"
@@ -74,10 +67,6 @@
               />
             </div>
           </div>
-          <div class="text-xs text-gray-400 mt-3 flex items-start">
-            <el-icon class="mr-1 mt-0.5 flex-shrink-0"><InfoFilled /></el-icon>
-            <span>设置此大纲适用的章节范围，留空表示适用于所有章节</span>
-          </div>
         </div>
 
         <!-- 大纲内容 -->
@@ -98,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { Check, Document, InfoFilled } from '@element-plus/icons-vue';
+import { Check, Document } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { ref, watch } from 'vue';
 
