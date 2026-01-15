@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS chapter (
   chapterNumber INTEGER UNIQUE NOT NULL,
   title TEXT,
   content TEXT,
-  status TEXT, -- draft, published, archived
+  status TEXT, -- draft, writing, completed
+
   wordCount INTEGER,
   createdAt INTEGER,
   updatedAt INTEGER,

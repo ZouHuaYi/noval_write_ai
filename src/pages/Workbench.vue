@@ -53,6 +53,14 @@
                   </span>
                 </template>
               </el-tab-pane>
+              <el-tab-pane name="memory">
+                <template #label>
+                  <span class="inline-flex items-center gap-1.5 text-xs">
+                    <el-icon class="text-sm"><Memo /></el-icon>
+                    <span>记忆</span>
+                  </span>
+                </template>
+              </el-tab-pane>
             </el-tabs>
           </div>
           
@@ -64,9 +72,13 @@
               @chapter-selected="handleChapterSelected"
             />
             <OutlinePanel 
-              v-else
+              v-else-if="leftTab === 'outlines'"
               :novel-id="novelId" 
               @outline-selected="handleOutlineSelected"
+            />
+            <MemoryPanel
+              v-else
+              :novel-id="novelId"
             />
           </div>
         </div>
@@ -77,14 +89,21 @@
           v-if="leftTab === 'chapters'"
           :novel-id="novelId"
           :chapter-id="currentChapterId"
+          :external-content="currentChapterContent"
           @chapter-updated="handleChapterUpdated"
           @text-selected="handleTextSelected"
+          @content-changed="handleContentChanged"
         />
+
         <OutlineEditor
-          v-else
+          v-else-if="leftTab === 'outlines'"
           :outline-id="currentOutlineId"
           @outline-updated="handleOutlineUpdated"
         />
+
+        <div v-else class="h-full flex items-center justify-center text-sm text-gray-400">
+          记忆信息仅在左侧展示
+        </div>
       </template>
 
       <template #right>
@@ -93,31 +112,40 @@
           :novel-id="novelId"
           :novel-title="novel?.title"
           :chapter-id="currentChapterId"
+          :chapter-title="currentChapter?.title"
           :chapter-content="currentChapterContent"
           :selected-text="selectedText"
           @chapter-generated="handleChapterGenerated"
           @content-updated="handleContentUpdated"
         />
+
         <OutlineAgentPanel
-          v-else
+          v-else-if="leftTab === 'outlines'"
           :novel-id="novelId"
           :novel-title="novel?.title"
           :outline-id="currentOutlineId"
         />
+
+        <div v-else class="h-full flex items-center justify-center text-sm text-gray-400">
+          StoryEngine 记忆区
+        </div>
       </template>
     </WorkbenchLayout>
   </div>
 </template>
 
+
 <script setup lang="ts">
 import WorkbenchLayout from '@/layouts/WorkbenchLayout.vue'
 import AgentPanel from '@/panels/AgentPanel.vue'
 import EditorPanel from '@/panels/EditorPanel.vue'
+import MemoryPanel from '@/panels/MemoryPanel.vue'
 import NovelTree from '@/panels/NovelTree.vue'
 import OutlineAgentPanel from '@/panels/OutlineAgentPanel.vue'
 import OutlineEditor from '@/panels/OutlineEditor.vue'
 import OutlinePanel from '@/panels/OutlinePanel.vue'
-import { ArrowLeft, Document, List } from '@element-plus/icons-vue'
+import { ArrowLeft, Document, List, Memo } from '@element-plus/icons-vue'
+
 import { ElMessage } from 'element-plus'
 import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -127,7 +155,8 @@ const router = useRouter()
 
 const novelId = ref<string>('')
 const novel = ref<any>(null)
-const leftTab = ref<'chapters' | 'outlines'>('chapters')
+const leftTab = ref<'chapters' | 'outlines' | 'memory'>('chapters')
+
 const currentChapterId = ref<string | null>(null)
 const currentOutlineId = ref<string | null>(null)
 const currentChapter = ref<any>(null)
@@ -207,7 +236,12 @@ function handleTextSelected(text: string) {
   selectedText.value = text
 }
 
+function handleContentChanged(content: string) {
+  currentChapterContent.value = content
+}
+
 function handleOutlineSelected(outlineId: string) {
+
   currentOutlineId.value = outlineId
 }
 

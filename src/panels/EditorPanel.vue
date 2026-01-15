@@ -65,7 +65,8 @@
             placeholder="开始写作..."
             resize="none"
             class="editor-textarea"
-            @input="updateWordCount"
+            @input="handleContentInput"
+
             @select="handleTextSelect"
             @change="autoSave"
           />
@@ -83,12 +84,15 @@ import { computed, ref, watch } from 'vue';
 const props = defineProps<{
   novelId?: string
   chapterId?: string | null
+  externalContent?: string
 }>()
 
 const emit = defineEmits<{
   (e: 'chapter-updated', chapter: any): void
   (e: 'text-selected', text: string): void
+  (e: 'content-changed', content: string): void
 }>()
+
 
 const selectedText = ref('')
 
@@ -129,7 +133,15 @@ watch(() => props.chapterId, async (newId) => {
   }
 }, { immediate: true })
 
+watch(() => props.externalContent, (newContent) => {
+  if (typeof newContent === 'string' && newContent !== content.value) {
+    content.value = newContent
+    updateWordCount()
+  }
+})
+
 async function loadChapter(chapterId: string) {
+
   if (!chapterId) return
   
   try {
@@ -154,6 +166,12 @@ const updateWordCount = () => {
   const text = content.value.replace(/[\s\p{P}]/gu, '')
   wordCount.value = text.length
 }
+
+const handleContentInput = () => {
+  updateWordCount()
+  emit('content-changed', content.value)
+}
+
 
 const handleTextSelect = (event: Event) => {
   const target = event.target as HTMLTextAreaElement

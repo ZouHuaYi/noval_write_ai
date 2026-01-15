@@ -3,7 +3,12 @@ const novelDAO = require('./database/novelDAO')
 const chapterDAO = require('./database/chapterDAO')
 const settingsDAO = require('./database/settingsDAO')
 const outlineDAO = require('./database/outlineDAO')
-const llmService = require('./llmService')
+const entityDAO = require('./database/entityDAO')
+const eventDAO = require('./database/eventDAO')
+const dependencyDAO = require('./database/dependencyDAO')
+const llmService = require('./llm/llmService')
+
+
 
 /**
  * 注册所有 IPC 处理器
@@ -210,8 +215,23 @@ function registerIpcHandlers() {
     }
   })
 
+  // ========== StoryEngine 记忆相关 ==========
+  ipcMain.handle('memory:get', (_, novelId) => {
+    try {
+      return {
+        entities: entityDAO.getEntitiesByNovel(novelId),
+        events: eventDAO.getEventsByNovel(novelId),
+        dependencies: dependencyDAO.getDependenciesByNovel(novelId)
+      }
+    } catch (error) {
+      console.error('获取记忆数据失败:', error)
+      throw error
+    }
+  })
+
   // ========== LLM 调用相关 ==========
   ipcMain.handle('llm:chat', async (_, options) => {
+
     try {
       return await llmService.callChatModel(options || {})
     } catch (error) {

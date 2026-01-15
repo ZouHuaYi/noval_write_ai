@@ -50,7 +50,17 @@ declare global {
         delete: (id: string) => Promise<{ success: boolean }>
       }
       
+      // StoryEngine 记忆相关 API
+      memory: {
+        get: (novelId: string) => Promise<{
+          entities: any[]
+          events: any[]
+          dependencies: any[]
+        }>
+      }
+      
       // LLM 相关 API
+
       llm: {
         chat: (options: {
           messages: { role: 'system' | 'user' | 'assistant'; content: string }[]

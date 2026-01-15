@@ -163,15 +163,21 @@
 
 <script setup lang="ts">
 import { Brush, Cpu, InfoFilled, Loading, Plus, Search, Warning } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { callChatModel } from '@/llm/client'
+import { chapterSkills } from '@/llm/prompts/chapter'
 import { ref } from 'vue';
+
 
 const props = defineProps<{
   novelId?: string
   chapterId?: string | null
+  chapterTitle?: string
   chapterContent?: string
   selectedText?: string
+  novelTitle?: string
 }>()
+
 
 const emit = defineEmits<{
   (e: 'chapter-generated', chapter: any): void
@@ -180,7 +186,7 @@ const emit = defineEmits<{
 
 const processing = ref(false)
 const showDialog = ref(false)
-const dialogType = ref<'continue' | 'polish' | 'consistency' | 'next'>('continue')
+const dialogType = ref<'continue' | 'polish' | 'consistency'>('continue')
 const dialogTitle = ref('')
 const dialogPrompt = ref('')
 
@@ -188,60 +194,24 @@ const getDialogPlaceholder = () => {
   const placeholders = {
     continue: '例如：\n• 让主角遇到一个神秘老人\n• 增加一段环境描写\n• 让对话更加生动\n• 延续当前情节发展',
     polish: '例如：\n• 让文字更加优美\n• 增加细节描写\n• 优化对话表达\n• 提升文笔水平',
-    consistency: '例如：\n• 检查人物名称是否一致\n• 检查时间线是否合理\n• 检查世界观设定\n• 检查情节逻辑',
-    next: '例如：\n• 让下一章发生战斗\n• 引入新角色\n• 推进主线剧情\n• 增加悬念'
+    consistency: '例如：\n• 检查人物名称是否一致\n• 检查时间线是否合理\n• 检查世界观设定\n• 检查情节逻辑'
   }
   return placeholders[dialogType.value] || ''
 }
 
 const getDialogHint = () => {
   const hints = {
-    continue: '留空则使用默认续写逻辑，输入提示可指导AI续写方向',
+    continue: '留空则使用默认续写逻辑，输入提示可指导 AI 续写方向',
     polish: '留空则使用默认润色逻辑，输入要求可指定润色重点',
-    consistency: '留空则进行全面检查，输入重点可指定检查范围',
-    next: '留空则使用默认生成逻辑，输入提示可指导下一章内容'
+    consistency: '留空则进行全面检查，输入重点可指定检查范围'
   }
   return hints[dialogType.value] || ''
 }
 
-const executeGenerateNextChapter = async () => {
-  const prompt = dialogPrompt.value.trim()
-  ElMessage.info(prompt ? `正在生成该章节内容：${prompt}` : '正在使用 AI 生成该章节内容...')
-  
-  // 模拟 AI 生成过程
-  await new Promise(resolve => setTimeout(resolve, 2000))
-  
-  // 创建新章节
-  if (window.electronAPI?.chapter) {
-    const chapters = await window.electronAPI.chapter.list(props.novelId!)
-    const nextChapterNum = chapters.length + 1
-    
-    // 这里应该使用 AI 生成的内容，目前先用占位符
-    const aiGeneratedContent = prompt 
-      ? `[AI 生成的内容将在这里显示]\n\n基于提示"${prompt}"和该章节的内容，AI 将自动生成该章节的内容。`
-      : `[AI 生成的内容将在这里显示]\n\n基于该章节的内容，AI 将自动生成该章节的内容。`
-    const aiGeneratedTitle = `第${nextChapterNum}章 [AI 生成]`
-    
-    const newChapter = await window.electronAPI.chapter.create(props.novelId!, {
-      title: aiGeneratedTitle,
-      content: aiGeneratedContent,
-      status: 'draft'
-    })
-    
-    if (newChapter?.id) {
-      ElMessage.success('AI 已生成该章节内容！')
-      emit('chapter-generated', newChapter)
-      // 触发章节树刷新
-      if (window.dispatchEvent) {
-        window.dispatchEvent(new CustomEvent('chapter-created', { detail: { chapterId: newChapter.id } }))
-      }
-    }
-  } else {
-    ElMessage.error('Electron API 未加载')
-  }
-}
+
 
 const handlePolish = () => {
+
   if (!props.chapterId || !props.chapterContent) {
     ElMessage.warning('请先选择章节并输入内容')
     return
@@ -278,9 +248,6 @@ const confirmAction = async () => {
       case 'consistency':
         await executeConsistency()
         break
-      case 'next':
-        await executeGenerateNextChapter()
-        break
     }
   } catch (error: any) {
     ElMessage.error('执行失败: ' + (error.message || '未知错误'))
@@ -290,66 +257,106 @@ const confirmAction = async () => {
 }
 
 const executeContinue = async () => {
-  // TODO: 调用 Agent API 续写
-  const prompt = dialogPrompt.value.trim()
-  ElMessage.info(prompt ? `正在续写：${prompt}` : '正在续写本章...')
-  await new Promise(resolve => setTimeout(resolve, 1500))
-  
-  // 模拟生成续写内容
-  const continuedContent = props.chapterContent + '\n\n[续写内容将在这里显示]'
-  emit('content-updated', continuedContent)
-  ElMessage.success('续写完成（模拟）')
-}
-
-const executePolish = async () => {
-  // TODO: 调用 Agent API 润色
-  const prompt = dialogPrompt.value.trim()
-  const textToPolish = props.selectedText || props.chapterContent || ''
-  
-  if (!textToPolish) {
-    ElMessage.warning('没有可润色的内容')
+  if (!props.chapterId || !props.chapterContent) {
+    ElMessage.warning('请先选择章节并输入内容')
     return
   }
-  
-  ElMessage.info(prompt ? `正在润色：${prompt}` : (props.selectedText ? '正在润色选中文字...' : '正在润色文本...'))
-  await new Promise(resolve => setTimeout(resolve, 1500))
-  
-  // 模拟生成润色内容
+
+  const prompt = dialogPrompt.value.trim()
+  const systemPrompt = chapterSkills.continue.systemPrompt
+  const userPrompt = chapterSkills.continue.buildUserPrompt({
+    novelTitle: props.novelTitle,
+    chapterTitle: props.chapterTitle,
+    content: props.chapterContent,
+    extraPrompt: prompt
+  })
+
+  const newText = await callChatModel(systemPrompt, userPrompt)
+  const trimmed = newText.trim()
+  if (!trimmed) {
+    ElMessage.warning('未生成有效续写内容')
+    return
+  }
+
+  const separator = props.chapterContent.endsWith('\n') ? '\n' : '\n\n'
+  emit('content-updated', props.chapterContent + separator + trimmed)
+  ElMessage.success('续写完成')
+}
+
+
+const executePolish = async () => {
+  if (!props.chapterId || !props.chapterContent) {
+    ElMessage.warning('请先选择章节并输入内容')
+    return
+  }
+
+  const prompt = dialogPrompt.value.trim()
+  const textToPolish = props.selectedText || props.chapterContent
+
+  const systemPrompt = chapterSkills.polish.systemPrompt
+  const userPrompt = chapterSkills.polish.buildUserPrompt({
+    text: textToPolish,
+    extraPrompt: prompt
+  })
+
+  const polishedText = (await callChatModel(systemPrompt, userPrompt)).trim()
+  if (!polishedText) {
+    ElMessage.warning('未生成有效润色内容')
+    return
+  }
+
   if (props.selectedText) {
-    // 只润色选中的文字
-    const polishedText = `[润色后的文字：${props.selectedText}]`
-    // 替换原内容中的选中文字
-    const newContent = props.chapterContent?.replace(props.selectedText, polishedText) || polishedText
+    const originalContent = props.chapterContent || ''
+    const firstIndex = originalContent.indexOf(props.selectedText)
+    const newContent = firstIndex >= 0
+      ? originalContent.slice(0, firstIndex) + polishedText + originalContent.slice(firstIndex + props.selectedText.length)
+      : originalContent + polishedText
     emit('content-updated', newContent)
-    ElMessage.success('选中文字润色完成（模拟）')
+    ElMessage.success('选中文字润色完成')
   } else {
-    // 润色整个章节
-    const polishedContent = '[润色后的内容将在这里显示]\n' + props.chapterContent
-    emit('content-updated', polishedContent)
-    ElMessage.success('润色完成（模拟）')
+    emit('content-updated', polishedText)
+    ElMessage.success('润色完成')
   }
 }
 
 const executeConsistency = async () => {
-  // TODO: 调用 Agent API 一致性检查
-  const prompt = dialogPrompt.value.trim()
-  ElMessage.info(prompt ? `正在检查：${prompt}` : '正在进行一致性检查...')
-  await new Promise(resolve => setTimeout(resolve, 2000))
-  
-  ElMessage.success('一致性检查完成（模拟）')
-  // 这里可以显示检查结果
-}
-
-const handleGenerateNextChapter = () => {
-  if (!props.novelId) {
-    ElMessage.warning('请先选择小说')
+  if (!props.chapterId || !props.chapterContent) {
+    ElMessage.warning('请先选择章节并输入内容')
     return
   }
-  dialogType.value = 'next'
-  dialogTitle.value = 'AI 生成内容'
+
+  const prompt = dialogPrompt.value.trim()
+  const systemPrompt = chapterSkills.consistency.systemPrompt
+  const userPrompt = chapterSkills.consistency.buildUserPrompt({
+    novelTitle: props.novelTitle,
+    content: props.chapterContent,
+    extraPrompt: prompt
+  })
+
+  const result = (await callChatModel(systemPrompt, userPrompt)).trim()
+  if (!result) {
+    ElMessage.warning('未生成一致性检查结果')
+    return
+  }
+
+  await ElMessageBox.alert(result, '一致性检查结果', {
+    confirmButtonText: '知道了',
+    dangerouslyUseHTMLString: false
+  })
+}
+
+
+const handleGenerateNextChapter = () => {
+  if (!props.chapterId || !props.chapterContent) {
+    ElMessage.warning('请先选择章节并输入内容')
+    return
+  }
+  dialogType.value = 'continue'
+  dialogTitle.value = 'AI 续写内容'
   dialogPrompt.value = ''
   showDialog.value = true
 }
+
 </script>
 
 <style scoped>

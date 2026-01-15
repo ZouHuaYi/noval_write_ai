@@ -1,14 +1,16 @@
-const DEFAULT_MODEL = "gpt-4.1-mini" // 你可以换 deepseek-chat 等
+const DEFAULT_TIMEOUT = 600000
 
 class OpenAIClient {
   constructor({
     apiKey,
-    baseUrl = "https://api.openai.com/v1",
-    model = DEFAULT_MODEL
-  }) {
+    baseUrl,
+    model,
+    timeout = DEFAULT_TIMEOUT
+  } = {}) {
     this.apiKey = apiKey
     this.baseUrl = baseUrl
     this.model = model
+    this.timeout = timeout
   }
 
   async chat({
@@ -23,7 +25,7 @@ class OpenAIClient {
         "Authorization": `Bearer ${this.apiKey}`,
         "Content-Type": "application/json"
       },
-      timeout: 600000,
+      timeout: this.timeout,
       body: JSON.stringify({
         model: this.model,
         temperature,
@@ -34,6 +36,7 @@ class OpenAIClient {
         ]
       })
     })
+
 
     if (!res.ok) {
       const errText = await res.text()

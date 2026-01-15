@@ -1,7 +1,7 @@
 <template>
   <div class="h-screen flex bg-gray-50 text-sm overflow-hidden">
     <!-- 左侧：资料区 -->
-    <div class="w-64 min-w-[240px] max-w-[320px] border-r border-gray-200/60 bg-white flex flex-col overflow-hidden shadow-sm">
+    <div class="w-[320px] max-w-[280px] border-r border-gray-200/60 bg-white flex flex-col overflow-hidden shadow-sm">
       <slot name="left" />
     </div>
 

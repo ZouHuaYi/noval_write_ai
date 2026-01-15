@@ -48,6 +48,17 @@ function getChaptersByNovel(novelId) {
 }
 
 /**
+ * 获取指定状态的章节
+ */
+function getChaptersByNovelAndStatus(novelId, status) {
+  const db = getDatabase()
+  return db.prepare(`
+    SELECT * FROM chapter WHERE novelId = ? AND status = ? ORDER BY chapterNumber ASC
+  `).all(novelId, status)
+}
+
+
+/**
  * 更新章节内容
  */
 function updateChapterContent(chapterId, content, chapterNumber) {
@@ -138,8 +149,10 @@ module.exports = {
   createChapter,
   getChapterById,
   getChaptersByNovel,
+  getChaptersByNovelAndStatus,
   updateChapterContent,
   updateChapter,
   deleteChapter,
   deleteAllChaptersByNovel
 }
+

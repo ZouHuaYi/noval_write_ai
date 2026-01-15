@@ -1,4 +1,5 @@
-const settingsDAO = require('./database/settingsDAO')
+const settingsDAO = require('../database/settingsDAO')
+
 
 function sortConfigs(configs) {
   const list = [...configs]
@@ -28,6 +29,7 @@ async function getDefaultChatConfig() {
   return def || configs[0]
 }
 
+
 // 向量模型相关
 async function getAllVectorConfigs() {
   const configs = settingsDAO.getSetting('vector_configs')
@@ -44,11 +46,13 @@ async function getDefaultVectorConfig() {
   return def || configs[0]
 }
 
+
 async function callChatModel(options) {
   const baseConfig = await getDefaultChatConfig()
   if (!baseConfig) {
     throw new Error('未找到默认 LLM 配置，请先在设置中添加并设为默认')
   }
+
 
   const config = {
     ...baseConfig,
@@ -101,6 +105,7 @@ async function callEmbeddingModel(options) {
   if (!baseConfig) {
     throw new Error('未找到向量模型配置，请在设置中添加并设为默认')
   }
+
 
   const config = {
     ...baseConfig,

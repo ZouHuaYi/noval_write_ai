@@ -95,7 +95,8 @@
           <div class="text-xs text-indigo-700 leading-relaxed">
             <div class="font-semibold mb-1">使用提示：</div>
             <div>• 请先在中间选择并编辑一个大纲</div>
-            <div>• 点击卡片可输入你的需求，AI 将根据提示生成建议（当前为占位逻辑）</div>
+            <div>• 点击卡片输入需求，AI 将根据提示生成建议</div>
+
           </div>
         </div>
       </div>
@@ -142,8 +143,11 @@
 
 <script setup lang="ts">
 import { Brush, Cpu, InfoFilled, List, Loading, Warning } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { callChatModel } from '@/llm/client'
+import { outlineSkills } from '@/llm/prompts/outline'
 import { ref, watch } from 'vue';
+
 
 const props = defineProps<{
   novelId?: string
@@ -157,14 +161,31 @@ const dialogType = ref<'generate' | 'polish' | 'logic'>('generate')
 const dialogTitle = ref('')
 const dialogPrompt = ref('')
 const outlineInfo = ref<any>(null)
+
+
+const applyOutlineContent = async (content: string) => {
+  if (!props.outlineId) return
+  if (!window.electronAPI?.outline) {
+    throw new Error('大纲 API 未加载')
+  }
+
+  const updated = await window.electronAPI.outline.update(props.outlineId, { content })
+  outlineInfo.value = updated
+
+  if (window.dispatchEvent) {
+    window.dispatchEvent(new CustomEvent('outline-updated', { detail: { outlineId: props.outlineId } }))
+  }
+}
+
 // 获取大纲内容
 const getOutlineContent = async () => {
+
   if (!props.outlineId) return ''
   try { 
     if (window.electronAPI?.outline) {
       const outline = await window.electronAPI.outline.get(props.outlineId)
-      console.log('outline', outline)
       outlineInfo.value = outline
+
     }
   } catch (error: any) {
     ElMessage.error('获取大纲内容失败' + (error.message || '未知错误'))
@@ -247,129 +268,87 @@ const confirmAction = async () => {
 
 const handleGenerateChapters = async () => {
   if (!ensureOutlineSelected()) return
+  await getOutlineContent()
+
   try {
-    const systemPrompt = `
-你是【小说章节阶段大纲 Agent】。
+    const prompt = dialogPrompt.value.trim()
+    const systemPrompt = outlineSkills.generate.systemPrompt
+    const userPrompt = outlineSkills.generate.buildUserPrompt({
+      novelTitle: props.novelTitle,
+      outlineTitle: outlineInfo.value?.title,
+      startChapter: outlineInfo.value?.startChapter,
+      endChapter: outlineInfo.value?.endChapter,
+      extraPrompt: prompt
+    })
 
-你的职责是：
-为“指定章节区间”生成【写作指导型大纲】，用于后续章节创作与剧情一致性维护。
+    const result = (await callChatModel(systemPrompt, userPrompt)).trim()
+    if (!result) {
+      ElMessage.warning('未生成有效大纲内容')
+      return
+    }
 
-你不是：
-- 全书大纲设计者
-- 世界观创造者
-- 具体章节作者
-
-==============================
-【核心约束（必须遵守）】
-1. 你只对给定的章节范围负责
-2. 不得提前解决长期主线或终极矛盾
-3. 不得输出正文、对白、具体场景描写
-4. 不得引入当前阶段无法验证的新世界规则
-
-==============================
-【你允许做的事】
-- 规划阶段性剧情目标
-- 拆解关键剧情节点（事件级）
-- 指导人物关系与状态变化方向
-- 设计伏笔，但不回收长期伏笔
-
-==============================
-【输出定位】
-你的输出将被下游 Agent 用于：
-- 章节拆分
-- 事件抽取
-- 角色状态管理
-- 一致性校验
-
-因此，输出必须：
-- 结构清晰
-- 因果明确
-- 可被程序解析和再利用
-
-==============================
-【默认输出结构（Markdown）】
-
-## 一、阶段目标
-- 主线目标：
-- 主角状态变化（起点 → 终点）：
-
-## 二、核心冲突
-- 主冲突：
-- 次级冲突（可选）：
-
-## 三、关键剧情节点（有序）
-- 节点 1：
-  - 触发：
-  - 概述：
-  - 影响：
-- 节点 2：
-  ...
-
-## 四、人物变化
-- 角色名：
-  - 变化方向：
-
-## 五、伏笔与信息控制
-- 新伏笔：
-- 延迟揭示的信息：
-
-## 六、节奏与情绪
-- 节奏建议：
-- 情绪曲线：
-
-==============================
-如果输入信息不足，请在不发散世界观的前提下，做最小合理补全。
-`;
-
-const userPrompt = `
-【任务类型】
-章节区间大纲规划
-
-【小说标题】
-${outlineInfo.value.title}
-
-【章节范围】
-第 ${outlineInfo.value.startChapter} 章 ～ 第 ${outlineInfo.value.endChapter} 章
-
-【作者提示】
-${dialogPrompt.value.trim() || "（无写作要求提示）"}
-
-请基于以上信息，
-仅针对【本章节范围】生成写作指导型大纲。
-`;
-
-/** 传给AI的提示 */
-
-  } catch (e) {}
+    await applyOutlineContent(result)
+    ElMessage.success('已生成大纲内容')
+  } catch (error: any) {
+    ElMessage.error('生成大纲失败: ' + (error.message || '未知错误'))
+  }
 }
 
 const handlePolishOutline = async () => {
   if (!ensureOutlineSelected()) return
+  await getOutlineContent()
+
   try {
     const prompt = dialogPrompt.value.trim()
-    ElMessage.info(
-      prompt
-        ? `按照要求优化大纲（示例）：${prompt}`
-        : '正在整体优化大纲结构和文案（示例）'
-    )
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    ElMessage.success('大纲优化建议已生成（示例）')
-  } catch (e) {}
+    const systemPrompt = outlineSkills.polish.systemPrompt
+    const userPrompt = outlineSkills.polish.buildUserPrompt({
+      outlineContent: outlineInfo.value?.content,
+      extraPrompt: prompt
+    })
+
+    const result = (await callChatModel(systemPrompt, userPrompt)).trim()
+    if (!result) {
+      ElMessage.warning('未生成有效优化结果')
+      return
+    }
+
+    await applyOutlineContent(result)
+    ElMessage.success('已更新优化后的大纲')
+  } catch (error: any) {
+    ElMessage.error('优化大纲失败: ' + (error.message || '未知错误'))
+  }
 }
 
 const handleCheckLogic = async () => {
   if (!ensureOutlineSelected()) return
+  await getOutlineContent()
+
   try {
     const prompt = dialogPrompt.value.trim()
-    ElMessage.info(
-      prompt
-        ? `按重点检查大纲逻辑（示例）：${prompt}`
-        : '正在进行大纲逻辑与设定检查（示例）'
-    )
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    ElMessage.success('逻辑检查完成（示例）')
-  } catch (e) {}
+    const systemPrompt = outlineSkills.logic.systemPrompt
+    const userPrompt = outlineSkills.logic.buildUserPrompt({
+      novelTitle: props.novelTitle,
+      outlineContent: outlineInfo.value?.content,
+      extraPrompt: prompt
+    })
+
+    const result = (await callChatModel(systemPrompt, userPrompt)).trim()
+    if (!result) {
+      ElMessage.warning('未生成逻辑检查结果')
+      return
+    }
+
+    await ElMessageBox.alert(result, '大纲逻辑检查', {
+      confirmButtonText: '知道了',
+      dangerouslyUseHTMLString: false
+    })
+  } catch (error: any) {
+    ElMessage.error('逻辑检查失败: ' + (error.message || '未知错误'))
+  }
 }
+
+
+
 </script>
 
 <style scoped>

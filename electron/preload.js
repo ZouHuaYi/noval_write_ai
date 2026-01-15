@@ -39,6 +39,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (id) => ipcRenderer.invoke('outline:delete', id)
   },
   
+  // StoryEngine 记忆相关 API
+  memory: {
+    get: (novelId) => ipcRenderer.invoke('memory:get', novelId)
+  },
+  
   // LLM 相关 API（在主进程统一封装）
   llm: {
     chat: (options) => ipcRenderer.invoke('llm:chat', options),
@@ -46,6 +51,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   
   // 保留旧的数据库操作 API（向后兼容）
+
   db: {
     query: (sql, params) => ipcRenderer.invoke('db-query', sql, params),
     execute: (sql, params) => ipcRenderer.invoke('db-execute', sql, params),

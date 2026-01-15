@@ -89,7 +89,8 @@
 <script setup lang="ts">
 import { Check, Document } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { ref, watch } from 'vue';
+import { onMounted, onUnmounted, ref, watch } from 'vue';
+
 
 const props = defineProps<{
   outlineId?: string | null
@@ -135,9 +136,26 @@ async function loadOutline(outlineId: string) {
   }
 }
 
+const handleOutlineUpdated = (event: Event) => {
+  const customEvent = event as CustomEvent
+  const updatedId = customEvent.detail?.outlineId
+  if (updatedId && updatedId === props.outlineId) {
+    loadOutline(updatedId)
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('outline-updated', handleOutlineUpdated as EventListener)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('outline-updated', handleOutlineUpdated as EventListener)
+})
+
 // 自动保存（防抖）
 let saveTimer: any = null
 watch([() => outlineTitle.value, () => outlineContent.value, () => startChapter.value, () => endChapter.value], () => {
+
   if (props.outlineId) {
     clearTimeout(saveTimer)
     saveTimer = setTimeout(() => {

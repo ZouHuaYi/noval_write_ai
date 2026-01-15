@@ -1,5 +1,6 @@
 const fs = require("fs")
 const path = require("path")
+const { getChaptersByNovelAndStatus } = require("../../database/chapterDAO")
 
 function scanChapters(dir = "chapters") {
   return fs
@@ -13,4 +14,14 @@ function scanChapters(dir = "chapters") {
     })
 }
 
-module.exports = { scanChapters }
+function scanWritingChapters(novelId, status = "writing") {
+  if (!novelId) return []
+  return getChaptersByNovelAndStatus(novelId, status).map(chapter => ({
+    id: chapter.id,
+    chapter: chapter.chapterNumber,
+    text: chapter.content || ""
+  }))
+}
+
+module.exports = { scanChapters, scanWritingChapters }
+

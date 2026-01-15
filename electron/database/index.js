@@ -66,7 +66,24 @@ function initDatabase() {
         db.exec(`ALTER TABLE outline ADD COLUMN endChapter INTEGER`)
       }
     }
+
+    const memoryTables = ['entity', 'event', 'dependency']
+    memoryTables.forEach((tableName) => {
+      const tableExists = db.prepare(`
+        SELECT name FROM sqlite_master WHERE type='table' AND name='${tableName}'
+      `).get()
+
+      if (!tableExists) return
+
+      const tableInfo = db.prepare(`PRAGMA table_info(${tableName})`).all()
+      const hasChapterNumber = tableInfo.some(col => col.name === 'chapterNumber')
+      if (!hasChapterNumber) {
+        console.log(`执行数据库迁移：为 ${tableName} 添加chapterNumber字段`)
+        db.exec(`ALTER TABLE ${tableName} ADD COLUMN chapterNumber INTEGER`)
+      }
+    })
   } catch (error) {
+
     console.error('数据库迁移失败:', error)
   }
   
