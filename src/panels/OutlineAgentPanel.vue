@@ -142,11 +142,11 @@
 </template>
 
 <script setup lang="ts">
-import { Brush, Cpu, InfoFilled, List, Loading, Warning } from '@element-plus/icons-vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { Brush, Cpu, InfoFilled, List, Loading, Warning } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { callChatModel } from '@/llm/client'
 import { outlineSkills } from '@/llm/prompts/outline'
-import { ref, watch } from 'vue';
+import { ref, watch } from 'vue'
 
 
 const props = defineProps<{
@@ -224,7 +224,55 @@ const getDialogHint = () => {
   return hints[dialogType.value]
 }
 
+const formatOutlineRange = (start?: number | null, end?: number | null) => {
+  if (start && end) return `第 ${start} 章 - 第 ${end} 章`
+  if (start) return `第 ${start} 章起`
+  if (end) return `至第 ${end} 章`
+  return '未设置范围'
+}
+
+const buildOutlineContextForRange = async (start?: number | null, end?: number | null) => {
+  if (!props.novelId) return ''
+  if (!window.electronAPI?.outline) return ''
+  if (!start || !end) return ''
+
+  try {
+    const outlines = await window.electronAPI.outline.list(props.novelId)
+    const matched = outlines.filter(outline => {
+      if (outline.id === props.outlineId) return false
+      if (outline.startChapter == null || outline.endChapter == null) return false
+      return outline.startChapter <= end && outline.endChapter >= start
+    })
+
+    if (matched.length === 0) return ''
+
+    return matched.map(outline => {
+      const range = formatOutlineRange(outline.startChapter, outline.endChapter)
+      const content = outline.content?.trim() || '（该大纲暂无内容）'
+      return `【${outline.title}】(${range})\n${content}`
+    }).join('\n\n')
+  } catch (error: any) {
+    console.error('加载关联大纲失败:', error)
+    return ''
+  }
+}
+
+const buildMemoryContextForRange = async (start?: number | null, end?: number | null) => {
+  if (!props.novelId) return ''
+  if (!window.electronAPI?.storyEngine?.compress) return ''
+  const chapter = end ?? start
+  if (!chapter) return ''
+
+  try {
+    return await window.electronAPI.storyEngine.compress(chapter, props.novelId)
+  } catch (error: any) {
+    console.error('获取记忆上下文失败:', error)
+    return ''
+  }
+}
+
 const openGenerateDialog = () => {
+
   if (!ensureOutlineSelected()) return
   dialogType.value = 'generate'
   dialogTitle.value = '生成大纲建议'
@@ -270,18 +318,36 @@ const handleGenerateChapters = async () => {
   if (!ensureOutlineSelected()) return
   await getOutlineContent()
 
+  if (!window.electronAPI?.outline?.generate) {
+    ElMessage.error('大纲生成接口未加载')
+    return
+  }
+
   try {
     const prompt = dialogPrompt.value.trim()
+    const startChapter = outlineInfo.value?.startChapter ?? null
+    const endChapter = outlineInfo.value?.endChapter ?? null
+    const [outlineContext, memoryContext] = await Promise.all([
+      buildOutlineContextForRange(startChapter, endChapter),
+      buildMemoryContextForRange(startChapter, endChapter)
+    ])
+
     const systemPrompt = outlineSkills.generate.systemPrompt
     const userPrompt = outlineSkills.generate.buildUserPrompt({
       novelTitle: props.novelTitle,
       outlineTitle: outlineInfo.value?.title,
-      startChapter: outlineInfo.value?.startChapter,
-      endChapter: outlineInfo.value?.endChapter,
+      startChapter,
+      endChapter,
+      outlineContext,
+      memoryContext,
       extraPrompt: prompt
     })
 
-    const result = (await callChatModel(systemPrompt, userPrompt)).trim()
+    const result = (await window.electronAPI.outline.generate({
+      systemPrompt,
+      userPrompt
+    })).trim()
+
     if (!result) {
       ElMessage.warning('未生成有效大纲内容')
       return

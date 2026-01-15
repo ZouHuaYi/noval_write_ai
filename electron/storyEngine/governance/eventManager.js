@@ -1,14 +1,16 @@
 const { computeEffects } = require("./computeEffects")
 
-function createFromClaims(eventClaims, characterClaims) {
+function createFromClaims(eventClaims, characterClaims, characterStore) {
   const events = []
+
 
   for (const ev of eventClaims) {
     const related = characterClaims.filter(
       c => c.relatedEventId === ev.eventId
     )
 
-    const effects = computeEffects(ev, related)
+    const effects = computeEffects(ev, related, characterStore)
+
 
     const event = {
       id: ev.eventId,

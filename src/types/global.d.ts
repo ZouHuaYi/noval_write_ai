@@ -48,6 +48,7 @@ declare global {
         create: (novelId: string, data?: { title?: string; content?: string; startChapter?: number; endChapter?: number }) => Promise<any>
         update: (id: string, data: Partial<{ title: string; content: string; startChapter: number; endChapter: number }>) => Promise<any>
         delete: (id: string) => Promise<{ success: boolean }>
+        generate: (data: { systemPrompt: string; userPrompt: string }) => Promise<string>
       }
       
       // StoryEngine 记忆相关 API
@@ -57,6 +58,16 @@ declare global {
           events: any[]
           dependencies: any[]
         }>
+      }
+      
+      // StoryEngine 处理相关 API
+      storyEngine: {
+        run: (novelId: string) => Promise<{
+          total: number
+          successCount: number
+          failureCount: number
+        }>
+        compress: (chapter: number, novelId?: string) => Promise<string>
       }
       
       // LLM 相关 API

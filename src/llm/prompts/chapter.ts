@@ -1,7 +1,10 @@
 export type ChapterContinueInput = {
   novelTitle?: string
   chapterTitle?: string
+  chapterNumber?: number | null
   content: string
+  outlineContext?: string
+  memoryContext?: string
   extraPrompt?: string
 }
 
@@ -16,23 +19,49 @@ export type ChapterConsistencyInput = {
   extraPrompt?: string
 }
 
+const formatSection = (title: string, content: string) => `【${title}】\n${content || '无'}\n`
+
 export const chapterSkills = {
   continue: {
-    systemPrompt: '你是小说续写助手。请基于提供的章节内容进行续写，保持文风一致。只输出续写内容，不要重复已有文本，也不要添加标题或说明。',
-    buildUserPrompt: ({ novelTitle, chapterTitle, content, extraPrompt }: ChapterContinueInput) => {
-      return `小说标题：${novelTitle || '未命名'}\n章节标题：${chapterTitle || '未命名'}\n\n已写内容：\n${content}\n\n作者要求：${extraPrompt || '无'}\n\n请续写 2-4 个自然段。`
+    systemPrompt: '你是小说续写助手。请根据给定上下文续写章节，保持原文叙事视角与文风，不重复已有内容，不输出标题或说明，只输出续写正文。',
+    buildUserPrompt: ({
+      novelTitle,
+      chapterTitle,
+      chapterNumber,
+      content,
+      outlineContext,
+      memoryContext,
+      extraPrompt
+    }: ChapterContinueInput) => {
+      return [
+        formatSection('小说信息', `标题：${novelTitle || '未命名'}\n章节：第 ${chapterNumber ?? '?'} 章 · ${chapterTitle || '未命名'}`),
+        formatSection('章节已写内容', content),
+        formatSection('关联大纲', outlineContext || '无匹配大纲'),
+        formatSection('记忆上下文', memoryContext || '无可用记忆'),
+        formatSection('作者补充要求', extraPrompt || '无'),
+        formatSection('输出要求', '续写 2-4 个自然段，保证情节连贯，避免重复已写内容。')
+      ].join('\n')
     }
   },
   polish: {
-    systemPrompt: '你是中文小说文本润色助手。请在不改变原意的前提下优化表达、流畅度和细节。只输出润色后的文本，不要添加说明。',
+    systemPrompt: '你是中文小说文本润色助手。保持原意与叙事视角不变，优化流畅度、节奏和细节描写。只输出润色后的文本，不要添加说明。',
     buildUserPrompt: ({ text, extraPrompt }: ChapterPolishInput) => {
-      return `待润色内容：\n${text}\n\n润色要求：${extraPrompt || '无'}\n\n请输出润色后的文本。`
+      return [
+        formatSection('待润色文本', text),
+        formatSection('润色要求', extraPrompt || '无'),
+        formatSection('输出要求', '保持原意与人称，提升可读性，输出润色后的完整文本。')
+      ].join('\n')
     }
   },
   consistency: {
-    systemPrompt: '你是小说一致性检查助手。请指出人物、时间线、设定、情节逻辑等可能的不一致，并给出修复建议。用列表输出。',
+    systemPrompt: '你是小说一致性检查助手。请检查人物、时间线、设定与逻辑漏洞，按条列出问题与修复建议。',
     buildUserPrompt: ({ novelTitle, content, extraPrompt }: ChapterConsistencyInput) => {
-      return `小说标题：${novelTitle || '未命名'}\n\n章节内容：\n${content}\n\n检查重点：${extraPrompt || '无'}\n\n请输出检查结果。`
+      return [
+        formatSection('小说标题', novelTitle || '未命名'),
+        formatSection('章节内容', content),
+        formatSection('检查重点', extraPrompt || '无'),
+        formatSection('输出要求', '用列表输出不一致点与建议修复方案。')
+      ].join('\n')
     }
   }
 }

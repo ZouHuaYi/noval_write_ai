@@ -1,10 +1,9 @@
 // characterRules.js
-const { CharacterStore } = require("../../storage/characterStore")
-const characterStore = new CharacterStore()
 
 /**
  * 角色状态规则声明
  */
+
 const CharacterStateRules = [
   {
     id: "injured_no_heal_in_battle",
@@ -42,9 +41,10 @@ const CharacterStateRules = [
 /**
  * 校验函数
  */
-function checkCharacterRules(event) {
+function checkCharacterRules(event, characterStore) {
+  if (!characterStore) return
   for (const eff of event.effects || []) {
-    if (eff.targetType !== "character") continue
+    if (eff.targetType !== 'character') continue
 
     const ch = characterStore.get(eff.targetId)
     if (!ch) continue
@@ -59,5 +59,6 @@ function checkCharacterRules(event) {
     }
   }
 }
+
 
 module.exports = { checkCharacterRules, CharacterStateRules }

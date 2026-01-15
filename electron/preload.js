@@ -36,12 +36,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
     get: (id) => ipcRenderer.invoke('outline:get', id),
     create: (novelId, data) => ipcRenderer.invoke('outline:create', novelId, data),
     update: (id, data) => ipcRenderer.invoke('outline:update', id, data),
-    delete: (id) => ipcRenderer.invoke('outline:delete', id)
+    delete: (id) => ipcRenderer.invoke('outline:delete', id),
+    generate: (data) => ipcRenderer.invoke('outline:generate', data)
   },
   
   // StoryEngine 记忆相关 API
+
   memory: {
     get: (novelId) => ipcRenderer.invoke('memory:get', novelId)
+  },
+  
+  // StoryEngine 处理相关 API
+  storyEngine: {
+    run: (novelId) => ipcRenderer.invoke('storyEngine:run', novelId),
+    compress: (chapter, novelId) => ipcRenderer.invoke('storyEngine:compress', chapter, novelId)
   },
   
   // LLM 相关 API（在主进程统一封装）

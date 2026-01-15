@@ -154,6 +154,15 @@ async function loadMemory() {
 
   loading.value = true
   try {
+    if (window.electronAPI?.storyEngine) {
+      try {
+        await window.electronAPI.storyEngine.run(props.novelId)
+      } catch (error: any) {
+        console.error('运行记忆提取失败:', error)
+        ElMessage.error('运行记忆提取失败')
+      }
+    }
+
     if (window.electronAPI?.memory) {
       const data = await window.electronAPI.memory.get(props.novelId)
       memory.entities = data?.entities || []

@@ -1,10 +1,9 @@
 // dependencyRules.js
-const { DependencyStore } = require("../../storage/dependencyStore")
-const dependencyStore = new DependencyStore()
 
 /**
  * 依赖规则声明
  */
+
 const DependencyRules = [
   {
     id: "dependency_not_violated",
@@ -45,7 +44,8 @@ const DependencyRules = [
   // - 并行依赖处理
 ]
 
-function checkDependencyRules(event) {
+function checkDependencyRules(event, dependencyStore) {
+  if (!dependencyStore) return
   // 获取事件相关的依赖
   const deps = dependencyStore.getOpenRelated(event.actors)
   for (const dep of deps) {
@@ -59,5 +59,6 @@ function checkDependencyRules(event) {
     }
   }
 }
+
 
 module.exports = { checkDependencyRules, DependencyRules }

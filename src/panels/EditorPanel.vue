@@ -220,6 +220,15 @@ async function markMemory() {
   }
   saving.value = true
   try {
+    if (props.novelId && window.electronAPI?.storyEngine) {
+      try {
+        await window.electronAPI.storyEngine.run(props.novelId)
+      } catch (error: any) {
+        console.error('运行记忆提取失败:', error)
+        ElMessage.error('运行记忆提取失败')
+      }
+    }
+
     // 调用相关的记忆功能的接口
     if (window.electronAPI?.chapter) {
       const updateData: any = {
@@ -241,6 +250,7 @@ async function markMemory() {
     saving.value = false
   }
 }
+
 
 async function markComplete() {
   if (!props.chapterId) {

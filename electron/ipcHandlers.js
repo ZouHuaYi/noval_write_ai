@@ -6,6 +6,7 @@ const outlineDAO = require('./database/outlineDAO')
 const entityDAO = require('./database/entityDAO')
 const eventDAO = require('./database/eventDAO')
 const dependencyDAO = require('./database/dependencyDAO')
+const storyEngine = require('./storyEngine')
 const llmService = require('./llm/llmService')
 
 
@@ -215,7 +216,22 @@ function registerIpcHandlers() {
     }
   })
 
+  ipcMain.handle('outline:generate', async (_, data) => {
+    try {
+      return await llmService.callChatModel({
+        messages: [
+          { role: 'system', content: data?.systemPrompt || '' },
+          { role: 'user', content: data?.userPrompt || '' }
+        ]
+      })
+    } catch (error) {
+      console.error('生成大纲失败:', error)
+      throw error
+    }
+  })
+
   // ========== StoryEngine 记忆相关 ==========
+
   ipcMain.handle('memory:get', (_, novelId) => {
     try {
       return {
@@ -225,6 +241,25 @@ function registerIpcHandlers() {
       }
     } catch (error) {
       console.error('获取记忆数据失败:', error)
+      throw error
+    }
+  })
+
+  // ========== StoryEngine 处理相关 ==========
+  ipcMain.handle('storyEngine:run', async (_, novelId) => {
+    try {
+      return await storyEngine.run(novelId)
+    } catch (error) {
+      console.error('运行 StoryEngine 失败:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('storyEngine:compress', (_, chapter, novelId) => {
+    try {
+      return storyEngine.processCompressOutput(chapter, novelId)
+    } catch (error) {
+      console.error('压缩 StoryEngine 上下文失败:', error)
       throw error
     }
   })

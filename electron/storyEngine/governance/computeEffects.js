@@ -1,7 +1,5 @@
-const { CharacterStore } = require("../storage/characterStore")
-const characterStore = new CharacterStore()
-
 const EffectRules = [
+
   {
     id: "injury",
     keywords: ["贯穿", "重伤", "血"],
@@ -25,11 +23,12 @@ const EffectRules = [
   }
 ]
 
-function computeEffects(eventClaim, characterClaims) {
+function computeEffects(eventClaim, characterClaims, characterStore) {
   const effectMap = new Map()
 
   for (const claim of characterClaims) {
     const char = characterStore.get(claim.characterId)
+
 
     for (const rule of EffectRules) {
       const matchesKeyword = rule.keywords.some(k => claim.claim.includes(k))

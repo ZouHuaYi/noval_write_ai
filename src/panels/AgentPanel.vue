@@ -166,7 +166,7 @@ import { Brush, Cpu, InfoFilled, Loading, Plus, Search, Warning } from '@element
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { callChatModel } from '@/llm/client'
 import { chapterSkills } from '@/llm/prompts/chapter'
-import { ref } from 'vue';
+import { ref } from 'vue'
 
 
 const props = defineProps<{
@@ -208,9 +208,70 @@ const getDialogHint = () => {
   return hints[dialogType.value] || ''
 }
 
+const formatOutlineRange = (start?: number | null, end?: number | null) => {
+  if (start && end) return `第 ${start} 章 - 第 ${end} 章`
+  if (start) return `第 ${start} 章起`
+  if (end) return `至第 ${end} 章`
+  return '未设置范围'
+}
 
+const buildOutlineContextForChapter = async (chapterNumber: number | null) => {
+  if (!props.novelId || !chapterNumber) return ''
+  if (!window.electronAPI?.outline) return ''
+
+  try {
+    const outlines = await window.electronAPI.outline.list(props.novelId)
+    const matched = outlines.filter(outline => {
+      if (outline.startChapter == null || outline.endChapter == null) return false
+      return chapterNumber >= outline.startChapter && chapterNumber <= outline.endChapter
+    })
+
+    if (matched.length === 0) return ''
+
+    return matched.map(outline => {
+      const range = formatOutlineRange(outline.startChapter, outline.endChapter)
+      const content = outline.content?.trim() || '（该大纲暂无内容）'
+      return `【${outline.title}】(${range})\n${content}`
+    }).join('\n\n')
+  } catch (error: any) {
+    console.error('加载关联大纲失败:', error)
+    return ''
+  }
+}
+
+const buildMemoryContextForChapter = async (chapterNumber: number | null) => {
+  if (!props.novelId || !chapterNumber) return ''
+  if (!window.electronAPI?.storyEngine?.compress) return ''
+
+  try {
+    return await window.electronAPI.storyEngine.compress(chapterNumber, props.novelId)
+  } catch (error: any) {
+    console.error('获取记忆上下文失败:', error)
+    return ''
+  }
+}
+
+const buildGenerationContext = async () => {
+  if (!props.chapterId || !window.electronAPI?.chapter) {
+    return { chapterNumber: null, outlineContext: '', memoryContext: '' }
+  }
+
+  const chapter = await window.electronAPI.chapter.get(props.chapterId)
+  const chapterNumber = chapter?.chapterNumber ?? null
+  const [outlineContext, memoryContext] = await Promise.all([
+    buildOutlineContextForChapter(chapterNumber),
+    buildMemoryContextForChapter(chapterNumber)
+  ])
+
+  return {
+    chapterNumber,
+    outlineContext,
+    memoryContext
+  }
+}
 
 const handlePolish = () => {
+
 
   if (!props.chapterId || !props.chapterContent) {
     ElMessage.warning('请先选择章节并输入内容')
@@ -263,11 +324,15 @@ const executeContinue = async () => {
   }
 
   const prompt = dialogPrompt.value.trim()
+  const { chapterNumber, outlineContext, memoryContext } = await buildGenerationContext()
   const systemPrompt = chapterSkills.continue.systemPrompt
   const userPrompt = chapterSkills.continue.buildUserPrompt({
     novelTitle: props.novelTitle,
     chapterTitle: props.chapterTitle,
+    chapterNumber,
     content: props.chapterContent,
+    outlineContext,
+    memoryContext,
     extraPrompt: prompt
   })
 
