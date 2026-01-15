@@ -21,8 +21,8 @@
             class="w-32 h-48 object-cover rounded"
           />
           <div class="flex-1">
-            <h1 class="text-3xl font-bold mb-2">{{ novel.title }}</h1>
-            <p class="text-gray-700">{{ novel.description || '暂无描述' }}</p>
+            <h1 class="text-3xl font-bold mb-2">{{ novel?.title }}</h1>
+            <p class="text-gray-700">{{ novel?.description || '暂无描述' }}</p>
           </div>
         </div>
       </div>

@@ -14,7 +14,7 @@
         <el-divider direction="vertical" class="h-6" />
         <div v-if="novel" class="flex items-center space-x-3">
           <div class="flex justify-center">
-            <span class="font-semibold text-base text-gray-800 leading-tight">{{ novel.title }}</span>
+            <span class="font-semibold text-base text-gray-800 leading-tight">{{ novel?.title }}</span>
           </div>
         </div>
         <div v-else class="text-gray-400 text-sm">加载中...</div>
@@ -91,7 +91,7 @@
         <AgentPanel 
           v-if="leftTab === 'chapters'"
           :novel-id="novelId"
-          :novel-title="novel.title"
+          :novel-title="novel?.title"
           :chapter-id="currentChapterId"
           :chapter-content="currentChapterContent"
           :selected-text="selectedText"
@@ -101,7 +101,7 @@
         <OutlineAgentPanel
           v-else
           :novel-id="novelId"
-          :novel-title="novel.title"
+          :novel-title="novel?.title"
           :outline-id="currentOutlineId"
         />
       </template>

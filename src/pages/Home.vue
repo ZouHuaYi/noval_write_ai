@@ -76,7 +76,7 @@
               class="p-4 border rounded-lg hover:border-blue-300 cursor-pointer transition-colors"
               @click="goToNovelDetail(novel.id)"
             >
-              <h4 class="font-semibold mb-2">{{ novel.title }}</h4>
+              <h4 class="font-semibold mb-2">{{ novel?.title }}</h4>
               <p class="text-sm text-gray-500 line-clamp-2 mb-2">{{ novel.description || '暂无简介' }}</p>
               <div class="flex items-center justify-between">
                 <el-tag v-if="novel.genre" size="small">{{ novel.genre }}</el-tag>

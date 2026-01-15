@@ -69,11 +69,11 @@
           @click="goToNovelDetail(novel.id)"
         >
           <div class="mb-3">
-            <h3 class="text-lg font-semibold mb-2">{{ novel.title }}</h3>
-            <p class="text-sm text-gray-600 line-clamp-2 mb-3">{{ novel.description || '暂无简介' }}</p>
+            <h3 class="text-lg font-semibold mb-2">{{ novel?.title }}</h3>
+            <p class="text-sm text-gray-600 line-clamp-2 mb-3">{{ novel?.description || '暂无简介' }}</p>
             <div class="flex items-center justify-between">
-              <el-tag v-if="novel.genre" size="small">{{ novel.genre }}</el-tag>
-              <span class="text-xs text-gray-400">{{ formatDate(novel.updatedAt) }}</span>
+              <el-tag v-if="novel?.genre" size="small">{{ novel?.genre }}</el-tag>
+              <span class="text-xs text-gray-400">{{ formatDate(novel?.updatedAt) }}</span>
             </div>
           </div>
           <div class="flex space-x-2 pt-3 border-t">
@@ -129,10 +129,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { Plus, List, Grid, Document, HomeFilled } from '@element-plus/icons-vue'
+import { Document, Grid, HomeFilled, List, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 type Novel = {
   id: string
@@ -200,9 +200,9 @@ function formatDate(timestamp?: number) {
 function editNovel(novel: Novel) {
   editingNovel.value = novel
   novelForm.value = {
-    title: novel.title || '',
-    genre: novel.genre || '',
-    description: novel.description || ''
+    title: novel?.title || '',
+    genre: novel?.genre || '',
+    description: novel?.description || ''
   }
   showAddDialog.value = true
 }
