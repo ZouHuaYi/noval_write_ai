@@ -1,106 +1,127 @@
 <template>
-  <div class="h-full flex flex-col overflow-hidden bg-gradient-to-b from-gray-50 to-white">
+  <div class="h-full flex flex-col overflow-hidden">
     <!-- 标题栏 -->
-    <div class="flex-shrink-0 px-4 py-3 border-b border-gray-200/60 bg-white/80 backdrop-blur-sm shadow-sm">
+    <div class="flex-shrink-0 px-4 py-3 border-b border-[color:var(--app-border)] bg-transparent workbench-panel-header">
+
       <div class="flex items-center justify-between">
-        <div class="flex items-center space-x-2">
-          <div class="p-1.5 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 shadow-md">
+        <div class="workbench-panel-title">
+          <div class="p-1.5 rounded-lg bg-emerald-500 shadow-md">
             <el-icon class="text-white text-lg"><Cpu /></el-icon>
           </div>
           <div>
-            <div class="font-bold text-base text-gray-800">AI 写作助手</div>
-            <div class="text-xs text-gray-500">智能创作与编辑工具</div>
+            <div class="font-bold text-base">AI 写作助手</div>
+            <div class="text-xs app-muted">智能创作与编辑工具</div>
           </div>
         </div>
       </div>
     </div>
 
     <!-- 内容区域 - 可滚动 -->
-    <div class="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar min-h-0">
-      <!-- AI 功能工具卡片 -->
-      <div>
-        <div class="grid grid-cols-2 gap-3">
-          <!-- 润色文本 -->
-          <div 
-            class="group bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
-            @click="handlePolish"
-          >
-            <div class="p-4 space-y-2">
-              <div class="flex items-center justify-between">
-                <div class="p-2 rounded-lg bg-green-100 group-hover:bg-green-200 transition-colors">
-                  <el-icon class="text-green-600 text-lg"><Brush /></el-icon>
-                </div>
-                <el-icon 
-                  v-if="processing" 
-                  class="is-loading text-gray-400 text-sm"
-                >
-                  <Loading />
-                </el-icon>
-              </div>
-              <div class="text-sm font-semibold text-gray-800">润色文本</div>
-              <div class="text-xs text-gray-500">优化文字表达</div>
-            </div>
+    <div class="flex-1 px-4 py-4 min-h-0 overflow-y-auto">
+      <div class="app-section workbench-info-card p-3 mb-4 text-xs space-y-2">
+          <div>
+            <div class="workbench-section-title">当前状态</div>
+            <div v-if="!props.chapterId" class="app-muted">请选择章节后使用 AI 工具</div>
+            <div v-else class="app-muted">已选择章节：{{ props.chapterTitle || '未命名章节' }}</div>
+            <div v-if="props.selectedText" class="app-muted">已选中 {{ props.selectedText.length }} 字</div>
+            <div v-else class="app-muted">可选中文字进行精细润色</div>
           </div>
-
-          <!-- 生成内容 -->
-          <div 
-            class="group bg-white rounded-lg border-2 border-blue-200 shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50"
-            @click="handleGenerateNextChapter"
-          >
-            <div class="p-4 space-y-2">
-              <div class="flex items-center justify-between">
-                <div class="p-2 rounded-lg bg-blue-500 group-hover:bg-blue-600 transition-colors shadow-sm">
-                  <el-icon class="text-white text-lg"><Plus /></el-icon>
-                </div>
-                <el-icon 
-                  v-if="processing" 
-                  class="is-loading text-gray-400 text-sm"
-                >
-                  <Loading />
-                </el-icon>
-              </div>
-              <div class="text-sm font-semibold text-gray-800">生成内容</div>
-              <div class="text-xs text-gray-500">AI 自动续写</div>
-            </div>
+          <div>
+            <div class="workbench-section-title">结果摘要</div>
+            <div v-if="lastAction" class="app-muted">{{ lastAction }}（{{ formatActionTime(lastActionAt) }}）</div>
+            <div v-else class="app-muted">暂无执行记录</div>
           </div>
-
-          <!-- 一致性检查 -->
-          <div 
-            class="group bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
-            @click="handleConsistency"
-          >
-            <div class="p-4 space-y-2">
-              <div class="flex items-center justify-between">
-                <div class="p-2 rounded-lg bg-orange-100 group-hover:bg-orange-200 transition-colors">
-                  <el-icon class="text-orange-600 text-lg"><Search /></el-icon>
-                </div>
-                <el-icon 
-                  v-if="processing" 
-                  class="is-loading text-gray-400 text-sm"
-                >
-                  <Loading />
-                </el-icon>
-              </div>
-              <div class="text-sm font-semibold text-gray-800">一致性检查</div>
-              <div class="text-xs text-gray-500">检查内容一致性</div>
-            </div>
-          </div>
-
-        </div>
       </div>
+      <el-collapse v-model="activeSections" class="mb-3">
+        <el-collapse-item name="tools">
+          <template #title>
+            <span class="text-xs font-semibold">写作工具</span>
+          </template>
+          <div class="grid grid-cols-2 gap-3">
+            <!-- 润色文本 -->
+            <div 
+              class="group app-section shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
+              @click="handlePolish"
+            >
+              <div class="p-4 space-y-2">
+                <div class="flex items-center justify-between">
+                  <div class="p-2 rounded-lg bg-green-100 group-hover:bg-green-200 transition-colors">
+                    <el-icon class="text-green-600 text-lg"><Brush /></el-icon>
+                  </div>
+                  <el-icon 
+                    v-if="processing" 
+                    class="is-loading app-muted text-sm"
+                  >
+                    <Loading />
+                  </el-icon>
+                </div>
+                <div class="text-sm font-semibold">润色文本</div>
+                <div class="text-xs app-muted">优化文字表达</div>
+              </div>
+            </div>
 
-      <!-- 提示信息 -->
-      <div class="mt-5 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-        <div class="flex items-start space-x-2">
-          <el-icon class="text-blue-500 text-sm mt-0.5 flex-shrink-0"><InfoFilled /></el-icon>
-          <div class="text-xs text-blue-700 leading-relaxed">
-            <div class="font-semibold mb-1">使用提示：</div>
-            <div>• 选择章节后可使用润色和续写功能</div>
-            <div>• 选中文字后可针对选中内容进行操作</div>
-            <div>• 所有操作都会自动保存到章节中</div>
+            <!-- 生成内容 -->
+            <div 
+              class="group app-section border-2 border-emerald-300 shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden bg-emerald-50/60"
+              @click="handleGenerateNextChapter"
+            >
+              <div class="p-4 space-y-2">
+                <div class="flex items-center justify-between">
+                  <div class="p-2 rounded-lg bg-blue-500 group-hover:bg-blue-600 transition-colors shadow-sm">
+                    <el-icon class="text-white text-lg"><Plus /></el-icon>
+                  </div>
+                  <el-icon 
+                    v-if="processing" 
+                    class="is-loading app-muted text-sm"
+                  >
+                    <Loading />
+                  </el-icon>
+                </div>
+                <div class="text-sm font-semibold">生成内容</div>
+                <div class="text-xs app-muted">AI 自动续写</div>
+              </div>
+            </div>
+
+            <!-- 一致性检查 -->
+            <div 
+              class="group app-section shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
+              @click="handleConsistency"
+            >
+              <div class="p-4 space-y-2">
+                <div class="flex items-center justify-between">
+                  <div class="p-2 rounded-lg bg-orange-100 group-hover:bg-orange-200 transition-colors">
+                    <el-icon class="text-orange-600 text-lg"><Search /></el-icon>
+                  </div>
+                  <el-icon 
+                    v-if="processing" 
+                    class="is-loading app-muted text-sm"
+                  >
+                    <Loading />
+                  </el-icon>
+                </div>
+                <div class="text-sm font-semibold">一致性检查</div>
+                <div class="text-xs app-muted">检查内容一致性</div>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </el-collapse-item>
+        <el-collapse-item name="tips">
+          <template #title>
+            <span class="text-xs font-semibold">创作建议</span>
+          </template>
+          <div class="p-3 app-section">
+            <div class="flex items-start space-x-2">
+              <el-icon class="text-emerald-500 text-sm mt-0.5 flex-shrink-0"><InfoFilled /></el-icon>
+              <div class="text-xs text-emerald-700 leading-relaxed">
+                <div class="font-semibold mb-1">使用提示：</div>
+                <div>1. 选择章节 → 2. 选中段落 → 3. 选择工具</div>
+                <div>• 选中文字后可针对选中内容进行操作</div>
+                <div>• 所有操作都会自动保存到章节中</div>
+              </div>
+            </div>
+          </div>
+        </el-collapse-item>
+      </el-collapse>
     </div>
 
     <!-- AI 功能对话框 -->
@@ -113,7 +134,7 @@
       <div class="space-y-4">
         <!-- 选中的文字（仅润色时显示） -->
         <div v-if="dialogType === 'polish' && props.selectedText">
-          <div class="text-sm font-semibold text-gray-600 mb-2">选中的文字：</div>
+          <div class="text-sm font-semibold app-muted mb-2">选中的文字：</div>
           <el-input
             :model-value="props.selectedText"
             type="textarea"
@@ -129,7 +150,7 @@
         
         <!-- 自定义提示输入框 -->
         <div>
-          <div class="text-sm font-semibold text-gray-600 mb-2">
+          <div class="text-sm font-semibold app-muted mb-2">
             {{ dialogType === 'polish' ? '润色要求（可选）：' :
                dialogType === 'consistency' ? '检查重点（可选）：' :
                '自定义提示（可选）：' }}
@@ -141,7 +162,7 @@
             :placeholder="getDialogPlaceholder()"
             clearable
           />
-          <div class="text-xs text-gray-500 mt-1">
+          <div class="text-xs app-muted mt-1">
             {{ getDialogHint() }}
           </div>
         </div>
@@ -162,11 +183,11 @@
 </template>
 
 <script setup lang="ts">
+import { callChatModel } from '@/llm/client';
+import { chapterSkills } from '@/llm/prompts/chapter';
 import { Brush, Cpu, InfoFilled, Loading, Plus, Search, Warning } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { callChatModel } from '@/llm/client'
-import { chapterSkills } from '@/llm/prompts/chapter'
-import { ref } from 'vue'
+import { ref } from 'vue';
 
 
 const props = defineProps<{
@@ -189,6 +210,10 @@ const showDialog = ref(false)
 const dialogType = ref<'continue' | 'polish' | 'consistency'>('continue')
 const dialogTitle = ref('')
 const dialogPrompt = ref('')
+const lastAction = ref('')
+const lastActionAt = ref<number | null>(null)
+const activeSections = ref(['tools'])
+
 
 const getDialogPlaceholder = () => {
   const placeholders = {
@@ -297,18 +322,23 @@ const handleConsistency = () => {
 const confirmAction = async () => {
   processing.value = true
   showDialog.value = false
-  
+
   try {
+    let actionResult: string | null = null
     switch (dialogType.value) {
       case 'continue':
-        await executeContinue()
+        actionResult = await executeContinue()
         break
       case 'polish':
-        await executePolish()
+        actionResult = await executePolish()
         break
       case 'consistency':
-        await executeConsistency()
+        actionResult = await executeConsistency()
         break
+    }
+    if (actionResult) {
+      lastAction.value = actionResult
+      lastActionAt.value = Date.now()
     }
   } catch (error: any) {
     ElMessage.error('执行失败: ' + (error.message || '未知错误'))
@@ -317,10 +347,11 @@ const confirmAction = async () => {
   }
 }
 
+
 const executeContinue = async () => {
   if (!props.chapterId || !props.chapterContent) {
     ElMessage.warning('请先选择章节并输入内容')
-    return
+    return null
   }
 
   const prompt = dialogPrompt.value.trim()
@@ -340,19 +371,20 @@ const executeContinue = async () => {
   const trimmed = newText.trim()
   if (!trimmed) {
     ElMessage.warning('未生成有效续写内容')
-    return
+    return null
   }
 
   const separator = props.chapterContent.endsWith('\n') ? '\n' : '\n\n'
   emit('content-updated', props.chapterContent + separator + trimmed)
   ElMessage.success('续写完成')
+  return '续写完成'
 }
 
 
 const executePolish = async () => {
   if (!props.chapterId || !props.chapterContent) {
     ElMessage.warning('请先选择章节并输入内容')
-    return
+    return null
   }
 
   const prompt = dialogPrompt.value.trim()
@@ -367,7 +399,7 @@ const executePolish = async () => {
   const polishedText = (await callChatModel(systemPrompt, userPrompt)).trim()
   if (!polishedText) {
     ElMessage.warning('未生成有效润色内容')
-    return
+    return null
   }
 
   if (props.selectedText) {
@@ -378,16 +410,17 @@ const executePolish = async () => {
       : originalContent + polishedText
     emit('content-updated', newContent)
     ElMessage.success('选中文字润色完成')
-  } else {
-    emit('content-updated', polishedText)
-    ElMessage.success('润色完成')
+    return '选中文字润色完成'
   }
+  emit('content-updated', polishedText)
+  ElMessage.success('润色完成')
+  return '润色完成'
 }
 
 const executeConsistency = async () => {
   if (!props.chapterId || !props.chapterContent) {
     ElMessage.warning('请先选择章节并输入内容')
-    return
+    return null
   }
 
   const prompt = dialogPrompt.value.trim()
@@ -401,13 +434,14 @@ const executeConsistency = async () => {
   const result = (await callChatModel(systemPrompt, userPrompt)).trim()
   if (!result) {
     ElMessage.warning('未生成一致性检查结果')
-    return
+    return null
   }
 
   await ElMessageBox.alert(result, '一致性检查结果', {
     confirmButtonText: '知道了',
     dangerouslyUseHTMLString: false
   })
+  return '一致性检查完成'
 }
 
 
@@ -420,6 +454,14 @@ const handleGenerateNextChapter = () => {
   dialogTitle.value = 'AI 续写内容'
   dialogPrompt.value = ''
   showDialog.value = true
+}
+
+const formatActionTime = (timestamp: number | null) => {
+  if (!timestamp) return '刚刚'
+  return new Date(timestamp).toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 
 </script>

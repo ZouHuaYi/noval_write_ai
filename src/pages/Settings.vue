@@ -1,7 +1,7 @@
 <template>
-  <div class="h-screen flex flex-col bg-gray-50">
+  <div class="h-screen flex flex-col app-shell">
     <!-- 顶部导航栏 -->
-    <div class="h-14 border-b border-gray-200 bg-white flex items-center justify-between px-6 flex-shrink-0">
+    <div class="h-14 app-header flex items-center justify-between px-6 flex-shrink-0">
       <div class="flex items-center space-x-4">
         <el-button 
           text 
@@ -12,24 +12,36 @@
           首页
         </el-button>
         <el-divider direction="vertical" />
-        <h1 class="text-xl font-bold flex items-center">
-          <el-icon class="mr-2"><Setting /></el-icon>
-          应用设置
-        </h1>
+        <div>
+          <div class="text-xs app-muted">系统管理</div>
+          <h1 class="text-xl font-semibold flex items-center">
+            <el-icon class="mr-2"><Setting /></el-icon>
+            应用设置
+          </h1>
+        </div>
       </div>
     </div>
 
     <!-- 内容区域 -->
     <div class="flex-1 overflow-auto p-6">
       <div class="max-w-5xl mx-auto">
+        <div class="app-card p-4 mb-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm font-semibold">模型配置提示</div>
+              <div class="text-xs app-muted mt-1">为创作体验选择稳定、响应快的模型服务</div>
+            </div>
+            <el-tag type="info" effect="plain">建议配置 1 个默认模型</el-tag>
+          </div>
+        </div>
         <el-tabs v-model="activeTab" type="card" class="settings-tabs">
           <!-- LLM 配置 Tab -->
           <el-tab-pane label="LLM 对话模型" name="llm">
-            <el-card shadow="hover" class="mb-6">
+            <el-card shadow="hover" class="mb-6 app-card">
               <template #header>
                 <div class="flex items-center justify-between">
                   <div class="flex items-center">
-                    <el-icon class="mr-2 text-blue-500"><Cpu /></el-icon>
+                    <el-icon class="mr-2 text-emerald-500"><Cpu /></el-icon>
                     <span class="font-semibold">LLM 对话模型配置（兼容 OpenAI API）</span>
                   </div>
                   <el-button
@@ -42,8 +54,16 @@
                 </div>
               </template>
 
+
+              <div class="app-section p-3 mb-4 text-xs">
+                <div class="font-semibold">配置建议</div>
+                <div class="app-muted">推荐先配置一个默认 LLM，用于写作与优化</div>
+                <div class="app-muted">API Key 将仅显示后四位</div>
+              </div>
               <!-- LLM 配置列表 -->
-              <div v-if="llmConfigs.length === 0" class="text-center py-12 text-gray-400">
+               <div v-if="llmConfigs.length === 0" class="text-center py-12 app-muted">
+
+
                 <el-icon class="text-4xl mb-2"><Box /></el-icon>
                 <div>暂无 LLM 配置，点击上方按钮添加</div>
               </div>
@@ -52,8 +72,8 @@
                 <div
                   v-for="(config, index) in sortedLLMConfigs"
                   :key="config.id"
-                  class="p-4 border rounded-lg hover:border-blue-300 transition-colors"
-                  :class="{ 'border-blue-500 bg-blue-50': config.isDefault }"
+                  class="p-4 app-section transition-colors"
+                  :class="{ 'border-emerald-400 bg-emerald-50': config.isDefault }"
                 >
                   <div class="flex items-start justify-between">
                     <div class="flex-1">
@@ -62,7 +82,8 @@
                         <el-tag v-if="config.isDefault" type="success" size="small">默认</el-tag>
                         <el-tag v-if="config.model" type="info" size="small">{{ config.model }}</el-tag>
                       </div>
-                      <div class="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                      <div class="grid grid-cols-2 gap-2 text-sm app-muted">
+
                         <div>
                           <span class="font-medium">API 地址：</span>
                           <span class="font-mono text-xs">{{ config.apiBase || '未设置' }}</span>
@@ -133,11 +154,11 @@
 
           <!-- 向量模型配置 Tab -->
           <el-tab-pane label="向量分词模型" name="vector">
-            <el-card shadow="hover" class="mb-6">
+            <el-card shadow="hover" class="mb-6 app-card">
               <template #header>
                 <div class="flex items-center justify-between">
                   <div class="flex items-center">
-                    <el-icon class="mr-2 text-purple-500"><Box /></el-icon>
+                    <el-icon class="mr-2 text-amber-500"><Box /></el-icon>
                     <span class="font-semibold">向量分词模型配置（兼容 OpenAI API）</span>
                   </div>
                   <el-button
@@ -150,8 +171,16 @@
                 </div>
               </template>
 
+
+              <div class="app-section p-3 mb-4 text-xs">
+                <div class="font-semibold">配置建议</div>
+                <div class="app-muted">向量模型主要用于记忆检索与一致性分析</div>
+                <div class="app-muted">建议与对话模型保持同厂商配置</div>
+              </div>
               <!-- 向量模型配置列表 -->
-              <div v-if="vectorConfigs.length === 0" class="text-center py-12 text-gray-400">
+               <div v-if="vectorConfigs.length === 0" class="text-center py-12 app-muted">
+
+
                 <el-icon class="text-4xl mb-2"><Box /></el-icon>
                 <div>暂无向量模型配置，点击上方按钮添加</div>
               </div>
@@ -160,8 +189,8 @@
                 <div
                   v-for="(config, index) in sortedVectorConfigs"
                   :key="config.id"
-                  class="p-4 border rounded-lg hover:border-purple-300 transition-colors"
-                  :class="{ 'border-purple-500 bg-purple-50': config.isDefault }"
+                  class="p-4 app-section transition-colors"
+                  :class="{ 'border-amber-400 bg-amber-50': config.isDefault }"
                 >
                   <div class="flex items-start justify-between">
                     <div class="flex-1">
@@ -170,7 +199,8 @@
                         <el-tag v-if="config.isDefault" type="success" size="small">默认</el-tag>
                         <el-tag v-if="config.model" type="info" size="small">{{ config.model }}</el-tag>
                       </div>
-                      <div class="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                      <div class="grid grid-cols-2 gap-2 text-sm app-muted">
+
                         <div>
                           <span class="font-medium">API 地址：</span>
                           <span class="font-mono text-xs">{{ config.apiBase || '未设置' }}</span>
@@ -254,7 +284,7 @@
             placeholder="例如：OpenAI GPT-4"
             clearable
           />
-          <div class="text-xs text-gray-500 mt-1">
+          <div class="text-xs app-muted mt-1">
             为这个配置起一个便于识别的名称
           </div>
         </el-form-item>
@@ -269,7 +299,7 @@
               <el-icon><Link /></el-icon>
             </template>
           </el-input>
-          <div class="text-xs text-gray-500 mt-1">
+          <div class="text-xs app-muted mt-1">
             兼容 OpenAI API 的接口地址
           </div>
         </el-form-item>
@@ -286,7 +316,7 @@
               <el-icon><Key /></el-icon>
             </template>
           </el-input>
-          <div class="text-xs text-gray-500 mt-1">
+          <div class="text-xs app-muted mt-1">
             API Key 将安全存储在本地数据库中
           </div>
         </el-form-item>
@@ -301,7 +331,7 @@
               <el-icon><Box /></el-icon>
             </template>
           </el-input>
-          <div class="text-xs text-gray-500 mt-1">
+          <div class="text-xs app-muted mt-1">
             例如：gpt-3.5-turbo, gpt-4, claude-3-opus 等
           </div>
         </el-form-item>
@@ -315,7 +345,7 @@
             show-input
             :format-tooltip="(val) => val.toFixed(1)"
           />
-          <div class="text-xs text-gray-500 mt-1">
+          <div class="text-xs app-muted mt-1">
             控制输出的随机性，0 表示最确定，2 表示最随机（默认：0.7）
           </div>
         </el-form-item>
@@ -329,7 +359,7 @@
             placeholder="2000"
             class="w-full"
           />
-          <div class="text-xs text-gray-500 mt-1">
+          <div class="text-xs app-muted mt-1">
             生成内容的最大 token 数量（默认：2000）
           </div>
         </el-form-item>
@@ -367,7 +397,7 @@
             placeholder="例如：OpenAI Embedding"
             clearable
           />
-          <div class="text-xs text-gray-500 mt-1">
+          <div class="text-xs app-muted mt-1">
             为这个配置起一个便于识别的名称
           </div>
         </el-form-item>
@@ -382,7 +412,7 @@
               <el-icon><Link /></el-icon>
             </template>
           </el-input>
-          <div class="text-xs text-gray-500 mt-1">
+          <div class="text-xs app-muted mt-1">
             兼容 OpenAI API 的接口地址
           </div>
         </el-form-item>
@@ -399,7 +429,7 @@
               <el-icon><Key /></el-icon>
             </template>
           </el-input>
-          <div class="text-xs text-gray-500 mt-1">
+          <div class="text-xs app-muted mt-1">
             API Key 将安全存储在本地数据库中
           </div>
         </el-form-item>
@@ -414,7 +444,7 @@
               <el-icon><Box /></el-icon>
             </template>
           </el-input>
-          <div class="text-xs text-gray-500 mt-1">
+          <div class="text-xs app-muted mt-1">
             例如：text-embedding-3-small, text-embedding-ada-002 等
           </div>
         </el-form-item>

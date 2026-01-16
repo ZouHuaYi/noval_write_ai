@@ -1,6 +1,6 @@
 <template>
-  <div class="h-full flex flex-col">
-    <div class="bg-white border-b p-4 flex justify-between items-center">
+  <div class="h-full flex flex-col app-shell">
+    <div class="app-header p-4 flex justify-between items-center">
       <div class="flex items-center space-x-2">
         <el-button @click="$router.back()">
           <el-icon><ArrowLeft /></el-icon>
@@ -8,7 +8,29 @@
         </el-button>
         <span class="ml-4 text-lg font-bold">{{ chapter?.title || '加载中...' }}</span>
       </div>
-      <div class="flex gap-2">
+      <div class="flex items-center gap-3">
+        <div class="text-sm app-muted">第 {{ currentIndexDisplay }} / {{ chapters.length || 0 }} 章</div>
+        <el-progress
+          v-if="chapters.length"
+          :percentage="readingProgress"
+          :stroke-width="6"
+          :show-text="false"
+          class="w-32"
+        />
+        <div class="flex items-center gap-2 app-section px-3 py-1">
+          <span class="text-xs app-muted">字体</span>
+          <el-button size="small" text @click="decreaseFont">A-</el-button>
+          <span class="text-xs">{{ fontSize }}px</span>
+          <el-button size="small" text @click="increaseFont">A+</el-button>
+        </div>
+        <div class="flex items-center gap-2 app-section px-3 py-1">
+          <span class="text-xs app-muted">行距</span>
+          <el-button size="small" text @click="decreaseLineHeight">-</el-button>
+          <span class="text-xs">{{ lineHeight.toFixed(1) }}</span>
+          <el-button size="small" text @click="increaseLineHeight">+</el-button>
+        </div>
+        <el-button text @click="goToWorkbench">工作台</el-button>
+        <el-button text @click="goToNovelDetail">小说详情</el-button>
         <el-button @click="prevChapter" :disabled="!prevChapterId">
           上一章
         </el-button>
@@ -17,18 +39,21 @@
         </el-button>
       </div>
     </div>
+
     
-    <div class="flex-1 overflow-auto p-8 bg-gray-50">
+    <div class="flex-1 overflow-auto p-8">
       <div v-if="loading" class="flex justify-center items-center h-full">
         <el-icon class="is-loading text-4xl"><Loading /></el-icon>
       </div>
-      
+
       <div
         v-else-if="chapter"
-        class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow prose prose-lg"
+        class="max-w-4xl mx-auto app-card p-8 prose prose-lg"
+        :style="{ fontSize: fontSize + 'px', lineHeight: lineHeight.toString() }"
         v-html="formatContent(chapter.content)"
       ></div>
     </div>
+
   </div>
 </template>
 
@@ -45,6 +70,9 @@ const novelStore = useNovelStore()
 const loading = ref(true)
 const chapter = ref(null)
 const chapters = ref([])
+const fontSize = ref(18)
+const lineHeight = ref(2.1)
+
 
 const novelId = computed(() => route.params.novelId)
 const chapterId = computed(() => route.params.chapterId)
@@ -74,6 +102,16 @@ const currentIndex = computed(() => {
   return chapters.value.findIndex(c => c.id === chapter.value?.id)
 })
 
+const currentIndexDisplay = computed(() => {
+  return currentIndex.value >= 0 ? currentIndex.value + 1 : 0
+})
+
+const readingProgress = computed(() => {
+  if (chapters.value.length === 0) return 0
+  return Math.round((currentIndexDisplay.value / chapters.value.length) * 100)
+})
+
+
 const prevChapterId = computed(() => {
   if (currentIndex.value > 0) {
     return chapters.value[currentIndex.value - 1].id
@@ -102,16 +140,46 @@ const nextChapter = () => {
   }
 }
 
+const goToWorkbench = () => {
+  router.push(`/workbench/${novelId.value}`)
+}
+
+const goToNovelDetail = () => {
+  router.push(`/novel/${novelId.value}`)
+}
+
+const increaseFont = () => {
+  fontSize.value = Math.min(24, fontSize.value + 1)
+}
+
+const decreaseFont = () => {
+  fontSize.value = Math.max(14, fontSize.value - 1)
+}
+
+const increaseLineHeight = () => {
+  lineHeight.value = Math.min(3, Number((lineHeight.value + 0.1).toFixed(1)))
+}
+
+const decreaseLineHeight = () => {
+  lineHeight.value = Math.max(1.6, Number((lineHeight.value - 0.1).toFixed(1)))
+}
+
 const formatContent = (content) => {
   if (!content) return ''
   return content.replace(/\n/g, '<br>')
 }
+
 </script>
 
 <style scoped>
 :deep(.prose) {
-  line-height: 2;
-  font-size: 18px;
-  color: #333;
+  color: var(--app-text);
+  letter-spacing: 0.01em;
 }
+
+:deep(.prose br) {
+  display: block;
+  margin-bottom: 12px;
+}
+
 </style>

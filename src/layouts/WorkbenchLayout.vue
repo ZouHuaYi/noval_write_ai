@@ -1,21 +1,19 @@
 <template>
-  <div class="h-screen flex bg-gray-50 text-sm overflow-hidden">
-    <!-- 左侧：资料区 -->
-    <div class="w-[320px] max-w-[280px] border-r border-gray-200/60 bg-white flex flex-col overflow-hidden shadow-sm">
+  <div class="h-screen flex app-shell text-sm overflow-hidden p-4 gap-4">
+    <div class="w-[320px] max-w-[280px] app-panel flex flex-col overflow-y-auto minimal-scrollbar">
       <slot name="left" />
     </div>
 
-    <!-- 中间：写作区 -->
-    <div class="flex-1 flex flex-col overflow-hidden min-w-0">
+    <div class="flex-1 flex flex-col overflow-auto min-w-0 app-panel">
       <slot name="center" />
     </div>
 
-    <!-- 右侧：AI / Agent -->
-    <div class="w-80 min-w-[280px] max-w-[400px] border-l border-gray-200/60 bg-white flex flex-col overflow-hidden shadow-sm">
+    <div class="w-80 min-w-[280px] max-w-[400px] app-panel flex flex-col overflow-y-auto minimal-scrollbar">
       <slot name="right" />
     </div>
   </div>
 </template>
+
 
 <script setup lang="ts">
 // 三栏布局容器

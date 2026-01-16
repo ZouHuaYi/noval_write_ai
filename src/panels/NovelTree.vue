@@ -1,75 +1,110 @@
 <template>
-  <div class="h-full flex flex-col overflow-hidden bg-gradient-to-b from-gray-50/30 to-white">
+  <div class="h-full flex flex-col overflow-hidden">
     <!-- 工具栏 -->
-    <div class="flex-shrink-0 px-4 pb-3 border-b border-gray-200">
-      <div class="flex items-center space-x-2">
-        <el-select
-          v-model="pageSize"
-          size="default"
-          style="width: 75px"
-          class="custom-select"
-          @change="handlePageSizeChange"
-        >
-          <el-option label="10" :value="10" />
-          <el-option label="20" :value="20" />
-          <el-option label="50" :value="50" />
-        </el-select>
-        <el-input
-          v-model="searchKeyword"
-          placeholder="搜索章节..."
-          size="default"
-          class="flex-1"
-          clearable
-        >
-          <template #prefix>
-            <el-icon class="text-gray-400 text-sm"><Search /></el-icon>
-          </template>
-        </el-input>
+    <div class="flex-shrink-0 px-4 py-3 border-b border-[color:var(--app-border)] space-y-3 workbench-panel-header">
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center space-x-2 flex-1 workbench-panel-title">
+          <el-select
+            v-model="pageSize"
+            size="default"
+            style="width: 75px"
+            class="custom-select"
+            @change="handlePageSizeChange"
+          >
+            <el-option label="10" :value="10" />
+            <el-option label="20" :value="20" />
+            <el-option label="50" :value="50" />
+          </el-select>
+          <el-input
+            v-model="searchKeyword"
+            placeholder="搜索章节..."
+            size="default"
+            class="flex-1"
+            clearable
+          >
+            <template #prefix>
+              <el-icon class="app-muted text-sm"><Search /></el-icon>
+            </template>
+          </el-input>
+        </div>
+        <el-tag size="small" effect="plain" class="workbench-count">{{ chapters.length }} 章</el-tag>
+      </div>
+      <div class="flex items-center justify-between">
+        <div class="text-xs app-muted">快速操作</div>
+        <div class="flex items-center gap-2">
+          <el-button
+            type="primary"
+            size="small"
+            @click="showCreateDialog"
+            :loading="creating"
+          >
+            新建章节
+          </el-button>
+          <el-button
+            type="danger"
+            size="small"
+            plain
+            @click="handleClearAllChapters"
+            :loading="clearing"
+            :disabled="chapters.length === 0"
+          >
+            清空所有
+          </el-button>
+        </div>
       </div>
     </div>
 
     <!-- 章节列表区域 - 可滚动 -->
-    <div class="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar min-h-0">
+    <div class="flex-1 px-4 py-4 min-h-0 overflow-y-auto">
+
       <div v-if="loading" class="flex flex-col justify-center items-center py-16">
         <el-icon class="is-loading text-4xl text-blue-500 mb-3"><Loading /></el-icon>
-        <div class="text-sm text-gray-500">加载中...</div>
+        <div class="text-sm app-muted">加载中...</div>
       </div>
       <div v-else-if="filteredChapters.length === 0" class="flex flex-col justify-center items-center py-16 px-4">
-        <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-          <el-icon class="text-2xl text-gray-400"><Document /></el-icon>
+        <div class="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mb-4">
+          <el-icon class="text-2xl text-emerald-400"><Document /></el-icon>
         </div>
-        <div class="text-gray-600 text-sm font-medium mb-1">
+        <div class="app-muted text-sm font-medium mb-2">
           {{ searchKeyword ? '未找到匹配的章节' : '暂无章节' }}
         </div>
-        <div v-if="!searchKeyword" class="text-gray-400 text-xs text-center max-w-xs">
-          点击下方按钮创建第一个章节
+        <div v-if="!searchKeyword" class="app-muted text-xs text-center max-w-xs mb-4">
+          从这里开始创建故事的第一章
         </div>
+        <el-button
+          v-if="!searchKeyword"
+          type="primary"
+          size="small"
+          @click="showCreateDialog"
+        >
+          新建章节
+        </el-button>
       </div>
       <div v-else class="space-y-2.5">
         <div
           v-for="chapter in paginatedChapters"
           :key="chapter.id"
-          class="group relative p-3.5 rounded-xl cursor-pointer transition-all duration-200 border-2 bg-white"
+          class="group relative p-3.5 rounded-xl cursor-pointer transition-all duration-200 border-2 app-section"
           :class="{ 
-            'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-400 shadow-lg ring-2 ring-blue-100': chapter.id === activeChapterId,
-            'border-gray-200 hover:border-blue-300 hover:shadow-md hover:bg-blue-50/30': chapter.id !== activeChapterId
+            'border-emerald-400 bg-emerald-50 shadow-lg ring-2 ring-emerald-100': chapter.id === activeChapterId,
+            'border-[color:var(--app-border)] hover:border-emerald-300 hover:shadow-md hover:bg-emerald-50/40': chapter.id !== activeChapterId
           }"
           @click="selectChapter(chapter.id)"
         >
           <div class="flex items-start justify-between gap-3">
             <div class="flex-1 min-w-0">
-              <div class="text-xs text-gray-500 font-medium">第 {{ chapter.chapterNumber }} 章</div>
-              <div class="font-semibold text-sm text-gray-900 truncate mb-2 leading-tight">
+              <div class="text-xs app-muted font-medium">第 {{ chapter.chapterNumber }} 章</div>
+              <div class="font-semibold text-sm truncate mb-2 leading-tight">
                 {{ chapter.title }}
               </div>
               <div class="flex items-center space-x-2.5">
-                <span class="text-xs text-gray-500 font-medium">{{ chapter.wordCount }} 字</span>
+                <span class="text-xs app-muted font-medium">{{ chapter.wordCount }} 字</span>
                 <el-tag 
                   v-if="chapter.status" 
                   :type="getStatusType(chapter.status)" 
                   size="small"
                   effect="plain"
-                  class="px-2 py-0.5 text-xs"
+                  class="px-2 py-0.5 text-xs workbench-count"
                 >
                   {{ getStatusText(chapter.status) }}
                 </el-tag>
@@ -87,14 +122,16 @@
           <!-- 选中指示器 -->
           <div 
             v-if="chapter.id === activeChapterId"
-            class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-blue-500 rounded-r-full"
+            class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-emerald-500 rounded-r-full"
+
           />
         </div>
       </div>
     </div>
 
     <!-- 分页组件 - 固定在底部 -->
-    <div v-if="filteredChapters.length > pageSize" class="flex-shrink-0 px-4 py-3 border-t border-gray-200/60 bg-white/80 backdrop-blur-sm">
+    <div v-if="filteredChapters.length > pageSize" class="flex-shrink-0 px-4 py-3 border-t border-[color:var(--app-border)] bg-transparent">
+
       <el-pagination
         v-model:current-page="currentPage"
         :page-size="pageSize"
@@ -107,31 +144,7 @@
       />
     </div>
 
-    <!-- 底部操作栏 -->
-    <div class="flex justify-between px-4 pb-4 border-t border-gray-200/60 bg-white/80 backdrop-blur-sm">
-      <el-button
-        type="primary"
-        size="default"
-        class="shadow-md hover:shadow-lg transition-all duration-200 font-medium"
-        @click="showCreateDialog"
-        :loading="creating"
-      >
-        <el-icon class="mr-1.5"><Plus /></el-icon>
-        新建章节
-      </el-button>
-      <el-button
-        type="danger"
-        size="default"
-        plain
-        class="hover:shadow-md transition-all duration-200"
-        @click="handleClearAllChapters"
-        :loading="clearing"
-        :disabled="chapters.length === 0"
-      >
-        <el-icon class="mr-1.5"><Delete /></el-icon>
-        清空所有
-      </el-button>
-    </div>
+
 
     <!-- 新建章节对话框 -->
     <el-dialog
@@ -180,7 +193,7 @@
 </template>
 
 <script setup lang="ts">
-import { Delete, Document, Loading, Plus, Search } from '@element-plus/icons-vue'
+import { Delete, Document, Loading, Search } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'

@@ -1,105 +1,124 @@
 <template>
-  <div class="h-full flex flex-col overflow-hidden bg-gradient-to-b from-gray-50 to-white">
+  <div class="h-full flex flex-col overflow-hidden">
     <!-- 标题栏 -->
-    <div class="flex-shrink-0 px-4 py-3 border-b border-gray-200/60 bg-white/80 backdrop-blur-sm shadow-sm">
+    <div class="flex-shrink-0 px-4 py-3 border-b border-[color:var(--app-border)] bg-transparent workbench-panel-header">
+
       <div class="flex items-center justify-between">
-        <div class="flex items-center space-x-2">
-          <div class="p-1.5 rounded-lg bg-gradient-to-br from-indigo-500 to-blue-500 shadow-md">
+        <div class="workbench-panel-title">
+          <div class="p-1.5 rounded-lg bg-emerald-500 shadow-md">
             <el-icon class="text-white text-lg"><Cpu /></el-icon>
           </div>
           <div>
-            <div class="font-bold text-base text-gray-800">AI 大纲助手</div>
-            <div class="text-xs text-gray-500">辅助设计与优化故事大纲</div>
+            <div class="font-bold text-base">AI 大纲助手</div>
+            <div class="text-xs app-muted">辅助设计与优化故事大纲</div>
           </div>
         </div>
       </div>
     </div>
 
     <!-- 内容区域 - 可滚动 -->
-    <div class="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar min-h-0">
-      <!-- 功能按钮区 -->
-      <div>
-        <div class="grid grid-cols-2 gap-3">
-          <!-- 生成章节建议 -->
-          <div 
-            class="group bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
-             @click="openGenerateDialog"
-          >
-            <div class="p-4 space-y-2">
-              <div class="flex items-center justify-between">
-                <div class="p-2 rounded-lg bg-blue-100 group-hover:bg-blue-200 transition-colors">
-                  <el-icon class="text-blue-600 text-lg"><List /></el-icon>
-                </div>
-                <el-icon 
-                  v-if="processing" 
-                  class="is-loading text-gray-400 text-sm"
-                >
-                  <Loading />
-                </el-icon>
-              </div>
-              <div class="text-sm font-semibold text-gray-800">生成大纲</div>
-              <div class="text-xs text-gray-500">根据当前章节范围大纲</div>
-            </div>
+    <div class="flex-1 px-4 py-4 min-h-0 overflow-y-auto">
+      <div class="app-section workbench-info-card p-3 mb-4 text-xs space-y-2">
+          <div>
+            <div class="workbench-section-title">当前状态</div>
+            <div v-if="!props.outlineId" class="app-muted">请选择大纲后开始优化</div>
+            <div v-else class="app-muted">已选择大纲，可直接使用工具</div>
           </div>
-
-          <!-- 优化大纲 -->
-          <div 
-            class="group bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
-             @click="openPolishDialog"
-          >
-            <div class="p-4 space-y-2">
-              <div class="flex items-center justify-between">
-                <div class="p-2 rounded-lg bg-green-100 group-hover:bg-green-200 transition-colors">
-                  <el-icon class="text-green-600 text-lg"><Brush /></el-icon>
-                </div>
-                <el-icon 
-                  v-if="processing" 
-                  class="is-loading text-gray-400 text-sm"
-                >
-                  <Loading />
-                </el-icon>
-              </div>
-              <div class="text-sm font-semibold text-gray-800">优化大纲</div>
-              <div class="text-xs text-gray-500">优化剧情节奏与冲突设计</div>
-            </div>
+          <div>
+            <div class="workbench-section-title">结果摘要</div>
+            <div v-if="lastAction" class="app-muted">{{ lastAction }}（{{ formatActionTime(lastActionAt) }}）</div>
+            <div v-else class="app-muted">暂无执行记录</div>
           </div>
-
-          <!-- 逻辑检查 -->
-          <div 
-            class="group bg-white rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
-             @click="openLogicDialog"
-          >
-            <div class="p-4 space-y-2">
-              <div class="flex items-center justify-between">
-                <div class="p-2 rounded-lg bg-orange-100 group-hover:bg-orange-200 transition-colors">
-                  <el-icon class="text-orange-600 text-lg"><Warning /></el-icon>
-                </div>
-                <el-icon 
-                  v-if="processing" 
-                  class="is-loading text-gray-400 text-sm"
-                >
-                  <Loading />
-                </el-icon>
-              </div>
-              <div class="text-sm font-semibold text-gray-800">逻辑检查</div>
-              <div class="text-xs text-gray-500">检查设定冲突与情节漏洞</div>
-            </div>
-          </div>
-        </div>
       </div>
+      <el-collapse v-model="activeSections" class="mb-3">
+        <el-collapse-item name="tools">
+          <template #title>
+            <span class="text-xs font-semibold">大纲工具</span>
+          </template>
+          <div class="grid grid-cols-2 gap-3">
+            <!-- 生成章节建议 -->
+            <div 
+              class="group app-section shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
+               @click="openGenerateDialog"
+            >
+              <div class="p-4 space-y-2">
+                <div class="flex items-center justify-between">
+                  <div class="p-2 rounded-lg bg-blue-100 group-hover:bg-blue-200 transition-colors">
+                    <el-icon class="text-blue-600 text-lg"><List /></el-icon>
+                  </div>
+                  <el-icon 
+                    v-if="processing" 
+                    class="is-loading app-muted text-sm"
+                  >
+                    <Loading />
+                  </el-icon>
+                </div>
+                <div class="text-sm font-semibold">生成大纲</div>
+                <div class="text-xs app-muted">根据当前章节范围大纲</div>
+              </div>
+            </div>
 
-      <!-- 提示信息 -->
-      <div class="mt-5 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
-        <div class="flex items-start space-x-2">
-          <el-icon class="text-indigo-500 text-sm mt-0.5 flex-shrink-0"><InfoFilled /></el-icon>
-          <div class="text-xs text-indigo-700 leading-relaxed">
-            <div class="font-semibold mb-1">使用提示：</div>
-            <div>• 请先在中间选择并编辑一个大纲</div>
-            <div>• 点击卡片输入需求，AI 将根据提示生成建议</div>
+            <!-- 优化大纲 -->
+            <div 
+              class="group app-section shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
+               @click="openPolishDialog"
+            >
+              <div class="p-4 space-y-2">
+                <div class="flex items-center justify-between">
+                  <div class="p-2 rounded-lg bg-green-100 group-hover:bg-green-200 transition-colors">
+                    <el-icon class="text-green-600 text-lg"><Brush /></el-icon>
+                  </div>
+                  <el-icon 
+                    v-if="processing" 
+                    class="is-loading app-muted text-sm"
+                  >
+                    <Loading />
+                  </el-icon>
+                </div>
+                <div class="text-sm font-semibold">优化大纲</div>
+                <div class="text-xs app-muted">优化剧情节奏与冲突设计</div>
+              </div>
+            </div>
 
+            <!-- 逻辑检查 -->
+            <div 
+              class="group app-section shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
+               @click="openLogicDialog"
+            >
+              <div class="p-4 space-y-2">
+                <div class="flex items-center justify-between">
+                  <div class="p-2 rounded-lg bg-orange-100 group-hover:bg-orange-200 transition-colors">
+                    <el-icon class="text-orange-600 text-lg"><Warning /></el-icon>
+                  </div>
+                  <el-icon 
+                    v-if="processing" 
+                    class="is-loading app-muted text-sm"
+                  >
+                    <Loading />
+                  </el-icon>
+                </div>
+                <div class="text-sm font-semibold">逻辑检查</div>
+                <div class="text-xs app-muted">检查设定冲突与情节漏洞</div>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </el-collapse-item>
+        <el-collapse-item name="tips">
+          <template #title>
+            <span class="text-xs font-semibold">流程建议</span>
+          </template>
+          <div class="p-3 app-section">
+            <div class="flex items-start space-x-2">
+              <el-icon class="text-emerald-500 text-sm mt-0.5 flex-shrink-0"><InfoFilled /></el-icon>
+              <div class="text-xs text-emerald-700 leading-relaxed">
+                <div class="font-semibold mb-1">使用提示：</div>
+                <div>1. 选择大纲 → 2. 输入需求 → 3. 应用建议</div>
+                <div>• 点击卡片输入需求，AI 将根据提示生成建议</div>
+              </div>
+            </div>
+          </div>
+        </el-collapse-item>
+      </el-collapse>
     </div>
 
     <!-- AI 功能对话框 -->
@@ -110,7 +129,7 @@
       :close-on-click-modal="false"
     >
       <div class="space-y-3">
-        <div class="text-sm font-medium text-gray-700">
+        <div class="text-sm font-medium">
           {{ dialogType === 'polish' ? '优化要求（可选）' :
              dialogType === 'generate' ? '生成要求（可选）' :
              '检查重点（可选）' }}
@@ -122,7 +141,7 @@
           :placeholder="getDialogPlaceholder()"
           clearable
         />
-        <div class="text-xs text-gray-500">
+        <div class="text-xs app-muted">
           {{ getDialogHint() }}
         </div>
       </div>
@@ -142,10 +161,10 @@
 </template>
 
 <script setup lang="ts">
-import { Brush, Cpu, InfoFilled, List, Loading, Warning } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
 import { callChatModel } from '@/llm/client'
 import { outlineSkills } from '@/llm/prompts/outline'
+import { Brush, Cpu, InfoFilled, List, Loading, Warning } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { ref, watch } from 'vue'
 
 
@@ -161,6 +180,9 @@ const dialogType = ref<'generate' | 'polish' | 'logic'>('generate')
 const dialogTitle = ref('')
 const dialogPrompt = ref('')
 const outlineInfo = ref<any>(null)
+const lastAction = ref('')
+const lastActionAt = ref<number | null>(null)
+const activeSections = ref(['tools'])
 
 
 const applyOutlineContent = async (content: string) => {
@@ -300,12 +322,17 @@ const confirmAction = async () => {
   processing.value = true
   showDialog.value = false
   try {
+    let actionResult: string | null = null
     if (dialogType.value === 'polish') {
-      await handlePolishOutline()
+      actionResult = await handlePolishOutline()
     } else if (dialogType.value === 'generate') {
-      await handleGenerateChapters()
+      actionResult = await handleGenerateChapters()
     } else {
-      await handleCheckLogic()
+      actionResult = await handleCheckLogic()
+    }
+    if (actionResult) {
+      lastAction.value = actionResult
+      lastActionAt.value = Date.now()
     }
   } catch (error: any) {
     ElMessage.error('执行失败: ' + (error.message || '未知错误'))
@@ -314,13 +341,14 @@ const confirmAction = async () => {
   }
 }
 
+
 const handleGenerateChapters = async () => {
-  if (!ensureOutlineSelected()) return
+  if (!ensureOutlineSelected()) return null
   await getOutlineContent()
 
   if (!window.electronAPI?.outline?.generate) {
     ElMessage.error('大纲生成接口未加载')
-    return
+    return null
   }
 
   try {
@@ -350,18 +378,20 @@ const handleGenerateChapters = async () => {
 
     if (!result) {
       ElMessage.warning('未生成有效大纲内容')
-      return
+      return null
     }
 
     await applyOutlineContent(result)
     ElMessage.success('已生成大纲内容')
+    return '生成大纲完成'
   } catch (error: any) {
     ElMessage.error('生成大纲失败: ' + (error.message || '未知错误'))
   }
+  return null
 }
 
 const handlePolishOutline = async () => {
-  if (!ensureOutlineSelected()) return
+  if (!ensureOutlineSelected()) return null
   await getOutlineContent()
 
   try {
@@ -375,18 +405,20 @@ const handlePolishOutline = async () => {
     const result = (await callChatModel(systemPrompt, userPrompt)).trim()
     if (!result) {
       ElMessage.warning('未生成有效优化结果')
-      return
+      return null
     }
 
     await applyOutlineContent(result)
     ElMessage.success('已更新优化后的大纲')
+    return '大纲优化完成'
   } catch (error: any) {
     ElMessage.error('优化大纲失败: ' + (error.message || '未知错误'))
   }
+  return null
 }
 
 const handleCheckLogic = async () => {
-  if (!ensureOutlineSelected()) return
+  if (!ensureOutlineSelected()) return null
   await getOutlineContent()
 
   try {
@@ -401,16 +433,26 @@ const handleCheckLogic = async () => {
     const result = (await callChatModel(systemPrompt, userPrompt)).trim()
     if (!result) {
       ElMessage.warning('未生成逻辑检查结果')
-      return
+      return null
     }
 
     await ElMessageBox.alert(result, '大纲逻辑检查', {
       confirmButtonText: '知道了',
       dangerouslyUseHTMLString: false
     })
+    return '逻辑检查完成'
   } catch (error: any) {
     ElMessage.error('逻辑检查失败: ' + (error.message || '未知错误'))
   }
+  return null
+}
+
+const formatActionTime = (timestamp: number | null) => {
+  if (!timestamp) return '刚刚'
+  return new Date(timestamp).toLocaleTimeString('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit'
+  })
 }
 
 

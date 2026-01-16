@@ -1,69 +1,127 @@
 <template>
-  <div class="h-screen flex flex-col">
+  <div class="h-screen flex flex-col app-shell">
+
     <!-- 顶部导航栏 -->
-    <div class="h-14 border-b border-gray-200/60 bg-white/95 backdrop-blur-sm shadow-sm flex items-center justify-between px-5 flex-shrink-0 z-10">
+    <div class="h-14 app-header flex items-center justify-between px-6 flex-shrink-0 z-10">
+
       <div class="flex items-center space-x-3">
         <el-button 
           text 
           @click="goBack"
-          class="flex items-center hover:bg-gray-100 rounded-lg px-2 py-1"
+          class="flex items-center hover:bg-[color:var(--app-surface-muted)] rounded-lg px-2 py-1"
+
         >
-          <el-icon class="mr-1 text-gray-600"><ArrowLeft /></el-icon>
-          <span class="text-sm text-gray-700">返回</span>
+          <el-icon class="mr-1 app-muted"><ArrowLeft /></el-icon>
+          <span class="text-sm app-muted">返回</span>
+
         </el-button>
         <el-divider direction="vertical" class="h-6" />
-        <div v-if="novel" class="flex items-center space-x-3">
-          <div class="flex justify-center">
-            <span class="font-semibold text-base text-gray-800 leading-tight">{{ novel?.title }}</span>
-          </div>
+        <div v-if="novel" class="flex flex-col">
+          <span class="text-xs app-muted">当前小说</span>
+          <span class="workbench-title">{{ novel?.title }}</span>
         </div>
-        <div v-else class="text-gray-400 text-sm">加载中...</div>
+        <div v-else class="app-muted text-sm">加载中...</div>
+
       </div>
       <div class="flex items-center space-x-2">
-        <el-tag v-if="currentChapter" size="large" type="primary" effect="plain" class="px-3 py-1">
+        <el-tag size="large" type="info" effect="plain" class="workbench-pill">
+          {{ activeTabLabel }}
+        </el-tag>
+        <el-tag v-if="currentChapter" size="large" type="primary" effect="plain" class="workbench-pill">
           {{ currentChapter.title }}
         </el-tag>
+        <el-tag v-else size="large" type="info" effect="plain" class="workbench-pill">
+          未选择章节
+        </el-tag>
+        <el-button text @click="goToNovels">小说列表</el-button>
+        <el-button text @click="goToSettings">设置</el-button>
       </div>
+
     </div>
 
     <!-- 工作台内容 -->
     <WorkbenchLayout class="flex-1 overflow-hidden">
       <template #left>
-        <div class="h-full flex flex-col bg-white">
-          <!-- 顶部标签切换：使用 Element Plus Tabs -->
-          <div class="flex-shrink-0 bg-white border-b border-gray-200 px-3 pt-1 mt-13px">
-            <el-tabs
-              v-model="leftTab"
-              type="card"
-              class="workbench-left-tabs"
-            >
-              <el-tab-pane name="chapters">
-                <template #label>
-                  <span class="inline-flex items-center gap-1.5 text-xs">
-                    <el-icon class="text-sm"><Document /></el-icon>
-                    <span>章节</span>
-                  </span>
-                </template>
-              </el-tab-pane>
-              <el-tab-pane name="outlines">
-                <template #label>
-                  <span class="inline-flex items-center gap-1.5 text-xs">
-                    <el-icon class="text-sm"><List /></el-icon>
-                    <span>大纲</span>
-                  </span>
-                </template>
-              </el-tab-pane>
-              <el-tab-pane name="memory">
-                <template #label>
-                  <span class="inline-flex items-center gap-1.5 text-xs">
-                    <el-icon class="text-sm"><Memo /></el-icon>
-                    <span>记忆</span>
-                  </span>
-                </template>
-              </el-tab-pane>
-            </el-tabs>
+        <div class="h-full flex flex-col">
+          <div class="relative flex-shrink-0 px-4 py-3 border-b border-[color:var(--app-border)] workbench-panel-header">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-sm font-semibold">工作区</div>
+                <div class="text-xs app-muted">资料导航</div>
+              </div>
+              <div 
+                class="cursor-pointer text-gray-400 hover:text-gray-600 transition-colors p-1"
+                @click="toggleLeftPanel"
+              >
+                <el-icon :class="{ 'rotate-180': !isLeftPanelOpen }" class="transition-transform duration-300">
+                  <ArrowUp />
+                </el-icon>
+              </div>
+            </div>
           </div>
-          
+          <el-collapse-transition>
+            <div v-show="isLeftPanelOpen" class="flex-shrink-0 px-4 py-3">
+              <div class="workbench-nav">
+                <button
+                  type="button"
+                  class="workbench-nav-item"
+                  :class="{ 'is-active': leftTab === 'chapters' }"
+                  @click="leftTab = 'chapters'"
+                >
+                  <span class="workbench-nav-icon">
+                    <el-icon><Document /></el-icon>
+                  </span>
+                  <span>
+                    <div class="text-sm font-semibold">章节</div>
+                    <div class="text-xs app-muted">章节管理与顺序</div>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  class="workbench-nav-item"
+                  :class="{ 'is-active': leftTab === 'outlines' }"
+                  @click="leftTab = 'outlines'"
+                >
+                  <span class="workbench-nav-icon">
+                    <el-icon><List /></el-icon>
+                  </span>
+                  <span>
+                    <div class="text-sm font-semibold">大纲</div>
+                    <div class="text-xs app-muted">情节结构与节奏</div>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  class="workbench-nav-item"
+                  :class="{ 'is-active': leftTab === 'world' }"
+                  @click="leftTab = 'world'"
+                >
+                  <span class="workbench-nav-icon">
+                    <el-icon><Edit /></el-icon>
+                  </span>
+                  <span>
+                    <div class="text-sm font-semibold">世界观</div>
+                    <div class="text-xs app-muted">设定与规则</div>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  class="workbench-nav-item"
+                  :class="{ 'is-active': leftTab === 'memory' }"
+                  @click="leftTab = 'memory'"
+                >
+                  <span class="workbench-nav-icon">
+                    <el-icon><Memo /></el-icon>
+                  </span>
+                  <span>
+                    <div class="text-sm font-semibold">记忆</div>
+                    <div class="text-xs app-muted">角色与事件记录</div>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </el-collapse-transition>
+
           <!-- 内容区域 -->
           <div class="flex-1 overflow-hidden">
             <NovelTree 
@@ -76,13 +134,21 @@
               :novel-id="novelId" 
               @outline-selected="handleOutlineSelected"
             />
+            <div
+              v-else-if="leftTab === 'world'"
+              class="h-full flex items-center justify-center text-sm app-muted"
+            >
+              世界观在中间编辑
+            </div>
             <MemoryPanel
               v-else
               :novel-id="novelId"
             />
+
           </div>
         </div>
       </template>
+
 
       <template #center>
         <EditorPanel 
@@ -101,9 +167,15 @@
           @outline-updated="handleOutlineUpdated"
         />
 
-        <div v-else class="h-full flex items-center justify-center text-sm text-gray-400">
+        <WorldPanel
+          v-else-if="leftTab === 'world'"
+          :novel-id="novelId"
+        />
+
+        <div v-else class="h-full flex items-center justify-center text-sm app-muted">
           记忆信息仅在左侧展示
         </div>
+
       </template>
 
       <template #right>
@@ -126,9 +198,17 @@
           :outline-id="currentOutlineId"
         />
 
-        <div v-else class="h-full flex items-center justify-center text-sm text-gray-400">
+        <div
+          v-else-if="leftTab === 'world'"
+          class="h-full flex items-center justify-center text-sm app-muted"
+        >
+          世界观管理区
+        </div>
+
+        <div v-else class="h-full flex items-center justify-center text-sm app-muted">
           StoryEngine 记忆区
         </div>
+
       </template>
     </WorkbenchLayout>
   </div>
@@ -144,24 +224,44 @@ import NovelTree from '@/panels/NovelTree.vue'
 import OutlineAgentPanel from '@/panels/OutlineAgentPanel.vue'
 import OutlineEditor from '@/panels/OutlineEditor.vue'
 import OutlinePanel from '@/panels/OutlinePanel.vue'
-import { ArrowLeft, Document, List, Memo } from '@element-plus/icons-vue'
+import WorldPanel from '@/panels/WorldPanel.vue'
+import { ArrowLeft, ArrowUp, Document, Edit, List, Memo } from '@element-plus/icons-vue'
+
 
 import { ElMessage } from 'element-plus'
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+
 
 const route = useRoute()
 const router = useRouter()
 
+const isLeftPanelOpen = ref(true)
+const toggleLeftPanel = () => {
+  isLeftPanelOpen.value = !isLeftPanelOpen.value
+}
+
 const novelId = ref<string>('')
 const novel = ref<any>(null)
-const leftTab = ref<'chapters' | 'outlines' | 'memory'>('chapters')
+const leftTab = ref<'chapters' | 'outlines' | 'world' | 'memory'>('chapters')
+
 
 const currentChapterId = ref<string | null>(null)
 const currentOutlineId = ref<string | null>(null)
 const currentChapter = ref<any>(null)
 const currentChapterContent = ref<string>('')
 const selectedText = ref<string>('')
+
+const activeTabLabel = computed(() => {
+  const labelMap = {
+    chapters: '章节',
+    outlines: '大纲',
+    world: '世界观',
+    memory: '记忆'
+  }
+  return labelMap[leftTab.value]
+})
+
 
 onMounted(async () => {
   novelId.value = route.params.novelId as string
@@ -265,4 +365,13 @@ async function updateChapterContent(chapterId: string, content: string) {
 function goBack() {
   router.back()
 }
+
+function goToNovels() {
+  router.push('/novels')
+}
+
+function goToSettings() {
+  router.push('/settings')
+}
+
 </script>

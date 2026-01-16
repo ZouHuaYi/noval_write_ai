@@ -1,9 +1,15 @@
 <template>
-  <div class="h-screen flex flex-col bg-gradient-to-br from-blue-50 to-indigo-100">
+  <div class="h-screen flex flex-col app-shell">
     <!-- 顶部导航栏 -->
-    <div class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 shadow-sm">
+    <div class="h-16 app-header flex items-center justify-between px-6">
       <div class="flex items-center space-x-4">
-        <h1 class="text-2xl font-bold text-gray-800">📚 小说写作助手</h1>
+        <div class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
+          <span class="text-emerald-700 font-semibold">文</span>
+        </div>
+        <div>
+          <div class="text-xs app-muted">创作工作台</div>
+          <h1 class="text-2xl font-semibold">小说写作助手</h1>
+        </div>
       </div>
       <div class="flex items-center space-x-3">
         <el-button type="primary" @click="goToSettings">
@@ -13,14 +19,15 @@
       </div>
     </div>
 
+
     <!-- 主要内容区域 -->
     <div class="flex-1 overflow-auto p-8">
       <div class="max-w-6xl mx-auto">
         <!-- 欢迎卡片 -->
-        <el-card shadow="hover" class="mb-6">
+        <el-card shadow="hover" class="mb-6 app-card">
           <div class="text-center py-8">
-            <h2 class="text-3xl font-bold text-gray-800 mb-4">欢迎使用小说写作助手</h2>
-            <p class="text-gray-600 text-lg mb-6">一个强大的 AI 辅助小说创作工具</p>
+            <h2 class="text-3xl font-semibold mb-3">欢迎进入创作时刻</h2>
+            <p class="app-muted text-lg mb-6">一个专注写作体验的 AI 创作工作台</p>
             <div class="flex justify-center space-x-4">
               <el-button type="primary" size="large" @click="goToNovels">
                 <el-icon class="mr-1"><Document /></el-icon>
@@ -34,38 +41,45 @@
           </div>
         </el-card>
 
+
         <!-- 快速访问 -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <el-card shadow="hover" class="cursor-pointer hover:shadow-lg transition-shadow" @click="goToNovels">
+          <el-card shadow="hover" class="cursor-pointer transition-shadow app-card" @click="goToNovels">
             <div class="text-center py-6">
-              <el-icon class="text-4xl text-blue-500 mb-3"><Document /></el-icon>
+              <el-icon class="text-4xl text-emerald-500 mb-3"><Document /></el-icon>
               <h3 class="text-lg font-semibold mb-2">小说管理</h3>
-              <p class="text-sm text-gray-500">查看和管理所有小说</p>
+              <p class="text-sm app-muted">查看和管理所有小说</p>
             </div>
           </el-card>
 
-          <el-card shadow="hover" class="cursor-pointer hover:shadow-lg transition-shadow" @click="goToWorkbench" :class="{ 'opacity-50': !hasNovels }">
+          <el-card
+            shadow="hover"
+            class="cursor-pointer transition-shadow app-card"
+            @click="goToWorkbench"
+            :class="{ 'opacity-50': !hasNovels }"
+          >
             <div class="text-center py-6">
-              <el-icon class="text-4xl text-green-500 mb-3"><Edit /></el-icon>
+              <el-icon class="text-4xl text-amber-500 mb-3"><Edit /></el-icon>
               <h3 class="text-lg font-semibold mb-2">写作工作台</h3>
-              <p class="text-sm text-gray-500">开始创作你的小说</p>
+              <p class="text-sm app-muted">开始创作你的小说</p>
             </div>
           </el-card>
 
-          <el-card shadow="hover" class="cursor-pointer hover:shadow-lg transition-shadow" @click="goToSettings">
+          <el-card shadow="hover" class="cursor-pointer transition-shadow app-card" @click="goToSettings">
             <div class="text-center py-6">
-              <el-icon class="text-4xl text-purple-500 mb-3"><Setting /></el-icon>
+              <el-icon class="text-4xl text-rose-400 mb-3"><Setting /></el-icon>
               <h3 class="text-lg font-semibold mb-2">应用设置</h3>
-              <p class="text-sm text-gray-500">配置 AI 模型和其他设置</p>
+              <p class="text-sm app-muted">配置 AI 模型和其他设置</p>
             </div>
           </el-card>
         </div>
 
+
         <!-- 最近的小说 -->
-        <el-card shadow="hover" v-if="recentNovels.length > 0">
+        <el-card shadow="hover" v-if="recentNovels.length > 0" class="app-card">
           <template #header>
             <div class="flex items-center justify-between">
-              <h3 class="text-lg font-semibold">最近的小说</h3>
+              <h3 class="text-lg font-semibold">最近在写</h3>
               <el-button text @click="goToNovels">查看全部</el-button>
             </div>
           </template>
@@ -73,18 +87,19 @@
             <div
               v-for="novel in recentNovels"
               :key="novel.id"
-              class="p-4 border rounded-lg hover:border-blue-300 cursor-pointer transition-colors"
+              class="p-4 app-section hover:border-emerald-300 cursor-pointer transition-colors"
               @click="goToNovelDetail(novel.id)"
             >
               <h4 class="font-semibold mb-2">{{ novel?.title }}</h4>
-              <p class="text-sm text-gray-500 line-clamp-2 mb-2">{{ novel.description || '暂无简介' }}</p>
+              <p class="text-sm app-muted line-clamp-2 mb-2">{{ novel.description || '暂无简介' }}</p>
               <div class="flex items-center justify-between">
                 <el-tag v-if="novel.genre" size="small">{{ novel.genre }}</el-tag>
-                <span class="text-xs text-gray-400">{{ formatDate(novel.updatedAt) }}</span>
+                <span class="text-xs app-muted">{{ formatDate(novel.updatedAt) }}</span>
               </div>
             </div>
           </div>
         </el-card>
+
       </div>
     </div>
 

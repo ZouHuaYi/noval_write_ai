@@ -39,6 +39,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (id) => ipcRenderer.invoke('outline:delete', id),
     generate: (data) => ipcRenderer.invoke('outline:generate', data)
   },
+
+  // 世界观/规则相关 API
+  worldview: {
+    get: (novelId) => ipcRenderer.invoke('worldview:get', novelId),
+    save: (novelId, data) => ipcRenderer.invoke('worldview:save', novelId, data)
+  },
   
   // StoryEngine 记忆相关 API
 

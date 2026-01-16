@@ -1,12 +1,12 @@
 <template>
-  <div class="h-full flex flex-col bg-white overflow-hidden">
+  <div class="h-full flex flex-col overflow-hidden">
     <!-- 顶部工具栏 -->
-    <div class="flex-shrink-0 px-4 py-3 border-b border-gray-200/60 bg-white/80 backdrop-blur-sm shadow-sm flex items-center justify-between">
-      <div class="flex items-center space-x-2">
-        <div class="p-1.5 rounded-lg bg-blue-100">
-          <el-icon class="text-blue-600 text-base"><Edit /></el-icon>
+    <div class="flex-shrink-0 px-4 py-2 border-b border-[color:var(--app-border)] bg-transparent flex items-center justify-between workbench-panel-header">
+      <div class="workbench-panel-title">
+        <div class="p-1.5 rounded-lg bg-amber-100">
+          <el-icon class="text-amber-600 text-base"><Edit /></el-icon>
         </div>
-        <span class="font-semibold text-gray-800">写作区</span>
+        <span class="font-semibold">写作区</span>
       </div>
       <div class="flex items-center space-x-2">
         <el-button 
@@ -24,56 +24,70 @@
         >
           标记
         </el-button>
-        <el-tag size="large" type="info" effect="plain" class="px-2">{{ wordCount }} 字</el-tag>
-        <el-tag size="large" :type="statusType" effect="plain" class="px-2">{{ statusText }}</el-tag>
       </div>
     </div>
 
     <!-- 编辑区域 -->
-    <div class="flex-1 px-6 py-5 overflow-y-auto custom-scrollbar min-h-0 bg-gray-50/50">
+    <div class="flex-1 px-6 py-5 overflow-y-auto min-h-0">
       <div class="editor-panel-form">
-        <!-- 章节编号和标题 -->
-        <div class="mb-5 bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-          <div class="flex items-end space-x-3">
-            <div class="flex-shrink-0 w-28">
-              <div class="text-xs font-medium text-gray-600 mb-2">章节编号</div>
-              <el-input-number
-                v-model="chapterNumber"
-                :min="1"
-                :precision="0"
-                class="w-full"
-              />
-            </div>
-            <div class="flex-1">
-              <div class="text-xs font-medium text-gray-600 mb-2">章节标题</div>
-              <el-input
-                v-model="chapterTitle"
-                placeholder="请输入章节标题"
-                size="default"
-                clearable
-              />
+        <div v-if="!props.chapterId" class="h-full flex flex-col items-center justify-center app-muted">
+          <div class="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center mb-4">
+            <el-icon class="text-2xl text-amber-400"><Edit /></el-icon>
+          </div>
+          <div class="text-sm">请选择左侧章节开始写作</div>
+        </div>
+        <div v-else>
+          <div class="mb-4 app-section workbench-info-card p-3 flex flex-wrap items-center gap-3 text-sm">
+            <span class="workbench-section-title">当前章节</span>
+            <span class="app-muted">第 {{ chapterNumber || '-' }} 章</span>
+            <span class="app-muted">标题：{{ chapterTitle || '未命名章节' }}</span>
+            <el-tag size="small" :type="statusType" effect="plain" class="workbench-count">{{ statusText }}</el-tag>
+            <el-tag size="small" type="info" effect="plain" class="workbench-count">{{ wordCount }} 字</el-tag>
+          </div>
+          <!-- 章节编号和标题 -->
+          <div class="mb-5 app-section p-4">
+            <div class="flex items-end space-x-3">
+              <div class="flex-shrink-0 w-28">
+                <div class="text-xs font-medium app-muted mb-2">章节编号</div>
+                <el-input-number
+                  v-model="chapterNumber"
+                  :min="1"
+                  :precision="0"
+                  class="w-full"
+                />
+              </div>
+              <div class="flex-1">
+                <div class="text-xs font-medium app-muted mb-2">章节标题</div>
+                <el-input
+                  v-model="chapterTitle"
+                  placeholder="请输入章节标题"
+                  size="default"
+                  clearable
+                />
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- 正文编辑区 -->
-        <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-          <el-input
-            v-model="content"
-            type="textarea"
-            :rows="25"
-            placeholder="开始写作..."
-            resize="none"
-            class="editor-textarea"
-            @input="handleContentInput"
+          <!-- 正文编辑区 -->
+          <div class="app-section p-4">
+            <el-input
+              v-model="content"
+              type="textarea"
+              :rows="25"
+              placeholder="开始写作..."
+              resize="none"
+              class="editor-textarea"
+              @input="handleContentInput"
 
-            @select="handleTextSelect"
-            @change="autoSave"
-          />
+              @select="handleTextSelect"
+              @change="autoSave"
+            />
+          </div>
         </div>
       </div>
     </div>
   </div>
+
 </template>
 
 <script setup lang="ts">

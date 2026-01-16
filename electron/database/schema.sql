@@ -95,6 +95,17 @@ CREATE TABLE IF NOT EXISTS outline (
   FOREIGN KEY (novelId) REFERENCES novel(id) ON DELETE CASCADE
 );
 
+-- 世界观/规则表
+CREATE TABLE IF NOT EXISTS worldview (
+  id TEXT PRIMARY KEY,
+  novelId TEXT NOT NULL,
+  worldview TEXT,
+  rules TEXT,
+  createdAt INTEGER,
+  updatedAt INTEGER,
+  FOREIGN KEY (novelId) REFERENCES novel(id) ON DELETE CASCADE
+);
+
 -- 创建索引以提升查询性能
 CREATE INDEX IF NOT EXISTS idx_chapter_novelId ON chapter(novelId);
 CREATE INDEX IF NOT EXISTS idx_chapter_idx ON chapter(novelId, idx);
@@ -102,3 +113,4 @@ CREATE INDEX IF NOT EXISTS idx_chapter_number ON chapter(chapterNumber);
 CREATE INDEX IF NOT EXISTS idx_chapter_event_chapterId ON chapter_event(chapterId);
 CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key);
 CREATE INDEX IF NOT EXISTS idx_outline_novelId ON outline(novelId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_worldview_novelId ON worldview(novelId);

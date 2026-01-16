@@ -1,12 +1,12 @@
 <template>
-  <div class="h-full flex flex-col bg-white overflow-hidden">
+  <div class="h-full flex flex-col overflow-hidden">
     <!-- 顶部工具栏 -->
-    <div class="flex-shrink-0 px-4 py-3 border-b border-gray-200/60 bg-white/80 backdrop-blur-sm shadow-sm flex items-center justify-between">
-      <div class="flex items-center space-x-2">
-        <div class="p-1.5 rounded-lg bg-indigo-100">
-          <el-icon class="text-indigo-600 text-base"><Document /></el-icon>
+    <div class="flex-shrink-0 px-4 py-3 border-b border-[color:var(--app-border)] bg-transparent flex items-center justify-between workbench-panel-header">
+      <div class="workbench-panel-title">
+        <div class="p-1.5 rounded-lg bg-emerald-100">
+          <el-icon class="text-emerald-600 text-base"><Document /></el-icon>
         </div>
-        <span class="font-semibold text-gray-800">大纲编辑</span>
+        <span class="font-semibold">大纲编辑</span>
       </div>
       <div class="flex items-center space-x-2">
         <el-button 
@@ -22,15 +22,22 @@
     </div>
 
     <!-- 编辑区域 -->
-    <div class="flex-1 px-6 py-5 overflow-y-auto custom-scrollbar min-h-0 bg-gray-50/50">
-      <div v-if="!outlineId" class="flex flex-col items-center justify-center h-full text-gray-400">
-        <el-icon class="text-4xl mb-3 text-gray-300"><Document /></el-icon>
-        <div class="text-sm">请从左侧选择一个大纲进行编辑</div>
+    <div class="flex-1 px-6 py-5 overflow-y-auto min-h-0">
+      <div v-if="!outlineId" class="flex flex-col items-center justify-center h-full app-muted">
+        <el-icon class="text-4xl mb-3 app-muted"><Document /></el-icon>
+        <div class="text-sm app-muted">请从左侧选择一个大纲进行编辑</div>
       </div>
       <div v-else class="space-y-4 outline-editor-form">
+        <div class="app-section workbench-info-card p-3 flex flex-wrap items-center gap-3 text-sm">
+          <span class="workbench-section-title">大纲范围</span>
+          <span class="app-muted">起始：{{ startChapter ?? '-' }}</span>
+          <span class="app-muted">结束：{{ endChapter ?? '-' }}</span>
+          <span class="app-muted">保存后自动同步范围</span>
+        </div>
         <!-- 大纲标题 -->
-        <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-          <div class="text-xs font-medium text-gray-600 mb-2">大纲标题</div>
+        <div class="app-section p-4">
+
+          <div class="text-xs font-medium app-muted mb-2">大纲标题</div>
           <el-input
             v-model="outlineTitle"
             placeholder="请输入大纲标题"
@@ -40,7 +47,7 @@
         <!-- 章节范围 -->
         <div class="flex items-end space-x-3 mt-16px">
            <div class="flex-1">
-              <div class="text-xs text-gray-500 mb-1.5">起始章节</div>
+              <div class="text-xs app-muted mb-1.5">起始章节</div>
               <el-input-number
                 v-model="startChapter"
                 :min="1"
@@ -52,10 +59,10 @@
               />
             </div>
             <div class="flex items-center pb-1">
-              <span class="text-gray-400 text-sm font-medium">至</span>
+              <span class="app-muted text-sm font-medium">至</span>
             </div>
             <div class="flex-1">
-              <div class="text-xs text-gray-500 mb-1.5">结束章节</div>
+              <div class="text-xs app-muted mb-1.5">结束章节</div>
               <el-input-number
                 v-model="endChapter"
                 :precision="0"
@@ -70,8 +77,8 @@
         </div>
 
         <!-- 大纲内容 -->
-        <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
-          <div class="text-xs font-medium text-gray-600 mb-2">大纲内容</div>
+        <div class="app-section p-4">
+          <div class="text-xs font-medium app-muted mb-2">大纲内容</div>
           <el-input
             v-model="outlineContent"
             type="textarea"

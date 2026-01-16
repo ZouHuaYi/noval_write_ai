@@ -1,13 +1,18 @@
 <template>
-  <div class="h-full flex flex-col overflow-hidden bg-gradient-to-b from-gray-50/30 to-white">
-    <div class="flex-shrink-0 px-4 pb-3 border-b border-gray-200/60 bg-white/60 backdrop-blur-sm">
+  <div class="h-full flex flex-col overflow-hidden">
+    <div class="flex-shrink-0 px-4 py-3 border-b border-[color:var(--app-border)] bg-transparent workbench-panel-header">
       <div class="flex items-center justify-between">
-        <span class="text-sm font-medium text-gray-600">记忆</span>
+        <div class="workbench-panel-title">
+          <div class="p-1.5 rounded-lg bg-emerald-100">
+            <el-icon class="text-emerald-600 text-base"><Memo /></el-icon>
+          </div>
+          <span class="text-sm font-semibold">记忆</span>
+        </div>
         <el-button
           type="primary"
           text
           :loading="loading"
-          class="hover:bg-blue-50"
+          class="hover:bg-emerald-50"
           @click="loadMemory"
         >
           <el-icon class="mr-1"><Refresh /></el-icon>
@@ -16,10 +21,10 @@
       </div>
     </div>
 
-    <div class="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar min-h-0">
+    <div class="flex-1 px-4 py-4 min-h-0 overflow-y-auto">
       <div v-if="loading" class="flex flex-col justify-center items-center py-16">
         <el-icon class="is-loading text-4xl text-blue-500 mb-3"><Loading /></el-icon>
-        <div class="text-sm text-gray-500">加载中...</div>
+        <div class="text-sm app-muted">加载中...</div>
       </div>
       <div
         v-else-if="
@@ -29,35 +34,35 @@
         "
         class="flex flex-col justify-center items-center py-16 px-4"
       >
-        <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-          <el-icon class="text-2xl text-gray-400"><Memo /></el-icon>
+        <div class="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mb-4">
+          <el-icon class="text-2xl text-emerald-400"><Memo /></el-icon>
         </div>
-        <div class="text-gray-600 text-sm font-medium mb-1">暂无记忆数据</div>
-        <div class="text-gray-400 text-xs text-center max-w-xs">
+        <div class="text-sm font-medium mb-1">暂无记忆数据</div>
+        <div class="app-muted text-xs text-center max-w-xs">
           StoryEngine 提取的数据会在这里展示
         </div>
       </div>
       <div v-else class="space-y-5">
         <section>
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-semibold text-gray-500">实体</span>
-            <el-tag size="small" effect="plain">{{ memory.entities.length }}</el-tag>
+            <span class="text-xs workbench-section-title">实体</span>
+            <el-tag size="small" effect="plain" class="workbench-count">{{ memory.entities.length }}</el-tag>
           </div>
-          <div v-if="memory.entities.length === 0" class="text-xs text-gray-400">暂无实体</div>
+          <div v-if="memory.entities.length === 0" class="text-xs app-muted">暂无实体</div>
           <div v-else class="space-y-2">
             <div
               v-for="entity in memory.entities"
               :key="entity.id"
-              class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+              class="app-section p-3"
             >
               <div class="flex items-center justify-between">
-                <div class="text-sm font-semibold text-gray-800 truncate">{{ entity.name }}</div>
-                <span class="text-[11px] text-gray-400">第{{ entity.chapterNumber }}章</span>
+                <div class="text-sm font-semibold  truncate">{{ entity.name }}</div>
+                <span class="text-[11px] app-muted">第{{ entity.chapterNumber }}章</span>
               </div>
-              <div v-if="entity.states" class="mt-2 text-xs text-gray-500">
+              <div v-if="entity.states" class="mt-2 text-xs app-muted">
                 状态：{{ formatObject(entity.states) }}
               </div>
-              <div v-if="entity.history" class="mt-1 text-xs text-gray-500">
+              <div v-if="entity.history" class="mt-1 text-xs app-muted">
                 轨迹：{{ formatList(entity.history) }}
               </div>
             </div>
@@ -66,24 +71,24 @@
 
         <section>
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-semibold text-gray-500">事件</span>
-            <el-tag size="small" effect="plain">{{ memory.events.length }}</el-tag>
+            <span class="text-xs workbench-section-title">事件</span>
+            <el-tag size="small" effect="plain" class="workbench-count">{{ memory.events.length }}</el-tag>
           </div>
-          <div v-if="memory.events.length === 0" class="text-xs text-gray-400">暂无事件</div>
+          <div v-if="memory.events.length === 0" class="text-xs app-muted">暂无事件</div>
           <div v-else class="space-y-2">
             <div
               v-for="event in memory.events"
               :key="event.id"
-              class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+              class="app-section p-3"
             >
               <div class="flex items-center justify-between">
-                <div class="text-sm font-semibold text-gray-800 truncate">
+                <div class="text-sm font-semibold  truncate">
                   {{ event.summary || event.detail || '未命名事件' }}
                 </div>
-                <span class="text-[11px] text-gray-400">第{{ event.chapterNumber }}章</span>
+                <span class="text-[11px] app-muted">第{{ event.chapterNumber }}章</span>
               </div>
-              <div class="mt-2 text-xs text-gray-500">类型：{{ event.type || '未分类' }}</div>
-              <div v-if="event.actors?.length" class="mt-1 text-xs text-gray-500">
+              <div class="mt-2 text-xs app-muted">类型：{{ event.type || '未分类' }}</div>
+              <div v-if="event.actors?.length" class="mt-1 text-xs app-muted">
                 参与者：{{ formatList(event.actors) }}
               </div>
             </div>
@@ -92,27 +97,27 @@
 
         <section>
           <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-semibold text-gray-500">依赖</span>
-            <el-tag size="small" effect="plain">{{ memory.dependencies.length }}</el-tag>
+            <span class="text-xs workbench-section-title">依赖</span>
+            <el-tag size="small" effect="plain" class="workbench-count">{{ memory.dependencies.length }}</el-tag>
           </div>
-          <div v-if="memory.dependencies.length === 0" class="text-xs text-gray-400">暂无依赖</div>
+          <div v-if="memory.dependencies.length === 0" class="text-xs app-muted">暂无依赖</div>
           <div v-else class="space-y-2">
             <div
               v-for="dependency in memory.dependencies"
               :key="dependency.id"
-              class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+              class="app-section p-3"
             >
               <div class="flex items-center justify-between">
-                <div class="text-sm font-semibold text-gray-800 truncate">
+                <div class="text-sm font-semibold  truncate">
                   {{ dependency.description || '未命名依赖' }}
                 </div>
-                <span class="text-[11px] text-gray-400">第{{ dependency.chapterNumber }}章</span>
+                <span class="text-[11px] app-muted">第{{ dependency.chapterNumber }}章</span>
               </div>
-              <div class="mt-2 text-xs text-gray-500">类型：{{ dependency.type || '未分类' }}</div>
-              <div v-if="dependency.status" class="mt-1 text-xs text-gray-500">
+              <div class="mt-2 text-xs app-muted">类型：{{ dependency.type || '未分类' }}</div>
+              <div v-if="dependency.status" class="mt-1 text-xs app-muted">
                 状态：{{ dependency.status }}
               </div>
-              <div v-if="dependency.relatedCharacters?.length" class="mt-1 text-xs text-gray-500">
+              <div v-if="dependency.relatedCharacters?.length" class="mt-1 text-xs app-muted">
                 相关角色：{{ formatList(dependency.relatedCharacters) }}
               </div>
             </div>

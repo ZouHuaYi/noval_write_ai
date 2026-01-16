@@ -3,6 +3,7 @@ const novelDAO = require('./database/novelDAO')
 const chapterDAO = require('./database/chapterDAO')
 const settingsDAO = require('./database/settingsDAO')
 const outlineDAO = require('./database/outlineDAO')
+const worldviewDAO = require('./database/worldviewDAO')
 const entityDAO = require('./database/entityDAO')
 const eventDAO = require('./database/eventDAO')
 const dependencyDAO = require('./database/dependencyDAO')
@@ -230,7 +231,27 @@ function registerIpcHandlers() {
     }
   })
 
+  // ========== 世界观/规则相关 ==========
+  ipcMain.handle('worldview:get', (_, novelId) => {
+    try {
+      return worldviewDAO.getWorldviewByNovel(novelId)
+    } catch (error) {
+      console.error('获取世界观失败:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('worldview:save', (_, novelId, data) => {
+    try {
+      return worldviewDAO.saveWorldview(novelId, data)
+    } catch (error) {
+      console.error('保存世界观失败:', error)
+      throw error
+    }
+  })
+
   // ========== StoryEngine 记忆相关 ==========
+
 
   ipcMain.handle('memory:get', (_, novelId) => {
     try {

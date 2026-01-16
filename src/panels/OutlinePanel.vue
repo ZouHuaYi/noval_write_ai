@@ -1,9 +1,12 @@
 <template>
-  <div class="h-full flex flex-col overflow-hidden bg-gradient-to-b from-gray-50/30 to-white">
+  <div class="h-full flex flex-col overflow-hidden">
     <!-- 工具栏 -->
-    <div class="flex-shrink-0 px-4 pb-3 border-b border-gray-200/60 bg-white/60 backdrop-blur-sm">
+    <div class="flex-shrink-0 px-4 py-3 border-b border-[color:var(--app-border)] bg-transparent workbench-panel-header">
       <div class="flex items-center justify-between">
-        <span class="text-sm font-medium text-gray-600">大纲列表</span>
+        <div class="flex items-center gap-2 workbench-panel-title">
+          <span class="text-sm font-semibold">大纲列表</span>
+          <el-tag size="small" effect="plain" class="workbench-count">{{ outlines.length }}</el-tag>
+        </div>
         <el-button
           type="primary"
           @click="handleCreateOutline"
@@ -17,17 +20,19 @@
     </div>
 
     <!-- 大纲列表区域 - 可滚动 -->
-    <div class="flex-1 overflow-y-auto px-4 py-4 custom-scrollbar min-h-0">
+    <div class="flex-1 px-4 py-4 min-h-0 overflow-y-auto">
+
       <div v-if="loading" class="flex flex-col justify-center items-center py-16">
         <el-icon class="is-loading text-4xl text-blue-500 mb-3"><Loading /></el-icon>
-        <div class="text-sm text-gray-500">加载中...</div>
+        <div class="text-sm app-muted">加载中...</div>
       </div>
       <div v-else-if="outlines.length === 0" class="flex flex-col justify-center items-center py-16 px-4">
-        <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-          <el-icon class="text-2xl text-gray-400"><Document /></el-icon>
+        <div class="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mb-4">
+          <el-icon class="text-2xl text-emerald-400"><Document /></el-icon>
         </div>
-        <div class="text-gray-600 text-sm font-medium mb-1">暂无大纲</div>
-        <div class="text-gray-400 text-xs text-center max-w-xs">
+
+        <div class="text-sm font-medium app-muted mb-1">暂无大纲</div>
+        <div class="app-muted text-xs text-center max-w-xs">
           点击上方按钮创建第一个大纲
         </div>
       </div>
@@ -35,27 +40,27 @@
         <div
           v-for="outline in outlines"
           :key="outline.id"
-          class="group relative p-3.5 rounded-xl cursor-pointer transition-all duration-200 border-2 bg-white"
+          class="group relative p-3.5 rounded-xl cursor-pointer transition-all duration-200 border-2 app-section"
           :class="{ 
-            'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-400 shadow-lg ring-2 ring-blue-100': outline.id === activeOutlineId,
-            'border-gray-200 hover:border-blue-300 hover:shadow-md hover:bg-blue-50/30': outline.id !== activeOutlineId
+            'border-emerald-400 bg-emerald-50 shadow-lg ring-2 ring-emerald-100': outline.id === activeOutlineId,
+            'border-[color:var(--app-border)] hover:border-emerald-300 hover:shadow-md hover:bg-emerald-50/40': outline.id !== activeOutlineId
           }"
           @click="selectOutline(outline.id)"
         >
           <div class="flex items-start justify-between gap-3">
             <div class="flex-1 min-w-0">
-              <div class="font-semibold text-sm text-gray-900 truncate mb-2 leading-tight">
+              <div class="font-semibold text-sm truncate mb-2 leading-tight">
                 {{ outline.title }}
               </div>
               <!-- 章节范围显示 -->
               <div v-if="outline.startChapter !== null && outline.startChapter !== undefined || outline.endChapter !== null && outline.endChapter !== undefined" class="mb-2">
-                <el-tag size="small" type="info" effect="plain" class="text-xs px-2 py-0.5">
+                <el-tag size="small" type="info" effect="plain" class="text-xs px-2 py-0.5 workbench-count">
                   <span v-if="outline.startChapter && outline.endChapter">
                     第{{ outline.startChapter }}章 - 第{{ outline.endChapter }}章
                   </span>
                 </el-tag>
               </div>
-              <div class="text-xs text-gray-400">
+              <div class="text-xs app-muted">
                 {{ formatDate(outline.updatedAt || outline.createdAt) }}
               </div>
             </div>
@@ -71,7 +76,8 @@
           <!-- 选中指示器 -->
           <div 
             v-if="outline.id === activeOutlineId"
-            class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-blue-500 rounded-r-full"
+            class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-emerald-500 rounded-r-full"
+
           />
         </div>
       </div>

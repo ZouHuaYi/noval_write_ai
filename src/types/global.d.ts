@@ -50,6 +50,12 @@ declare global {
         delete: (id: string) => Promise<{ success: boolean }>
         generate: (data: { systemPrompt: string; userPrompt: string }) => Promise<string>
       }
+
+      // 世界观/规则相关 API
+      worldview: {
+        get: (novelId: string) => Promise<any>
+        save: (novelId: string, data: { worldview: string; rules: string }) => Promise<any>
+      }
       
       // StoryEngine 记忆相关 API
       memory: {

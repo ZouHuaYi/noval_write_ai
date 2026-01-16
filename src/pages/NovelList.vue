@@ -1,14 +1,17 @@
 <template>
-  <div class="h-full flex flex-col">
+  <div class="h-full flex flex-col app-shell">
     <!-- 工具栏 -->
-    <div class="p-4 border-b bg-white flex items-center justify-between">
+    <div class="p-5 app-header flex items-center justify-between">
       <div class="flex items-center space-x-4">
         <el-button text @click="goToHome">
           <el-icon class="mr-1"><HomeFilled /></el-icon>
           首页
         </el-button>
         <el-divider direction="vertical" />
-        <h2 class="text-xl font-bold">小说列表</h2>
+        <div>
+          <div class="text-xs app-muted">创作管理</div>
+          <h2 class="text-xl font-semibold">小说列表</h2>
+        </div>
         <el-radio-group v-model="viewMode" size="small">
           <el-radio-button label="table">
             <el-icon class="mr-1"><List /></el-icon>
@@ -26,57 +29,77 @@
       </el-button>
     </div>
 
+
     <!-- 内容区域 -->
-    <div class="flex-1 overflow-auto p-4">
+    <div class="flex-1 overflow-auto p-6">
+      <div class="app-section p-4 mb-4 flex flex-wrap items-center gap-3">
+        <div class="text-sm font-semibold">快速筛选</div>
+        <el-input
+          v-model="searchKeyword"
+          placeholder="按标题搜索"
+          clearable
+          class="w-56"
+        />
+        <el-select v-model="sortBy" class="w-40" placeholder="排序方式">
+          <el-option label="最近更新" value="updated" />
+          <el-option label="创建时间" value="created" />
+          <el-option label="标题" value="title" />
+        </el-select>
+        <el-tag size="small" effect="plain">显示 {{ filteredNovels.length }} / {{ novels.length }}</el-tag>
+      </div>
       <!-- 表格视图 -->
-      <el-table
-        v-if="viewMode === 'table'"
-        v-loading="loading"
-        :data="novels"
-        style="width: 100%"
-        @row-click="handleRowClick"
-      >
-        <el-table-column prop="title" label="标题" width="200" />
-        <el-table-column prop="genre" label="类型" width="150" />
-        <el-table-column prop="description" label="简介" show-overflow-tooltip />
-        <el-table-column prop="updatedAt" label="更新时间" width="180">
-          <template #default="{ row }">
-            {{ formatDate(row.updatedAt) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click.stop="goToWorkbench(row.id)">
-              工作台
-            </el-button>
-            <el-button link type="primary" @click.stop="editNovel(row)">
-              编辑
-            </el-button>
-            <el-button link type="danger" @click.stop="deleteNovel(row.id)">
-              删除
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <div v-if="viewMode === 'table'" class="app-card p-3">
+        <el-table
+          v-loading="loading"
+          :data="filteredNovels"
+          style="width: 100%"
+          @row-click="handleRowClick"
+        >
+          <el-table-column prop="title" label="标题" width="200" />
+          <el-table-column prop="genre" label="类型" width="150" />
+          <el-table-column prop="description" label="简介" show-overflow-tooltip />
+          <el-table-column prop="updatedAt" label="更新时间" width="180">
+            <template #default="{ row }">
+              {{ formatDate(row.updatedAt) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="200" fixed="right">
+            <template #default="{ row }">
+              <el-button link type="primary" @click.stop="goToWorkbench(row.id)">
+                工作台
+              </el-button>
+              <el-button link type="primary" @click.stop="editNovel(row)">
+                编辑
+              </el-button>
+              <el-button link type="danger" @click.stop="deleteNovel(row.id)">
+                删除
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div v-if="filteredNovels.length === 0 && !loading" class="text-center py-10 app-muted">
+          <div class="text-sm">暂无小说，点击上方按钮创建</div>
+        </div>
+      </div>
 
       <!-- 卡片视图 -->
-      <div v-else-if="viewMode === 'card'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div v-else-if="viewMode === 'card'" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         <el-card
-          v-for="novel in novels"
+          v-for="novel in filteredNovels"
           :key="novel.id"
           shadow="hover"
-          class="cursor-pointer hover:shadow-lg transition-shadow"
+          class="cursor-pointer transition-shadow app-card"
           @click="goToNovelDetail(novel.id)"
         >
           <div class="mb-3">
             <h3 class="text-lg font-semibold mb-2">{{ novel?.title }}</h3>
-            <p class="text-sm text-gray-600 line-clamp-2 mb-3">{{ novel?.description || '暂无简介' }}</p>
+            <p class="text-sm app-muted line-clamp-2 mb-3">{{ novel?.description || '暂无简介' }}</p>
             <div class="flex items-center justify-between">
               <el-tag v-if="novel?.genre" size="small">{{ novel?.genre }}</el-tag>
-              <span class="text-xs text-gray-400">{{ formatDate(novel?.updatedAt) }}</span>
+              <span class="text-xs app-muted">{{ formatDate(novel?.updatedAt) }}</span>
             </div>
           </div>
-          <div class="flex space-x-2 pt-3 border-t">
+          <div class="flex space-x-2 pt-3 border-t border-[color:var(--app-border)]">
             <el-button size="small" type="primary" text @click.stop="goToWorkbench(novel.id)">
               工作台
             </el-button>
@@ -89,12 +112,13 @@
           </div>
         </el-card>
 
-        <div v-if="novels.length === 0 && !loading" class="col-span-full text-center py-12 text-gray-400">
+        <div v-if="filteredNovels.length === 0 && !loading" class="col-span-full text-center py-12 app-muted">
           <el-icon class="text-4xl mb-2"><Document /></el-icon>
           <div>暂无小说，点击上方按钮创建</div>
         </div>
       </div>
     </div>
+
 
     <!-- 添加/编辑对话框 -->
     <el-dialog
@@ -131,8 +155,9 @@
 <script setup lang="ts">
 import { Document, Grid, HomeFilled, List, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+
 
 type Novel = {
   id: string
@@ -149,11 +174,41 @@ const saving = ref(false)
 const viewMode = ref<'table' | 'card'>('table')
 const showAddDialog = ref(false)
 const editingNovel = ref<Novel | null>(null)
+const searchKeyword = ref('')
+const sortBy = ref('updated')
 const novelForm = ref({
   title: '',
   genre: '',
   description: ''
 })
+
+const filteredNovels = computed(() => {
+  const keyword = searchKeyword.value.trim().toLowerCase()
+  let list = novels.value
+
+  if (keyword) {
+    list = list.filter((novel) => {
+      return (novel.title || '').toLowerCase().includes(keyword)
+    })
+  }
+
+  const sorted = [...list]
+  if (sortBy.value === 'title') {
+    sorted.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'zh-CN'))
+  } else if (sortBy.value === 'created') {
+    sorted.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+  } else {
+    sorted.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+  }
+
+  return sorted
+})
+
+onMounted(async () => {
+  await loadNovels()
+})
+
+
 
 onMounted(async () => {
   await loadNovels()
