@@ -150,7 +150,8 @@
 </template>
 
 
-<script setup>
+<script setup lang="ts">
+
 import { useNovelStore } from '@/stores/novel'
 import { ArrowLeft, Loading } from '@element-plus/icons-vue'
 import { computed, onMounted, ref } from 'vue'

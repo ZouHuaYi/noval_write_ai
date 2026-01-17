@@ -107,17 +107,18 @@
                 <button
                   type="button"
                   class="workbench-nav-item"
-                  :class="{ 'is-active': leftTab === 'memory' }"
-                  @click="leftTab = 'memory'"
+                  :class="{ 'is-active': leftTab === 'knowledge' }"
+                  @click="leftTab = 'knowledge'"
                 >
                   <span class="workbench-nav-icon">
-                    <el-icon><Memo /></el-icon>
+                    <el-icon><CollectionTag /></el-icon>
                   </span>
                   <span>
-                    <div class="text-sm font-semibold">记忆</div>
-                    <div class="text-xs app-muted">角色与事件记录</div>
+                    <div class="text-sm font-semibold">知识库与记忆</div>
+                    <div class="text-xs app-muted">角色/地点/时间线/事件</div>
                   </span>
                 </button>
+
               </div>
             </div>
           </el-collapse-transition>
@@ -140,10 +141,13 @@
             >
               世界观在中间编辑
             </div>
-            <MemoryPanel
-              v-else
-              :novel-id="novelId"
-            />
+             <div
+               v-else
+               class="h-full flex items-center justify-center text-sm app-muted"
+             >
+               知识库在中间编辑
+             </div>
+
 
           </div>
         </div>
@@ -172,9 +176,10 @@
           :novel-id="novelId"
         />
 
-        <div v-else class="h-full flex items-center justify-center text-sm app-muted">
-          记忆信息仅在左侧展示
-        </div>
+        <KnowledgePanel
+          v-else
+          :novel-id="novelId"
+        />
 
       </template>
 
@@ -198,16 +203,17 @@
           :outline-id="currentOutlineId"
         />
 
-        <div
-          v-else-if="leftTab === 'world'"
-          class="h-full flex items-center justify-center text-sm app-muted"
-        >
-          世界观管理区
-        </div>
+         <div
+           v-else-if="leftTab === 'world'"
+           class="h-full flex items-center justify-center text-sm app-muted"
+         >
+           世界观管理区
+         </div>
+ 
+         <div v-else class="h-full flex items-center justify-center text-sm app-muted">
+           知识库管理区
+         </div>
 
-        <div v-else class="h-full flex items-center justify-center text-sm app-muted">
-          StoryEngine 记忆区
-        </div>
 
       </template>
     </WorkbenchLayout>
@@ -219,13 +225,13 @@
 import WorkbenchLayout from '@/layouts/WorkbenchLayout.vue'
 import AgentPanel from '@/panels/AgentPanel.vue'
 import EditorPanel from '@/panels/EditorPanel.vue'
-import MemoryPanel from '@/panels/MemoryPanel.vue'
+import KnowledgePanel from '@/panels/KnowledgePanel.vue'
 import NovelTree from '@/panels/NovelTree.vue'
 import OutlineAgentPanel from '@/panels/OutlineAgentPanel.vue'
 import OutlineEditor from '@/panels/OutlineEditor.vue'
 import OutlinePanel from '@/panels/OutlinePanel.vue'
 import WorldPanel from '@/panels/WorldPanel.vue'
-import { ArrowLeft, ArrowUp, Document, Edit, List, Memo } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowUp, CollectionTag, Document, Edit, List } from '@element-plus/icons-vue'
 
 
 import { ElMessage } from 'element-plus'
@@ -243,7 +249,7 @@ const toggleLeftPanel = () => {
 
 const novelId = ref<string>('')
 const novel = ref<any>(null)
-const leftTab = ref<'chapters' | 'outlines' | 'world' | 'memory'>('chapters')
+const leftTab = ref<'chapters' | 'outlines' | 'world' | 'knowledge'>('chapters')
 
 
 const currentChapterId = ref<string | null>(null)
@@ -257,7 +263,7 @@ const activeTabLabel = computed(() => {
     chapters: '章节',
     outlines: '大纲',
     world: '世界观',
-    memory: '记忆'
+    knowledge: '知识库与记忆'
   }
   return labelMap[leftTab.value]
 })
@@ -279,12 +285,16 @@ async function loadNovel() {
   if (!novelId.value) return
   
   try {
-    if (window.electronAPI?.novel) {
-      novel.value = await window.electronAPI.novel.get(novelId.value)
-      if (!novel.value) {
-        ElMessage.error('小说不存在')
-        goBack()
-      }
+    if (!window.electronAPI?.novel) {
+      ElMessage.warning('Electron API 未加载')
+      return
+    }
+    const result = await window.electronAPI.novel.get(novelId.value)
+    if (result) {
+      novel.value = result
+    } else {
+      ElMessage.error('小说不存在')
+      goBack()
     }
   } catch (error: any) {
     console.error('加载小说失败:', error)
@@ -302,10 +312,12 @@ async function loadChapter(chapterId: string) {
   if (!chapterId) return
   
   try {
-    if (window.electronAPI?.chapter) {
-      currentChapter.value = await window.electronAPI.chapter.get(chapterId)
-      currentChapterContent.value = currentChapter.value?.content || ''
+    if (!window.electronAPI?.chapter) {
+      ElMessage.warning('Electron API 未加载')
+      return
     }
+    currentChapter.value = await window.electronAPI.chapter.get(chapterId)
+    currentChapterContent.value = currentChapter.value?.content || ''
   } catch (error: any) {
     console.error('加载章节失败:', error)
     ElMessage.error('加载章节失败')
@@ -350,15 +362,20 @@ function handleOutlineUpdated(_outline: any) {
 }
 
 async function updateChapterContent(chapterId: string, content: string) {
+  if (!chapterId) return
+  
   try {
-    if (window.electronAPI?.chapter) {
-      const chapter = await window.electronAPI.chapter.update(chapterId, {
-        content: content
-      })
-      currentChapter.value = chapter
+    if (!window.electronAPI?.chapter) {
+      ElMessage.warning('Electron API 未加载')
+      return
     }
+    const chapter = await window.electronAPI.chapter.update(chapterId, {
+      content: content
+    })
+    currentChapter.value = chapter
   } catch (error: any) {
     console.error('更新章节内容失败:', error)
+    ElMessage.error('自动保存失败')
   }
 }
 

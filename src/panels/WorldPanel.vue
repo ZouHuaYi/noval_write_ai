@@ -80,13 +80,13 @@ async function loadWorldview() {
 
   loading.value = true
   try {
-    if (window.electronAPI?.worldview) {
-      const record = await window.electronAPI.worldview.get(props.novelId)
-      worldviewText.value = record?.worldview || ''
-      rulesText.value = record?.rules || ''
-    } else {
+    if (!window.electronAPI?.worldview) {
       ElMessage.warning('Electron API 未加载')
+      return
     }
+    const record = await window.electronAPI.worldview.get(props.novelId)
+    worldviewText.value = record?.worldview || ''
+    rulesText.value = record?.rules || ''
   } catch (error: any) {
     console.error('加载世界观失败:', error)
     ElMessage.error('加载世界观失败')
@@ -103,15 +103,15 @@ async function saveWorldview() {
 
   saving.value = true
   try {
-    if (window.electronAPI?.worldview) {
-      await window.electronAPI.worldview.save(props.novelId, {
-        worldview: worldviewText.value.trim(),
-        rules: rulesText.value.trim()
-      })
-      ElMessage.success('保存成功')
-    } else {
+    if (!window.electronAPI?.worldview) {
       ElMessage.warning('Electron API 未加载')
+      return
     }
+    await window.electronAPI.worldview.save(props.novelId, {
+      worldview: worldviewText.value.trim(),
+      rules: rulesText.value.trim()
+    })
+    ElMessage.success('保存成功')
   } catch (error: any) {
     console.error('保存世界观失败:', error)
     ElMessage.error('保存世界观失败')

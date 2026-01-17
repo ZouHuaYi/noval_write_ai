@@ -184,11 +184,12 @@ const lastAction = ref('')
 const lastActionAt = ref<number | null>(null)
 const activeSections = ref(['tools'])
 
-
 const applyOutlineContent = async (content: string) => {
+
   if (!props.outlineId) return
   if (!window.electronAPI?.outline) {
-    throw new Error('大纲 API 未加载')
+    ElMessage.warning('Electron API 未加载')
+    return
   }
 
   const updated = await window.electronAPI.outline.update(props.outlineId, { content })
@@ -199,19 +200,21 @@ const applyOutlineContent = async (content: string) => {
   }
 }
 
+
 // 获取大纲内容
 const getOutlineContent = async () => {
-
   if (!props.outlineId) return ''
-  try { 
-    if (window.electronAPI?.outline) {
-      const outline = await window.electronAPI.outline.get(props.outlineId)
-      outlineInfo.value = outline
-
+  try {
+    if (!window.electronAPI?.outline) {
+      ElMessage.warning('Electron API 未加载')
+      return
     }
+    const outline = await window.electronAPI.outline.get(props.outlineId)
+    outlineInfo.value = outline
   } catch (error: any) {
-    ElMessage.error('获取大纲内容失败' + (error.message || '未知错误'))
+    ElMessage.error('获取大纲内容失败: ' + (error.message || '未知错误'))
   }
+
 }
 
 watch(() => props.outlineId, (newId) => {
@@ -350,6 +353,7 @@ const handleGenerateChapters = async () => {
     ElMessage.error('大纲生成接口未加载')
     return null
   }
+
 
   try {
     const prompt = dialogPrompt.value.trim()

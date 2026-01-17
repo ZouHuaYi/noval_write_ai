@@ -1,12 +1,9 @@
-const { scanWritingChapters } = require('./extractor/chapterScanner')
 const { processChapterFull } = require('./pipeline/processChapterFull')
 const { ContextCompressor } = require('./compressor/contextCompressor')
 const { OpenAIClient } = require('../llm/storyEngine/openaiClient')
 const llmService = require('../llm/llmService')
-const { deleteEntitiesByChapter } = require('../database/entityDAO')
-const { deleteEventsByChapter } = require('../database/eventDAO')
-const { deleteDependenciesByChapter } = require('../database/dependencyDAO')
 const { updateChapter } = require('../database/chapterDAO')
+const { scanWritingChapters } = require('./extractor/chapterScanner')
 
 let llmInstance = null
 
@@ -27,25 +24,16 @@ async function getStoryEngineLLM() {
 }
 
 
-// 注意：这里需要一个 novelId，暂时使用占位符
-// 在实际使用时，应该从调用方传入 novelId
-const DEFAULT_NOVEL_ID = 'default-novel-id' // 这应该从实际的小说ID获取
-
-async function run(novelId = DEFAULT_NOVEL_ID) {
+async function run(novelId) {
+  if (!novelId) {
+    throw new Error('StoryEngine 运行需要 novelId')
+  }
   const chapters = scanWritingChapters(novelId)
   let successCount = 0
   let failureCount = 0
 
   for (const ch of chapters) {
     let result
-
-    try {
-      deleteEntitiesByChapter(novelId, ch.chapter)
-      deleteEventsByChapter(novelId, ch.chapter)
-      deleteDependenciesByChapter(novelId, ch.chapter)
-    } catch (error) {
-      console.error(`清理第${ch.chapter}章记忆数据失败:`, error)
-    }
 
     try {
       const llm = await getStoryEngineLLM()
@@ -62,8 +50,13 @@ async function run(novelId = DEFAULT_NOVEL_ID) {
     }
 
     if (!result?.error) {
-      updateChapter(ch.id, { status: 'completed' })
-      successCount += 1
+      try {
+        updateChapter(ch.id, { status: 'completed' })
+        successCount += 1
+      } catch (error) {
+        console.error(`更新第${ch.chapter}章状态失败:`, error)
+        failureCount += 1
+      }
     } else {
       failureCount += 1
     }
@@ -81,7 +74,10 @@ async function run(novelId = DEFAULT_NOVEL_ID) {
 }
 
 // 处理压缩输出
-function processCompressOutput(chapter, novelId = DEFAULT_NOVEL_ID) {
+function processCompressOutput(chapter, novelId) {
+  if (!novelId) {
+    throw new Error('ContextCompressor 需要 novelId 参数')
+  }
   const compressor = new ContextCompressor(novelId)
   return compressor.compress(chapter)
 }

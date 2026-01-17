@@ -190,10 +190,11 @@ class DependencyStore {
     const ids = this.openByChapter?.get(chapter)
     if (!ids || ids.size === 0) {
       // 如果索引中没有，回退到全量扫描（但这种情况应该很少）
-      return Array.from(this.data)
+      return Array.from(this.store.values())
         .filter(d => d.status === "open" && d.createdAt <= chapter)
         .sort((a, b) => b.createdAt - a.createdAt)
     }
+
     
     // 从索引中获取依赖
     const deps = []

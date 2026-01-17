@@ -29,21 +29,28 @@
     "vite": "^5.0.0",
     "vite-plugin-electron": "^0.28.0",
     "vite-plugin-electron-renderer": "^0.14.5",
+    "vue-language-server": "^0.0.67",
     "wait-on": "^7.2.0"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
     "@iconify-json/carbon": "^1.1.0",
     "@iconify-json/mdi": "^1.1.0",
+    "@tiptap/extension-mention": "^3.15.3",
+    "@tiptap/extension-placeholder": "^3.15.3",
+    "@tiptap/starter-kit": "^3.15.3",
+    "@tiptap/vue-3": "^3.15.3",
     "@unocss/preset-attributify": "^0.58.0",
     "@unocss/preset-icons": "^0.58.0",
     "@unocss/preset-uno": "^0.58.0",
     "better-sqlite3": "^9.2.2",
     "element-plus": "^2.5.0",
     "pinia": "^2.1.7",
+    "tippy.js": "^6.3.7",
     "unocss": "^0.58.0",
     "vue": "^3.4.0",
-    "vue-router": "^4.2.5"
+    "vue-router": "^4.2.5",
+    "zod": "^4.3.5"
   },
   "build": {
     "appId": "com.novel.electron",

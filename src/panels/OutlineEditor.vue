@@ -128,14 +128,16 @@ async function loadOutline(outlineId: string) {
   if (!outlineId) return
   
   try {
-    if (window.electronAPI?.outline) {
-      const outline = await window.electronAPI.outline.get(outlineId)
-      if (outline) {
-        outlineTitle.value = outline.title || ''
-        outlineContent.value = outline.content || ''
-        startChapter.value = outline.startChapter || null
-        endChapter.value = outline.endChapter || null
-      }
+    if (!window.electronAPI?.outline) {
+      ElMessage.warning('Electron API 未加载')
+      return
+    }
+    const outline = await window.electronAPI.outline.get(outlineId)
+    if (outline) {
+      outlineTitle.value = outline.title || ''
+      outlineContent.value = outline.content || ''
+      startChapter.value = outline.startChapter || null
+      endChapter.value = outline.endChapter || null
     }
   } catch (error: any) {
     console.error('加载大纲失败:', error)
@@ -175,22 +177,25 @@ async function autoSave() {
   if (!props.outlineId || saving.value) return
   
   try {
-    if (window.electronAPI?.outline) {
-      const updateData: any = {
-        title: outlineTitle.value,
-        content: outlineContent.value
-      }
-      if (startChapter.value !== null) {
-        updateData.startChapter = startChapter.value
-      }
-      if (endChapter.value !== null) {
-        updateData.endChapter = endChapter.value
-      }
-      const outline = await window.electronAPI.outline.update(props.outlineId, updateData)
-      emit('outline-updated', outline)
+    if (!window.electronAPI?.outline) {
+      ElMessage.warning('Electron API 未加载')
+      return
     }
+    const updateData: any = {
+      title: outlineTitle.value,
+      content: outlineContent.value
+    }
+    if (startChapter.value !== null) {
+      updateData.startChapter = startChapter.value
+    }
+    if (endChapter.value !== null) {
+      updateData.endChapter = endChapter.value
+    }
+    const outline = await window.electronAPI.outline.update(props.outlineId, updateData)
+    emit('outline-updated', outline)
   } catch (error) {
     console.error('自动保存失败:', error)
+    ElMessage.error('自动保存失败')
   }
 }
 
@@ -215,21 +220,23 @@ async function saveOutline() {
 
   saving.value = true
   try {
-    if (window.electronAPI?.outline) {
-      const updateData: any = {
-        title: outlineTitle.value.trim(),
-        content: outlineContent.value
-      }
-      if (startChapter.value !== null) {
-        updateData.startChapter = startChapter.value
-      }
-      if (endChapter.value !== null) {
-        updateData.endChapter = endChapter.value
-      }
-      const outline = await window.electronAPI.outline.update(props.outlineId, updateData)
-      emit('outline-updated', outline)
-      ElMessage.success('保存成功')
+    if (!window.electronAPI?.outline) {
+      ElMessage.error('Electron API 未加载')
+      return
     }
+    const updateData: any = {
+      title: outlineTitle.value.trim(),
+      content: outlineContent.value
+    }
+    if (startChapter.value !== null) {
+      updateData.startChapter = startChapter.value
+    }
+    if (endChapter.value !== null) {
+      updateData.endChapter = endChapter.value
+    }
+    const outline = await window.electronAPI.outline.update(props.outlineId, updateData)
+    emit('outline-updated', outline)
+    ElMessage.success('保存成功')
   } catch (error: any) {
     console.error('保存失败:', error)
     ElMessage.error('保存失败: ' + (error.message || '未知错误'))

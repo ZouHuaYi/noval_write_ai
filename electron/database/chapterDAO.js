@@ -8,6 +8,12 @@ function createChapter(novelId, data = {}) {
   const db = getDatabase()
   const id = randomUUID()
   const now = Date.now()
+  let chapterNumber = data.chapterNumber
+
+  if (chapterNumber == null) {
+    const row = db.prepare('SELECT MAX(chapterNumber) AS maxNumber FROM chapter WHERE novelId = ?').get(novelId)
+    chapterNumber = (row?.maxNumber || 0) + 1
+  }
 
   db.prepare(`
     INSERT INTO chapter (id, novelId, chapterNumber, title, content, status, wordCount, createdAt, updatedAt)
@@ -15,8 +21,8 @@ function createChapter(novelId, data = {}) {
   `).run(
     id,
     novelId,
-    data.chapterNumber,
-    data.title || `第${data.chapterNumber}章`,
+    chapterNumber,
+    data.title || `第${chapterNumber}章`,
     data.content || '',
     data.status || 'draft',
     0,
@@ -25,6 +31,7 @@ function createChapter(novelId, data = {}) {
   )
   return id
 }
+
 
 /**
  * 根据 ID 获取章节
@@ -64,17 +71,26 @@ function getChaptersByNovelAndStatus(novelId, status) {
 function updateChapterContent(chapterId, content, chapterNumber) {
   const db = getDatabase()
   const now = Date.now()
-  // 简单的中文字数统计（去除空格和标点）
   const wordCount = content.replace(/[\s\p{P}]/gu, '').length
-  
+
+  if (chapterNumber === undefined) {
+    db.prepare(`
+      UPDATE chapter
+      SET content = ?, wordCount = ?, updatedAt = ?
+      WHERE id = ?
+    `).run(content, wordCount, now, chapterId)
+    return getChapterById(chapterId)
+  }
+
   db.prepare(`
     UPDATE chapter
     SET content = ?, wordCount = ?, updatedAt = ?, chapterNumber = ?
     WHERE id = ?
   `).run(content, wordCount, now, chapterNumber, chapterId)
-  
+
   return getChapterById(chapterId)
 }
+
 
 /**
  * 更新章节信息

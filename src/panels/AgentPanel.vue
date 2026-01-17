@@ -187,7 +187,7 @@ import { callChatModel } from '@/llm/client';
 import { chapterSkills } from '@/llm/prompts/chapter';
 import { Brush, Cpu, InfoFilled, Loading, Plus, Search, Warning } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 
 
 const props = defineProps<{
@@ -214,6 +214,44 @@ const lastAction = ref('')
 const lastActionAt = ref<number | null>(null)
 const activeSections = ref(['tools'])
 
+// ReIO 相关状态
+const reioStats = ref<any | null>(null)
+const reioLoading = ref(false)
+const enableReIO = ref(true)
+
+// ReIO 通过率计算
+const reioPassRate = computed(() => {
+  if (!reioStats.value || reioStats.value.totalChecks === 0) return 100
+  return Math.round((reioStats.value.passedChecks / reioStats.value.totalChecks) * 100)
+})
+
+// 加载 ReIO 统计
+async function loadReIOStats() {
+  reioLoading.value = true
+  try {
+    if (window.electronAPI?.reio?.getStats) {
+      reioStats.value = await window.electronAPI.reio.getStats()
+    }
+  } catch (error) {
+    console.error('加载 ReIO 统计失败:', error)
+  } finally {
+    reioLoading.value = false
+  }
+}
+
+// 重置 ReIO 统计
+async function resetReIOStats() {
+  try {
+    if (window.electronAPI?.reio?.resetStats) {
+      await window.electronAPI.reio.resetStats()
+      reioStats.value = null
+      ElMessage.success('ReIO 统计已重置')
+    }
+  } catch (error) {
+    console.error('重置 ReIO 统计失败:', error)
+    ElMessage.error('重置失败')
+  }
+}
 
 const getDialogPlaceholder = () => {
   const placeholders = {

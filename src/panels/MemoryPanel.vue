@@ -159,44 +159,15 @@ async function loadMemory() {
 
   loading.value = true
   try {
-    if (window.electronAPI?.storyEngine) {
-      try {
-        await window.electronAPI.storyEngine.run(props.novelId)
-      } catch (error: any) {
-        console.error('运行记忆提取失败:', error)
-        ElMessage.error('运行记忆提取失败')
-      }
-    }
-
-    if (window.electronAPI?.memory) {
-      const data = await window.electronAPI.memory.get(props.novelId)
-      memory.entities = data?.entities || []
-      memory.events = data?.events || []
-      memory.dependencies = data?.dependencies || []
-    } else if (window.electronAPI?.db) {
-      const [entities, events, dependencies] = await Promise.all([
-        window.electronAPI.db.getAll(
-          'SELECT * FROM entity WHERE novelId = ? ORDER BY chapterNumber DESC, name ASC',
-          [props.novelId]
-        ),
-        window.electronAPI.db.getAll(
-          'SELECT * FROM event WHERE novelId = ? ORDER BY chapterNumber DESC, createdAt ASC',
-          [props.novelId]
-        ),
-        window.electronAPI.db.getAll(
-          'SELECT * FROM dependency WHERE novelId = ? ORDER BY chapterNumber DESC, createdAt ASC',
-          [props.novelId]
-        )
-      ])
-
-      memory.entities = entities.map(entity => parseJsonFields(entity, ['states', 'history']))
-      memory.events = events.map(event => parseJsonFields(event, ['actors', 'effects']))
-      memory.dependencies = dependencies.map(dependency =>
-        parseJsonFields(dependency, ['relatedCharacters', 'resolveWhen', 'violateWhen'])
-      )
-    } else {
+    if (!window.electronAPI?.memory) {
       ElMessage.warning('Electron API 未加载')
+      return
     }
+
+    const data = await window.electronAPI.memory.get(props.novelId)
+    memory.entities = data?.entities || []
+    memory.events = data?.events || []
+    memory.dependencies = data?.dependencies || []
   } catch (error: any) {
     console.error('加载记忆失败:', error)
     ElMessage.error('加载记忆失败')
@@ -229,19 +200,4 @@ function formatValue(value: unknown) {
   return String(value)
 }
 
-function parseJsonFields<T extends Record<string, any>>(record: T, fields: string[]) {
-  if (!record) return record
-  const parsed = { ...record }
-  fields.forEach((field) => {
-    const value = parsed[field]
-    if (typeof value === 'string') {
-      try {
-        parsed[field] = JSON.parse(value)
-      } catch {
-        parsed[field] = value
-      }
-    }
-  })
-  return parsed
-}
 </script>

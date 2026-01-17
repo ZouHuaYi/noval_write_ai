@@ -3,6 +3,8 @@ const { validateAndApply } = require("../governance/worldGate")
 const { CharacterStore } = require("../storage/characterStore")
 const { EventStore } = require("../storage/eventStore")
 const { DependencyStore } = require("../storage/dependencyStore")
+const { getDatabase } = require("../../database")
+
 
 /**
  * 完整闭环处理一章
@@ -16,33 +18,32 @@ async function processChapterFull({ novelId, chapter, text, llm }) {
     throw new Error("processChapterFull 需要 novelId 参数")
   }
 
-  // 创建 Store 实例
   const characterStore = new CharacterStore(novelId)
   const eventStore = new EventStore(novelId)
   const dependencyStore = new DependencyStore(novelId)
+  const db = getDatabase()
 
-  // -------------------------
-  // 1️⃣ 提取 LLM 输出
-  // -------------------------
   const extract = await extractWithLLM({
     llm,
     chapter,
     text,
   })
-  // 清空章节中所有事件、角色、依赖
-  characterStore.clearByChapter(chapter)
-  eventStore.clearByChapter(chapter)
-  dependencyStore.clearByChapter(chapter)
 
   let error = null
   try {
-    validateAndApply(extract, chapter, { characterStore, eventStore, dependencyStore })
+    db.transaction(() => {
+      characterStore.clearByChapter(chapter)
+      eventStore.clearByChapter(chapter)
+      dependencyStore.clearByChapter(chapter)
+      validateAndApply(extract, chapter, { characterStore, eventStore, dependencyStore })
+    })()
   } catch (err) {
-    error = err 
+    error = err
   }
   return {
     error
   }
 }
+
 
 module.exports = { processChapterFull }
