@@ -47,24 +47,47 @@
           ]"
         >
           <div class="event-node__header">
-            <span class="event-node__type">{{ getEventTypeLabel(data.eventType) }}</span>
-            <span v-if="data.chapter" class="event-node__chapter">第{{ data.chapter }}章</span>
+            <div class="header-left">
+              <el-icon v-if="data.eventType === 'plot'"><Operation /></el-icon>
+              <el-icon v-else-if="data.eventType === 'character'"><User /></el-icon>
+              <el-icon v-else-if="data.eventType === 'conflict'"><StarFilled /></el-icon>
+              <el-icon v-else-if="data.eventType === 'resolution'"><Check /></el-icon>
+              <el-icon v-else><Connection /></el-icon>
+              <span class="event-node__type">{{ getEventTypeLabel(data.eventType) }}</span>
+            </div>
+            <span v-if="data.chapter" class="event-node__chapter">章{{ data.chapter }}</span>
           </div>
           <div class="event-node__title">{{ data.label }}</div>
-          <div v-if="data.description" class="event-node__desc">
-            {{ truncate(data.description, 50) }}
+          
+          <div class="event-node__content">
+            <div v-if="data.description" class="event-node__desc">
+              {{ truncate(data.description, 40) }}
+            </div>
+            
+            <div v-if="(data.preconditions?.length || data.postconditions?.length)" class="event-node__conditions">
+              <div v-if="data.preconditions?.length" class="condition-item pre">
+                <el-icon><CaretRight /></el-icon>
+                <span>{{ data.preconditions[0] }}</span>
+              </div>
+              <div v-if="data.postconditions?.length" class="condition-item post">
+                <el-icon><CaretLeft /></el-icon>
+                <span>{{ data.postconditions[0] }}</span>
+              </div>
+            </div>
           </div>
+
           <div v-if="data.characters?.length" class="event-node__chars">
             <el-tag 
-              v-for="char in data.characters.slice(0, 3)" 
+              v-for="char in data.characters.slice(0, 2)" 
               :key="char" 
               size="small" 
               type="info"
+              effect="plain"
             >
               {{ char }}
             </el-tag>
-            <span v-if="data.characters.length > 3" class="event-node__more">
-              +{{ data.characters.length - 3 }}
+            <span v-if="data.characters.length > 2" class="event-node__more">
+              +{{ data.characters.length - 2 }}
             </span>
           </div>
         </div>
@@ -147,12 +170,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
-import { Close, FullScreen, Grid } from '@element-plus/icons-vue'
+import { 
+  Close, FullScreen, Grid, Operation, User, 
+  StarFilled, Check, Connection, CaretRight, CaretLeft 
+} from '@element-plus/icons-vue'
 import type { Node, Edge } from '@vue-flow/core'
 
 // 事件节点类型
@@ -180,7 +206,7 @@ const emit = defineEmits<{
 }>()
 
 // Vue Flow 实例
-const { fitView, getNodes, getEdges } = useVueFlow()
+const { fitView } = useVueFlow()
 
 // 节点和边
 const nodes = ref<Node[]>([])
@@ -222,7 +248,7 @@ function convertToFlowNodes(eventNodes: EventNodeData[]): { nodes: Node[], edges
   const flowNodes: Node[] = []
   const flowEdges: Edge[] = []
 
-  eventNodes.forEach((event, index) => {
+  eventNodes.forEach((event) => {
     // 创建节点
     flowNodes.push({
       id: event.id,
@@ -280,8 +306,6 @@ function layoutNodes() {
   })
 
   // 设置节点位置
-  const nodeWidth = 220
-  const nodeHeight = 120
   const levelGap = layoutDirection.value === 'LR' ? 300 : 180
   const nodeGap = layoutDirection.value === 'LR' ? 150 : 280
 
@@ -403,81 +427,128 @@ onMounted(() => {
 
 /* 事件节点样式 */
 .event-node {
-  min-width: 180px;
-  max-width: 220px;
-  padding: 12px;
+  min-width: 200px;
+  max-width: 240px;
+  padding: 10px;
   background: white;
-  border-radius: 8px;
-  border: 2px solid #e5e7eb;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  border: 1.5px solid #e2e8f0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .event-node:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  transform: translateY(-3px);
+  border-color: #cbd5e1;
 }
 
 .event-node--selected {
-  border-color: var(--el-color-primary);
-  box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.2);
+  border-color: var(--el-color-primary) !important;
+  box-shadow: 0 0 0 4px rgba(64, 158, 255, 0.15), 0 8px 24px rgba(0, 0, 0, 0.1) !important;
 }
 
 /* 事件类型颜色 */
-.event-node--plot { border-left: 4px solid #409eff; }
-.event-node--character { border-left: 4px solid #67c23a; }
-.event-node--conflict { border-left: 4px solid #f56c6c; }
-.event-node--resolution { border-left: 4px solid #e6a23c; }
-.event-node--transition { border-left: 4px solid #909399; }
+.event-node--plot { border-top: 4px solid #409eff; }
+.event-node--character { border-top: 4px solid #67c23a; }
+.event-node--conflict { border-top: 4px solid #f56c6c; }
+.event-node--resolution { border-top: 4px solid #e6a23c; }
+.event-node--transition { border-top: 4px solid #909399; }
 
 .event-node__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
 }
 
 .event-node__type {
-  font-size: 11px;
   font-weight: 600;
-  color: var(--el-text-color-secondary);
   text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .event-node__chapter {
   font-size: 10px;
-  color: var(--el-text-color-placeholder);
-  background: var(--el-fill-color-light);
-  padding: 2px 6px;
-  border-radius: 4px;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 100px;
+  font-weight: 500;
 }
 
 .event-node__title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  margin-bottom: 4px;
-  line-height: 1.4;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.3;
+}
+
+.event-node__content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .event-node__desc {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.5;
-  margin-bottom: 8px;
+  font-size: 11.5px;
+  color: #64748b;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.event-node__conditions {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: #f8fafc;
+  padding: 5px;
+  border-radius: 6px;
+  border: 1px dashed #e2e8f0;
+}
+
+.condition-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+}
+
+.condition-item.pre { color: #0891b2; }
+.condition-item.post { color: #7c3aed; }
+
+.condition-item .el-icon {
+  font-size: 10px;
 }
 
 .event-node__chars {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 8px;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid #f1f5f9;
 }
 
 .event-node__more {
-  font-size: 11px;
-  color: var(--el-text-color-placeholder);
+  font-size: 10px;
+  color: #94a3b8;
+  align-self: center;
 }
 
 /* 边标签 */

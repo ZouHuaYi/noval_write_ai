@@ -48,6 +48,17 @@ function registerGraphHandlers(ipcMain) {
     }
   })
 
+  // 加载图谱
+  ipcMain.handle('graph:load', async (_, novelId) => {
+    try {
+      manager.getGraph(novelId)
+      return { success: true }
+    } catch (error) {
+      console.error('加载图谱失败:', error)
+      throw error
+    }
+  })
+
   // ===== 节点操作 =====
 
   // 获取所有节点

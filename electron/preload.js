@@ -124,6 +124,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     exportForVisualization: (novelId) => ipcRenderer.invoke('graph:exportForVisualization', novelId),
     getCharacterNetwork: (novelId) => ipcRenderer.invoke('graph:getCharacterNetwork', novelId),
     save: (novelId) => ipcRenderer.invoke('graph:save', novelId),
+    load: (novelId) => ipcRenderer.invoke('graph:load', novelId),
     exportJSON: (novelId) => ipcRenderer.invoke('graph:exportJSON', novelId),
 
     // 节点操作

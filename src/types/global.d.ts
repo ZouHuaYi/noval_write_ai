@@ -343,8 +343,9 @@ declare global {
           nodes: any[]
           edges: any[]
         }>
-        save: (novelId: string) => Promise<boolean>
-        exportJSON: (novelId: string) => Promise<any>
+        save: (novelId: string) => Promise<boolean>;
+        load: (novelId: string) => Promise<{ success: boolean }>;
+        exportJSON: (novelId: string) => Promise<any>;
 
         // 节点操作
         getAllNodes: (novelId: string, type?: string) => Promise<any[]>

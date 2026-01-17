@@ -9,6 +9,7 @@ const outlineDAO = require('../database/outlineDAO')
 const chapterDAO = require('../database/chapterDAO')
 const settingsDAO = require('../database/settingsDAO')
 const { buildKnowledgeSummary } = require('../llm/knowledgeContext')
+const { buildPlanningSummary } = require('../llm/planningContext')
 
 function buildOutlineContext(outlines = []) {
   if (!outlines.length) return ''
@@ -41,18 +42,23 @@ function registerPlanningHandlers(ipcMain) {
       })
       const outlineContext = buildOutlineContext(matchedOutlines)
 
-      // 2. 构建知识库/记忆上下文
+      // 2. 构建知识图谱上下文
       const memoryContext = buildKnowledgeSummary({
         novelId,
-        types: ['character', 'location', 'timeline', 'plot'],
-        maxItems: 12,
-        currentChapter: chapterNumber,
+        types: ['character', 'location', 'item', 'organization'],
+        maxItems: 10,
         maxChars: 1200
+      })
+
+      // 3. 构建规划工作台上下文 (事件 + 任务)
+      const planningContext = buildPlanningSummary({
+        novelId,
+        chapterNumber
       })
 
       return {
         outlineContext,
-        memoryContext
+        memoryContext: [memoryContext, planningContext].filter(Boolean).join('\n\n')
       }
     } catch (error) {
       console.error('构建上下文失败:', error)

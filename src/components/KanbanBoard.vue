@@ -53,8 +53,18 @@
         @drop="onDrop($event, column.id)"
       >
         <div class="column-header">
-          <span class="column-title">{{ column.title }}</span>
-          <el-tag size="small" type="info" round>{{ column.tasks.length }}</el-tag>
+          <div class="flex items-center gap-2">
+            <span class="column-title">{{ column.title }}</span>
+            <el-tag size="small" type="info" round>{{ column.tasks.length }}</el-tag>
+          </div>
+          <el-button 
+            v-if="column.id === 'pending'"
+            size="small" 
+            text 
+            circle 
+            :icon="Plus" 
+            @click="showAddTaskDialog"
+          />
         </div>
         
         <div class="column-content">
@@ -74,10 +84,15 @@
             
             <!-- 章节信息 -->
             <div class="task-header">
-              <span class="task-chapter">第 {{ task.chapterNumber }} 章</span>
-              <el-icon v-if="task.id === recommendedTaskId" class="task-recommended">
-                <Star />
-              </el-icon>
+              <div class="flex items-center gap-1">
+                <span class="task-chapter">第 {{ task.chapterNumber }} 章</span>
+                <el-icon v-if="task.id === recommendedTaskId" class="task-recommended">
+                  <Star />
+                </el-icon>
+              </div>
+              <div class="task-actions opacity-0 group-hover:opacity-100 transition-opacity">
+                <el-button size="small" circle text :icon="Delete" @click.stop="emit('delete-chapter', task.id)" />
+              </div>
             </div>
             
             <!-- 任务标题 -->
@@ -242,6 +257,43 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 新增章节对话框 -->
+    <el-dialog
+      v-model="addTaskDialogVisible"
+      title="新增章节任务"
+      width="450px"
+    >
+      <el-form :model="taskForm" label-width="80px">
+        <el-form-item label="章节号">
+          <el-input-number v-model="taskForm.chapterNumber" :min="1" />
+        </el-form-item>
+        <el-form-item label="章节标题">
+          <el-input v-model="taskForm.title" placeholder="输入章节标题" />
+        </el-form-item>
+        <el-form-item label="任务状态">
+          <el-select v-model="taskForm.status" style="width: 100%">
+            <el-option label="待写作" value="pending" />
+            <el-option label="写作中" value="in_progress" />
+            <el-option label="已完成" value="completed" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="优先级">
+          <el-radio-group v-model="taskForm.priority">
+            <el-radio value="high">高</el-radio>
+            <el-radio value="medium">中</el-radio>
+            <el-radio value="low">低</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="目标字数">
+          <el-input-number v-model="taskForm.targetWords" :step="500" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="addTaskDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleAddTask">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -249,8 +301,9 @@
 import { ref, computed, watch } from 'vue'
 import { 
   Aim, CircleCheck, Document, Edit, Folder, 
-  InfoFilled, List, Refresh, Star, Warning 
+  InfoFilled, List, Refresh, Star, Warning, Plus, Delete
 } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 
 interface Task {
   id: string
@@ -292,6 +345,8 @@ const emit = defineEmits<{
   (e: 'start-writing', chapterNumber: number): void
   (e: 'refresh'): void
   (e: 'request-recommendation'): void
+  (e: 'add-chapter', chapterData: any): void
+  (e: 'delete-chapter', taskId: string): void
 }>()
 
 // 状态
@@ -301,6 +356,43 @@ const showRecommendDialog = ref(false)
 const draggedTask = ref<Task | null>(null)
 const recommendedTaskId = ref<string | null>(null)
 const taskTimeEstimate = ref<any>(null)
+
+// 新增任务相关
+const addTaskDialogVisible = ref(false)
+const taskForm = ref({
+  chapterNumber: 1,
+  title: '',
+  priority: 'medium' as 'high' | 'medium' | 'low',
+  targetWords: 3000,
+  status: 'pending'
+})
+
+function showAddTaskDialog() {
+  // 根据现有任务推测章节号
+  const maxChapter = props.board?.columns.reduce((max, col) => {
+    const colMax = col.tasks.reduce((m, t) => Math.max(m, t.chapterNumber), 0)
+    return Math.max(max, colMax)
+  }, 0) || 0
+  
+  taskForm.value = {
+    chapterNumber: maxChapter + 1,
+    title: '',
+    priority: 'medium',
+    targetWords: 3000,
+    status: 'pending'
+  }
+  addTaskDialogVisible.value = true
+}
+
+function handleAddTask() {
+  if (!taskForm.value.title.trim()) {
+    taskForm.value.title = `第 ${taskForm.value.chapterNumber} 章`
+  }
+  
+  emit('add-chapter', { ...taskForm.value })
+  addTaskDialogVisible.value = false
+  ElMessage.success('已添加章节任务')
+}
 
 // 默认看板
 const defaultBoard: Board = {

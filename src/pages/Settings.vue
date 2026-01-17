@@ -988,7 +988,8 @@ function goToHome() {
   background-color: #fafafa;
   border-bottom: 1px solid #ebeef5;
 }
-.settings-tabs :deep(.el-tabs__nav) {
+.settings-tabs :deep(.el-tabs__nav
+) {
   border: none;
 }
 .settings-tabs :deep(.el-tabs__header) {

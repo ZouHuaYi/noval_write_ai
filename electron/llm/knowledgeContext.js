@@ -1,16 +1,20 @@
-const knowledgeEntryDAO = require('../database/knowledgeEntryDAO')
+const { getGraphManager } = require('../graph/graphManager')
 
 function normalizeText(value) {
   return (value || '').toString().trim()
 }
 
-function buildEntryLine(entry) {
-  const name = normalizeText(entry.name)
-  const summary = normalizeText(entry.summary)
-  const tags = Array.isArray(entry.tags) && entry.tags.length > 0 ? `（${entry.tags.join('/') }）` : ''
-  const chapter = entry.sourceChapter ? `第${entry.sourceChapter}章` : ''
-  const base = [name, summary].filter(Boolean).join('：')
-  return [base, chapter, tags].filter(Boolean).join(' · ')
+function buildEntityLine(node) {
+  const name = normalizeText(node.label || node.id)
+  const desc = normalizeText(node.description)
+  const type = node.type ? `(${node.type})` : ''
+  const props = []
+  if (node.properties) {
+    if (node.properties.status) props.push(`状态: ${node.properties.status}`)
+    if (node.properties.title) props.push(`称号: ${node.properties.title}`)
+  }
+  const propStr = props.length > 0 ? ` [${props.join(', ')}]` : ''
+  return `${name}${type}：${desc}${propStr}`
 }
 
 function clampText(text, maxLength) {
@@ -19,41 +23,38 @@ function clampText(text, maxLength) {
   return text.length > maxLength ? text.slice(0, maxLength) + '…' : text
 }
 
-function scoreEntry(entry, currentChapter) {
-  if (!currentChapter || !entry.sourceChapter) return 0
-  const distance = Math.abs(currentChapter - entry.sourceChapter)
-  return -distance
-}
-
-function buildKnowledgeContext(entries, maxChars) {
-  if (!entries.length) return ''
-  const lines = entries.map(buildEntryLine).filter(Boolean)
-  if (!lines.length) return ''
-  const content = `【知识库要点】\n${lines.join('\n')}`
-  return clampText(content, maxChars)
-}
-
-function pickEntries(entries, options) {
-  const maxItems = options.maxItems ?? 12
-  const currentChapter = options.currentChapter ?? null
-  const sorted = [...entries].sort((a, b) => scoreEntry(b, currentChapter) - scoreEntry(a, currentChapter))
-  return sorted.slice(0, maxItems)
-}
-
-function loadKnowledgeEntries(novelId, type) {
-  return knowledgeEntryDAO.listEntries(novelId, type, 'approved')
-}
-
-function buildKnowledgeSummary({ novelId, types, maxItems, currentChapter, maxChars }) {
+function buildKnowledgeSummary({ novelId, types = ['character', 'location'], maxItems = 10, maxChars = 1500 }) {
   if (!novelId) return ''
-  const allEntries = []
-  types.forEach(type => {
-    const entries = loadKnowledgeEntries(novelId, type)
-    allEntries.push(...entries)
-  })
 
-  const picked = pickEntries(allEntries, { maxItems, currentChapter })
-  return buildKnowledgeContext(picked, maxChars)
+  try {
+    const manager = getGraphManager()
+    const graph = manager.getGraph(novelId)
+    if (!graph) return ''
+
+    const allNodes = []
+    types.forEach(type => {
+      const nodes = graph.getAllNodes(type)
+      allNodes.push(...nodes)
+    })
+
+    // 简单排序：有描述的优先
+    const sorted = allNodes.sort((a, b) => {
+      const aScore = (a.description ? 10 : 0) + (a.properties ? 5 : 0)
+      const bScore = (b.description ? 10 : 0) + (b.properties ? 5 : 0)
+      return bScore - aScore
+    })
+
+    const picked = sorted.slice(0, maxItems)
+    const lines = picked.map(buildEntityLine).filter(Boolean)
+
+    if (!lines.length) return ''
+
+    const content = `【知识图谱要点】\n${lines.join('\n')}`
+    return clampText(content, maxChars)
+  } catch (error) {
+    console.error('构建知识摘要失败:', error)
+    return ''
+  }
 }
 
 module.exports = {

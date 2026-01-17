@@ -31,6 +31,19 @@
           <el-icon><Aim /></el-icon>
           智能推荐
         </el-button>
+        <el-divider direction="vertical" />
+        <el-button size="small" type="primary" plain @click="handleAddEvent">
+          <el-icon><Plus /></el-icon>
+          新增事件
+        </el-button>
+        <el-button size="small" @click="handleExport" :disabled="!chapters.length">
+          <el-icon><Download /></el-icon>
+          导出计划
+        </el-button>
+        <el-button size="small" type="danger" plain @click="handleClearData">
+          <el-icon><Delete /></el-icon>
+          清空
+        </el-button>
       </div>
     </div>
 
@@ -73,6 +86,8 @@
         @start-writing="handleStartWriting"
         @refresh="loadData"
         @request-recommendation="getRecommendation"
+        @add-chapter="handleManualAddChapter"
+        @delete-chapter="handleDeleteChapter"
       />
 
       <!-- 列表视图 (大纲模式) -->
@@ -96,9 +111,17 @@
                 </div>
                 <div class="text-[15px] font-medium">{{ chapter.title }}</div>
               </div>
-              <el-button type="primary" size="small" plain @click="handleStartWriting(chapter.chapterNumber)">
-                <el-icon class="mr-1"><Edit /></el-icon>写作
-              </el-button>
+              <div class="flex items-center gap-1">
+                <el-button type="primary" size="small" circle text @click="handleEditChapter(chapter)">
+                  <el-icon><Edit /></el-icon>
+                </el-button>
+                <el-button type="danger" size="small" circle text @click="handleDeleteChapter(chapter.id)">
+                  <el-icon><Delete /></el-icon>
+                </el-button>
+                <el-button type="primary" size="small" plain @click="handleStartWriting(chapter.chapterNumber)">
+                  开始写作
+                </el-button>
+              </div>
             </div>
             
             <div class="text-sm text-[var(--app-text-muted)] leading-relaxed mb-3">
@@ -184,15 +207,68 @@
             <li v-for="(cond, i) in selectedEvent.postconditions" :key="i">{{ cond }}</li>
           </ul>
         </div>
+
+        <div class="mt-6 pt-4 border-t border-[var(--el-border-color-lighter)] flex justify-end">
+          <el-button type="danger" plain size="small" :icon="Delete" @click="handleDeleteEvent(selectedEvent.id)">
+            删除此事件
+          </el-button>
+        </div>
       </div>
     </el-drawer>
+
+
+    <!-- 新增事件对话框 -->
+    <el-dialog v-model="showAddEventDialog" title="新增事件节点" width="500px">
+      <el-form :model="eventForm" label-width="80px">
+        <el-form-item label="事件名称">
+          <el-input v-model="eventForm.label" placeholder="如：集市邂逅" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="eventForm.description" type="textarea" placeholder="事件具体发生的过程..." />
+        </el-form-item>
+        <el-form-item label="事件类型">
+          <el-select v-model="eventForm.eventType" style="width: 100%">
+            <el-option label="情节 (Plot)" value="plot" />
+            <el-option label="冲突 (Conflict)" value="conflict" />
+            <el-option label="角色 (Character)" value="character" />
+            <el-option label="转折 (Twist)" value="twist" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="建议章节">
+          <el-input-number v-model="eventForm.chapter" :min="1" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showAddEventDialog = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveNewEvent">提交</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 编辑章节对话框 -->
+    <el-dialog v-model="showEditChapterDialog" title="编辑章节计划" width="450px">
+      <el-form :model="editChapterForm" label-width="80px">
+        <el-form-item label="章节号">
+          <el-input-number v-model="editChapterForm.chapterNumber" :min="1" />
+        </el-form-item>
+        <el-form-item label="标题">
+          <el-input v-model="editChapterForm.title" />
+        </el-form-item>
+        <el-form-item label="目标字数">
+          <el-input-number v-model="editChapterForm.targetWords" :step="500" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showEditChapterDialog = false">取消</el-button>
+        <el-button type="primary" @click="handleUpdateChapter">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Aim, Calendar, List, MagicStick, Share, Document, Edit } from '@element-plus/icons-vue'
+import { Aim, Calendar, List, MagicStick, Share, Document, Edit, Delete, Download, Plus } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import EventGraph from '@/components/EventGraph.vue'
 import KanbanBoard from '@/components/KanbanBoard.vue'
 
@@ -310,6 +386,141 @@ async function saveData() {
   }
 }
 
+// 清空数据
+async function handleClearData() {
+  if (!props.novelId) return
+  
+  try {
+    await ElMessageBox.confirm(
+      '确定要清空当前的事件图谱和章节计划吗？此操作不可撤销。',
+      '确认清空',
+      {
+        confirmButtonText: '确定清空',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    await window.electronAPI?.planning?.clearData(props.novelId)
+    events.value = []
+    chapters.value = []
+    kanbanBoard.value = null
+    ElMessage.success('规划数据已清空')
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('清空数据失败:', error)
+      ElMessage.error('清空数据失败')
+    }
+  }
+}
+
+// 导出计划
+async function handleExport() {
+  if (!chapters.value.length) return
+  
+  try {
+    let mdContent = `# ${props.novelTitle || '未命名小说'} - 章节计划\n\n`
+    
+    chapters.value.forEach(ch => {
+      mdContent += `## 第 ${ch.chapterNumber} 章: ${ch.title}\n`
+      mdContent += `**重点**: ${ch.focus?.join(', ') || '无'}\n\n`
+      
+      if (ch.writingHints?.length) {
+        mdContent += `### 写作建议\n`
+        ch.writingHints.forEach((hint: string) => {
+          mdContent += `- ${hint}\n`
+        })
+        mdContent += '\n'
+      }
+      
+      const chapterEvents = events.value.filter(e => ch.events?.includes(e.id))
+      if (chapterEvents.length) {
+        mdContent += `### 包含事件\n`
+        chapterEvents.forEach(e => {
+          mdContent += `- **${e.label}**: ${e.description || '无描述'}\n`
+        })
+        mdContent += '\n'
+      }
+      
+      mdContent += '---\n\n'
+    })
+    
+    // 这里简单通过 Blob 导出，或者调用原生对话框
+    // 既然是 Electron 应用，最好调用主进程保存文件对话框，但这里先实现简单的展示或下载
+    const blob = new Blob([mdContent], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${props.novelTitle || 'novel'}_plan.md`
+    a.click()
+    URL.revokeObjectURL(url)
+    
+    ElMessage.success('章节计划已导出为 Markdown')
+  } catch (error) {
+    console.error('导出失败:', error)
+    ElMessage.error('导出失败')
+  }
+}
+
+// 新增事件
+const showAddEventDialog = ref(false)
+const eventForm = ref({
+  label: '',
+  description: '',
+  eventType: 'plot' as 'plot' | 'conflict' | 'character' | 'twist',
+  chapter: 1
+})
+
+function handleAddEvent() {
+  eventForm.value = {
+    label: '',
+    description: '',
+    eventType: 'plot',
+    chapter: 1
+  }
+  showAddEventDialog.value = true
+}
+
+function handleSaveNewEvent() {
+  if (!eventForm.value.label.trim()) {
+    ElMessage.warning('请输入事件名称')
+    return
+  }
+  
+  const newId = `evt_${Date.now()}`
+  const newEvent = {
+    id: newId,
+    label: eventForm.value.label,
+    description: eventForm.value.description,
+    eventType: eventForm.value.eventType,
+    chapter: eventForm.value.chapter,
+    characters: []
+  }
+  
+  events.value = [...events.value, newEvent]
+  saveData()
+  showAddEventDialog.value = false
+  ElMessage.success('已新增事件节点')
+}
+
+// 删除事件
+async function handleDeleteEvent(eventId: string) {
+  try {
+    await ElMessageBox.confirm('确定要删除该事件吗？如果在章节计划中已被引用，可能产生影响。', '确认删除', {
+      type: 'warning'
+    })
+    events.value = events.value.filter(e => e.id !== eventId)
+    // 同时从章节计划中移除
+    chapters.value.forEach(ch => {
+      if (ch.events) {
+        ch.events = ch.events.filter((id: string) => id !== eventId)
+      }
+    })
+    saveData()
+    ElMessage.success('事件已删除')
+  } catch { /* 取消 */ }
+}
+
 // 生成事件图谱
 function generateEventGraph() {
   showGenerateDialog.value = true
@@ -417,7 +628,7 @@ function handleTaskSelect(task: any) {
   console.log('选中任务:', task)
 }
 
-function handleTaskMove(taskId: string, targetStatus: string) {
+async function handleTaskMove(taskId: string, targetStatus: string) {
   // 更新看板状态
   if (!kanbanBoard.value) return
 
@@ -440,9 +651,153 @@ function handleTaskMove(taskId: string, targetStatus: string) {
     if (targetCol) {
       targetCol.tasks.push(movedTask)
     }
+    
+    // 深度绑定：同步状态到数据库章节
+    try {
+      if (props.novelId && window.electronAPI?.chapter) {
+        // 查找对应的章节
+        const dbChapters = await window.electronAPI.chapter.list(props.novelId)
+        const matchedChapter = dbChapters.find((c: any) => c.chapterNumber === movedTask.chapterNumber)
+        
+        if (matchedChapter) {
+          // 映射状态: pending/in_progress -> writing, completed -> completed
+          const dbStatus = targetStatus === 'completed' ? 'completed' : 'writing'
+          await window.electronAPI.chapter.update(matchedChapter.id, {
+            status: dbStatus
+          })
+          console.log(`已同步章节 ${movedTask.chapterNumber} 状态至 ${dbStatus}`)
+        }
+      }
+    } catch (error) {
+      console.error('状态同步失败:', error)
+    }
+
+    // 更新 chapters 列表中的状态
+    const chapterIdx = chapters.value.findIndex(ch => ch.chapterNumber === movedTask.chapterNumber)
+    if (chapterIdx !== -1) {
+      chapters.value[chapterIdx].status = targetStatus
+    }
+
     // 自动保存看板状态
     saveData()
   }
+}
+
+// 手动新增章节
+async function handleManualAddChapter(chapterData: any) {
+  const newChapter = {
+    ...chapterData,
+    id: `ch_${Date.now()}`,
+    eventCount: 0,
+    focus: [],
+    writingHints: [],
+    progress: 0
+  }
+  
+  // 更新列表
+  chapters.value = [...chapters.value, newChapter].sort((a, b) => a.chapterNumber - b.chapterNumber)
+  
+  // 更新看板
+  if (!kanbanBoard.value) {
+    kanbanBoard.value = await window.electronAPI?.planning?.createKanban(chapters.value)
+  } else {
+    const targetCol = kanbanBoard.value.columns.find((c: any) => c.id === chapterData.status)
+    if (targetCol) {
+      targetCol.tasks.push(newChapter)
+    }
+  }
+  
+  saveData()
+}
+
+// 删除章节
+async function handleDeleteChapter(chapterId: string) {
+  try {
+    const chapter = chapters.value.find(c => c.id === chapterId)
+    if (!chapter) return
+    
+    await ElMessageBox.confirm(`确定要删除第 ${chapter.chapterNumber} 章的规划吗？此操作不会删除数据库中的实际代码/内容，仅移除规划任务。`, '确认删除', {
+      type: 'warning'
+    })
+    
+    // 从列表中移除
+    chapters.value = chapters.value.filter(c => c.id !== chapterId)
+    
+    // 从看板中移除
+    if (kanbanBoard.value?.columns) {
+      kanbanBoard.value.columns.forEach((col: any) => {
+        col.tasks = col.tasks.filter((t: any) => t.id !== chapterId)
+      })
+    }
+    
+    saveData()
+    ElMessage.success('章节计划已移除')
+  } catch { /* 取消 */ }
+}
+
+// 编辑章节
+const showEditChapterDialog = ref(false)
+const editChapterForm = ref({
+  id: '',
+  chapterNumber: 1,
+  title: '',
+  targetWords: 3000
+})
+
+function handleEditChapter(chapter: any) {
+  editChapterForm.value = {
+    id: chapter.id,
+    chapterNumber: chapter.chapterNumber,
+    title: chapter.title,
+    targetWords: chapter.targetWords || 3000
+  }
+  showEditChapterDialog.value = true
+}
+
+async function handleUpdateChapter() {
+  const chIdx = chapters.value.findIndex(c => c.id === editChapterForm.value.id)
+  if (chIdx === -1) return
+  
+  const oldNum = chapters.value[chIdx].chapterNumber
+  const newNum = editChapterForm.value.chapterNumber
+
+  // 更新局部数据
+  chapters.value[chIdx] = {
+    ...chapters.value[chIdx],
+    chapterNumber: newNum,
+    title: editChapterForm.value.title,
+    targetWords: editChapterForm.value.targetWords
+  }
+  
+  // 重新排序
+  chapters.value.sort((a, b) => a.chapterNumber - b.chapterNumber)
+  
+  // 同步到数据库章节（如果存在）
+  if (oldNum !== newNum && props.novelId && window.electronAPI?.chapter) {
+    try {
+      const dbChapters = await window.electronAPI.chapter.list(props.novelId)
+      const matched = dbChapters.find((c: any) => c.chapterNumber === oldNum)
+      if (matched) {
+        await window.electronAPI.chapter.update(matched.id, {
+          chapterNumber: newNum,
+          title: editChapterForm.value.title // 同时更新标题？
+        })
+        ElMessage.success(`已同步更新数据库中的第 ${newNum} 章`)
+      }
+    } catch (error) {
+      console.error('数据库同步失败:', error)
+    }
+  }
+
+  // 重构看板（因为章节号变了，看板需要重新生成以保证逻辑正确，或者手动更新任务）
+  // 简单起见，如果看板存在，直接重新生成或刷新
+  if (kanbanBoard.value) {
+    kanbanBoard.value = await window.electronAPI?.planning?.createKanban(chapters.value)
+  }
+
+  saveData()
+  showEditChapterDialog.value = false
+  ElMessage.success('章节计划已更新')
 }
 
 function handleStartWriting(chapterNumber: number) {

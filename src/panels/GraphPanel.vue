@@ -41,6 +41,10 @@
           <el-icon><Refresh /></el-icon>
           刷新
         </el-button>
+        <el-button size="small" type="primary" @click="handleSave" :loading="saving">
+          <el-icon><Checked /></el-icon>
+          保存图谱
+        </el-button>
         <el-button size="small" @click="showWorldSettings">
           <el-icon><Setting /></el-icon>
           世界观
@@ -215,7 +219,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { 
   CircleCheckFilled, CircleClose, Connection, InfoFilled, 
-  Location, MagicStick, Plus, Present, Refresh, 
+  Location, MagicStick, Plus, Present, Refresh, Checked,
   Search, Setting, User, Warning, WarnTriangleFilled 
 } from '@element-plus/icons-vue'
 import KnowledgeGraphView from '@/components/KnowledgeGraphView.vue'
@@ -234,6 +238,7 @@ const stats = ref<any>({})
 const analyzing = ref(false)
 const checking = ref(false)
 const adding = ref(false)
+const saving = ref(false)
 
 // 一致性检查
 const consistencyResult = ref<any>(null)
@@ -278,6 +283,25 @@ async function loadStats() {
 function refreshGraph() {
   graphViewRef.value?.loadGraph?.()
   loadStats()
+}
+
+// 保存图谱
+async function handleSave() {
+  if (!props.novelId) return
+  saving.value = true
+  try {
+    const success = await window.electronAPI.graph.save(props.novelId)
+    if (success) {
+      ElMessage.success('图谱保存成功')
+    } else {
+      ElMessage.warning('保存失败，请检查控制台')
+    }
+  } catch (error) {
+    console.error('保存失败:', error)
+    ElMessage.error('保存过程中发生错误')
+  } finally {
+    saving.value = false
+  }
 }
 
 // 搜索
