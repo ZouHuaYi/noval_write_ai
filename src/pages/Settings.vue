@@ -5,6 +5,15 @@
       <div class="flex items-center space-x-4">
         <el-button 
           text 
+          @click="goBack"
+          class="flex items-center"
+        >
+          <el-icon class="mr-1"><Back /></el-icon>
+          返回
+        </el-button>
+        <el-divider direction="vertical" />
+        <el-button 
+          text 
           @click="goToHome"
           class="flex items-center"
         >
@@ -466,6 +475,7 @@
 
 <script setup lang="ts">
 import {
+  Back,
   Box,
   Connection,
   Cpu,
@@ -978,7 +988,9 @@ function goToHome() {
   background-color: #fafafa;
   border-bottom: 1px solid #ebeef5;
 }
-
+.settings-tabs :deep(.el-tabs__nav) {
+  border: none;
+}
 .settings-tabs :deep(.el-tabs__header) {
   margin-bottom: 20px;
 }

@@ -131,7 +131,7 @@
     <el-dialog v-model="showGenerateDialog" title="生成事件图谱" width="500px">
       <el-form label-width="100px">
         <el-form-item label="目标章节数">
-          <el-input-number v-model="generateOptions.targetChapters" :min="1" :max="100" />
+          <el-input-number v-model="generateOptions.targetChapters" :min="1" :max="1000" />
         </el-form-item>
         <el-form-item label="故事梗概">
           <el-input 
@@ -226,7 +226,7 @@ const planLoading = ref(false)
 // 生成对话框
 const showGenerateDialog = ref(false)
 const generateOptions = ref({
-  targetChapters: 10,
+  targetChapters: 1,
   synopsis: ''
 })
 

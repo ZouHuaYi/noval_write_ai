@@ -8,6 +8,7 @@ const { registerLlmHandlers } = require('./ipc/llmHandlers')
 const { registerReIOHandlers } = require('./ipc/reioHandlers')
 const { registerPlanningHandlers } = require('./ipc/planningHandlers')
 const { registerGraphHandlers } = require('./ipc/graphHandlers')
+const { registerSettingsHandlers } = require('./ipc/settingsHandlers')
 
 /**
  * 注册所有 IPC 处理器
@@ -22,6 +23,7 @@ function registerIpcHandlers() {
   registerReIOHandlers(ipcMain)
   registerPlanningHandlers(ipcMain)
   registerGraphHandlers(ipcMain)
+  registerSettingsHandlers(ipcMain)
 
   console.log('IPC 处理器注册完成')
 }

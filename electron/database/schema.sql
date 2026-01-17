@@ -23,6 +23,11 @@ CREATE TABLE IF NOT EXISTS chapter (
   FOREIGN KEY (novelId) REFERENCES novel(id) ON DELETE CASCADE
 );
 
+-- 设置表（用于存储应用配置，如大模型配置）
+CREATE TABLE IF NOT EXISTS settings (
+  id TEXT PRIMARY KEY,
+  key TEXT UNIQUE NOT NULL,
+  value TEXT,
   description TEXT,
   createdAt INTEGER,
   updatedAt INTEGER

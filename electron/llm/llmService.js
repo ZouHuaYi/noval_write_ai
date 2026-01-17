@@ -1,4 +1,55 @@
 const settingsDAO = require('../database/settingsDAO')
+const { setTimeout } = require('timers/promises')
+
+async function fetchWithRetry(url, options, retries = 3, timeout = 60000) {
+  let lastError
+
+  for (let i = 0; i < retries; i++) {
+    const controller = new AbortController()
+    const id = global.setTimeout(() => controller.abort(), timeout)
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      })
+
+      clearTimeout(id)
+
+      if (response.ok) {
+        return response
+      }
+
+      // If 429 (Too Many Requests) or 5xx (Server Error), retry
+      if (response.status === 429 || response.status >= 500) {
+        const errorText = await response.text()
+        lastError = new Error(`Request failed: ${response.status} ${response.statusText} - ${errorText}`)
+        console.warn(`Attempt ${i + 1} failed, retrying...`, lastError.message)
+      } else {
+        // Client error (4xx except 429), do not retry
+        const text = await response.text()
+        throw new Error(`Request failed: ${response.status} ${response.statusText} - ${text}`)
+      }
+
+    } catch (error) {
+      clearTimeout(id)
+      lastError = error
+      console.warn(`Attempt ${i + 1} failed:`, error.message)
+
+      // Don't retry if aborted by us (timeout)
+      if (error.name === 'AbortError') {
+        throw new Error(`Request timed out after ${timeout}ms`)
+      }
+    }
+
+    // Wait before retry (exponential backoff: 1s, 2s, 4s...)
+    if (i < retries - 1) {
+      await setTimeout(1000 * Math.pow(2, i))
+    }
+  }
+
+  throw lastError
+}
 
 
 function sortConfigs(configs) {
@@ -77,19 +128,15 @@ async function callChatModel(options) {
     body.max_tokens = options.maxTokens != null ? options.maxTokens : config.maxTokens
   }
 
-  const resp = await fetch(url, {
+  // 120s timeout for chat completion
+  const resp = await fetchWithRetry(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(body)
-  })
-
-  if (!resp.ok) {
-    const text = await resp.text()
-    throw new Error(`调用 LLM 失败: ${resp.status} ${resp.statusText} - ${text}`)
-  }
+  }, 3, 120000)
 
   const data = await resp.json()
   const content =
@@ -125,19 +172,15 @@ async function callEmbeddingModel(options) {
     input: options.input
   }
 
-  const resp = await fetch(url, {
+  // 30s timeout for embeddings
+  const resp = await fetchWithRetry(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(body)
-  })
-
-  if (!resp.ok) {
-    const text = await resp.text()
-    throw new Error(`调用向量模型失败: ${resp.status} ${resp.statusText} - ${text}`)
-  }
+  }, 3, 30000)
 
   const data = await resp.json()
   const embeddings =

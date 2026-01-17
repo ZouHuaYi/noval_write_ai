@@ -176,7 +176,7 @@
         <el-tabs v-model="activeSettingTab">
           <el-tab-pane label="世界观设定" name="worldview">
             <div class="flex flex-col gap-3 min-h-[300px]">
-              <div class="text-[13px] mb-1 app-muted">设定故事的背景、基调、力量体系等宏观信息</div>
+              <div class="text-[13px] mb-1 app-muted mt-12px">设定故事的背景、基调、力量体系等宏观信息</div>
               <el-input
                 v-model="worldSettings.worldview"
                 type="textarea"
@@ -188,7 +188,7 @@
           </el-tab-pane>
           <el-tab-pane label="规则与限制" name="rules">
             <div class="flex flex-col gap-3 min-h-[300px]">
-              <div class="text-[13px] mb-1 app-muted">设定故事中不可违反的客观规律、禁忌等</div>
+              <div class="text-[13px] mb-1 app-muted mt-12px">设定故事中不可违反的客观规律、禁忌等</div>
               <el-input
                 v-model="worldSettings.rules"
                 type="textarea"

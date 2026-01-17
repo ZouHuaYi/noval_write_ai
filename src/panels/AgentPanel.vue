@@ -211,7 +211,7 @@
 <script setup lang="ts">
 import { callChatModel } from '@/llm/client';
 import { chapterSkills } from '@/llm/prompts/chapter';
-import { Brush, Cpu, InfoFilled, Loading, Plus, Refresh, Search, Warning } from '@element-plus/icons-vue';
+import { Brush, Cpu, Loading, Plus, Refresh, Search, Warning } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ref, onMounted } from 'vue';
 
@@ -416,8 +416,6 @@ const buildGenerationContext = async () => {
 }
 
 const handlePolish = () => {
-
-
   if (!props.chapterId || !props.chapterContent) {
     ElMessage.warning('请先选择章节并输入内容')
     return
@@ -566,8 +564,8 @@ const executeConsistency = async () => {
 
 
 const handleGenerateNextChapter = () => {
-  if (!props.chapterId || !props.chapterContent) {
-    ElMessage.warning('请先选择章节并输入内容')
+  if (!props.chapterId) {
+    ElMessage.warning('请先选择章节')
     return
   }
   dialogType.value = 'continue'
