@@ -47,75 +47,12 @@ body {
   background: var(--app-bg);
   color: var(--app-text);
   font-family: 'Inter', 'HarmonyOS Sans SC', 'Noto Sans SC', 'Segoe UI', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 #app {
   height: 100%;
   width: 100%;
   background: var(--app-bg);
-}
-
-.app-shell {
-  background: radial-gradient(circle at top, rgba(243, 236, 224, 0.6), transparent 55%), var(--app-bg);
-  color: var(--app-text);
-}
-
-.app-surface {
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: var(--app-radius);
-  box-shadow: var(--app-shadow-sm);
-}
-
-.app-panel {
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: var(--app-radius);
-  box-shadow: var(--app-shadow-sm);
-}
-
-.app-muted {
-  color: var(--app-text-muted);
-}
-
-.app-card {
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: var(--app-radius);
-  box-shadow: var(--app-shadow);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-.app-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 16px 32px rgba(32, 30, 25, 0.12);
-  border-color: rgba(79, 138, 118, 0.35);
-}
-
-.app-section {
-  background: var(--app-surface-muted);
-  border: 1px solid var(--app-border);
-  border-radius: var(--app-radius);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.app-section:hover {
-  border-color: rgba(79, 138, 118, 0.28);
-  box-shadow: 0 10px 24px rgba(32, 30, 25, 0.08);
-}
-
-.app-header {
-  background: var(--app-surface);
-  border-bottom: 1px solid var(--app-border);
-  box-shadow: 0 6px 18px rgba(32, 30, 25, 0.06);
-}
-
-.app-toolbar {
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
-  border-radius: var(--app-radius);
 }
 
 .workbench-nav {
@@ -138,33 +75,11 @@ body {
   box-shadow: var(--app-shadow-sm);
 }
 
-.workbench-panel-header {
-  background: var(--app-surface-muted);
-  border-radius: var(--app-radius) var(--app-radius) 0 0;
-}
-
-.workbench-panel-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .workbench-count {
   border-color: rgba(79, 138, 118, 0.35);
   background: var(--app-primary-soft);
   color: var(--app-primary);
   font-weight: 600;
-}
-
-.workbench-section-title {
-  font-weight: 600;
-  color: var(--app-text);
-}
-
-.workbench-info-card {
-  background: var(--app-surface-strong);
-  border: 1px solid var(--app-border);
-  border-radius: 12px;
 }
 
 .workbench-nav-item {
@@ -273,7 +188,8 @@ body {
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   height: 100%;
@@ -313,12 +229,15 @@ html, body {
 
 /* 隐藏滚动条但保持滚动功能 */
 .hide-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
 }
 
 .hide-scrollbar::-webkit-scrollbar {
-  display: none;  /* Chrome, Safari and Opera */
+  display: none;
+  /* Chrome, Safari and Opera */
 }
 
 /* ============================================
@@ -483,6 +402,7 @@ html, body {
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);

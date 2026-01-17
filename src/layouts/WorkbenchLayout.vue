@@ -1,6 +1,6 @@
 <template>
   <div class="h-screen flex app-shell text-sm overflow-hidden p-4 gap-4">
-    <div class="w-[320px] max-w-[280px] app-panel flex flex-col overflow-y-auto minimal-scrollbar">
+    <div v-if="showLeft" class="w-[320px] max-w-[280px] app-panel flex flex-col overflow-y-auto minimal-scrollbar">
       <slot name="left" />
     </div>
 
@@ -8,7 +8,7 @@
       <slot name="center" />
     </div>
 
-    <div class="w-80 min-w-[280px] max-w-[400px] app-panel flex flex-col overflow-y-auto minimal-scrollbar">
+    <div v-if="showRight" class="w-80 min-w-[280px] max-w-[400px] app-panel flex flex-col overflow-y-auto minimal-scrollbar">
       <slot name="right" />
     </div>
   </div>
@@ -17,6 +17,17 @@
 
 <script setup lang="ts">
 // 三栏布局容器
+const props = defineProps({
+  showRight: {
+    type: Boolean,
+    default: true
+  },
+  showLeft: {
+    type: Boolean,
+    default: true
+  }
+})
+
 </script>
 
 <style scoped>

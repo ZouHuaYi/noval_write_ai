@@ -1,8 +1,8 @@
 <template>
-  <div class="planning-panel">
+  <div class="h-full flex flex-col bg-[var(--app-bg)]">
     <!-- 工具栏 -->
-    <div class="panel-toolbar">
-      <div class="toolbar-left">
+    <div class="flex justify-between items-center px-4 py-3 border-b border-[var(--app-border)] bg-[var(--app-surface-muted)] shrink-0">
+      <div class="flex items-center gap-2">
         <el-radio-group v-model="viewMode" size="small">
           <el-radio-button value="graph">
             <el-icon><Share /></el-icon>
@@ -14,7 +14,7 @@
           </el-radio-button>
         </el-radio-group>
       </div>
-      <div class="toolbar-right">
+      <div class="flex items-center gap-2">
         <el-button size="small" @click="generateEventGraph" :loading="generating">
           <el-icon><MagicStick /></el-icon>
           生成图谱
@@ -31,26 +31,26 @@
     </div>
 
     <!-- 统计信息 -->
-    <div class="panel-stats">
-      <div class="stat-item">
-        <span class="stat-value">{{ events.length }}</span>
-        <span class="stat-label">事件</span>
+    <div class="flex items-center gap-6 px-4 py-3 bg-[var(--el-fill-color-lighter)] border-b border-[var(--app-border)] shrink-0">
+      <div class="flex flex-col items-center">
+        <span class="text-xl font-bold text-[var(--el-color-primary)]">{{ events.length }}</span>
+        <span class="text-xs text-[var(--el-text-color-secondary)]">事件</span>
       </div>
-      <div class="stat-item">
-        <span class="stat-value">{{ chapters.length }}</span>
-        <span class="stat-label">章节</span>
+      <div class="flex flex-col items-center">
+        <span class="text-xl font-bold text-[var(--el-color-primary)]">{{ chapters.length }}</span>
+        <span class="text-xs text-[var(--el-text-color-secondary)]">章节</span>
       </div>
-      <div class="stat-item">
-        <span class="stat-value">{{ completedCount }}</span>
-        <span class="stat-label">已完成</span>
+      <div class="flex flex-col items-center">
+        <span class="text-xl font-bold text-[var(--el-color-primary)]">{{ completedCount }}</span>
+        <span class="text-xs text-[var(--el-text-color-secondary)]">已完成</span>
       </div>
-      <div class="stat-item progress-stat">
+      <div class="flex-1 max-w-[200px]">
         <el-progress :percentage="progressPercentage" :stroke-width="8" />
       </div>
     </div>
 
     <!-- 内容区域 -->
-    <div class="panel-content">
+    <div class="flex-1 overflow-hidden">
       <!-- 事件图谱视图 -->
       <EventGraph
         v-if="viewMode === 'graph'"
@@ -97,35 +97,35 @@
 
     <!-- 事件详情抽屉 -->
     <el-drawer v-model="showEventDetail" title="事件详情" size="400px">
-      <div v-if="selectedEvent" class="event-detail">
-        <div class="detail-header">
+      <div v-if="selectedEvent" class="px-2">
+        <div class="flex items-center gap-3 mb-3">
           <el-tag :type="getEventTypeTag(selectedEvent.eventType)">
             {{ getEventTypeLabel(selectedEvent.eventType) }}
           </el-tag>
-          <span class="detail-chapter">第 {{ selectedEvent.chapter }} 章</span>
+          <span class="text-[13px] text-[var(--el-text-color-secondary)]">第 {{ selectedEvent.chapter }} 章</span>
         </div>
-        <h3 class="detail-title">{{ selectedEvent.label }}</h3>
-        <p class="detail-desc">{{ selectedEvent.description }}</p>
+        <h3 class="text-lg font-600 m-0 mb-3">{{ selectedEvent.label }}</h3>
+        <p class="text-sm leading-relaxed text-[var(--el-text-color-regular)] m-0 mb-4">{{ selectedEvent.description }}</p>
         
-        <div v-if="selectedEvent.characters?.length" class="detail-section">
-          <div class="section-label">相关角色</div>
-          <div class="tag-list">
+        <div v-if="selectedEvent.characters?.length" class="mb-4">
+          <div class="text-xs text-[var(--el-text-color-secondary)] mb-2">相关角色</div>
+          <div class="flex flex-wrap gap-1.5">
             <el-tag v-for="char in selectedEvent.characters" :key="char" size="small">
               {{ char }}
             </el-tag>
           </div>
         </div>
 
-        <div v-if="selectedEvent.preconditions?.length" class="detail-section">
-          <div class="section-label">前置条件</div>
-          <ul class="condition-list">
+        <div v-if="selectedEvent.preconditions?.length" class="mb-4">
+          <div class="text-xs text-[var(--el-text-color-secondary)] mb-2">前置条件</div>
+          <ul class="m-0 pl-[18px] text-[13px] leading-relaxed text-[var(--el-text-color-regular)]">
             <li v-for="(cond, i) in selectedEvent.preconditions" :key="i">{{ cond }}</li>
           </ul>
         </div>
 
-        <div v-if="selectedEvent.postconditions?.length" class="detail-section">
-          <div class="section-label">后置影响</div>
-          <ul class="condition-list">
+        <div v-if="selectedEvent.postconditions?.length" class="mb-4">
+          <div class="text-xs text-[var(--el-text-color-secondary)] mb-2">后置影响</div>
+          <ul class="m-0 pl-[18px] text-[13px] leading-relaxed text-[var(--el-text-color-regular)]">
             <li v-for="(cond, i) in selectedEvent.postconditions" :key="i">{{ cond }}</li>
           </ul>
         </div>
@@ -361,118 +361,4 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
-.planning-panel {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: var(--app-bg);
-}
 
-.panel-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--app-border);
-  background: var(--app-section-bg);
-  flex-shrink: 0;
-}
-
-.toolbar-left, .toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.panel-stats {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 12px 16px;
-  background: var(--el-fill-color-lighter);
-  border-bottom: 1px solid var(--app-border);
-  flex-shrink: 0;
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.stat-value {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--el-color-primary);
-}
-
-.stat-label {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.progress-stat {
-  flex: 1;
-  max-width: 200px;
-}
-
-.panel-content {
-  flex: 1;
-  overflow: hidden;
-}
-
-/* 事件详情 */
-.event-detail {
-  padding: 0 8px;
-}
-
-.detail-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.detail-chapter {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-}
-
-.detail-title {
-  font-size: 18px;
-  font-weight: 600;
-  margin: 0 0 12px 0;
-}
-
-.detail-desc {
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--el-text-color-regular);
-  margin: 0 0 16px 0;
-}
-
-.detail-section {
-  margin-bottom: 16px;
-}
-
-.section-label {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin-bottom: 8px;
-}
-
-.tag-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.condition-list {
-  margin: 0;
-  padding-left: 18px;
-  font-size: 13px;
-  line-height: 1.8;
-  color: var(--el-text-color-regular);
-}
-</style>

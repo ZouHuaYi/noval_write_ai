@@ -1,8 +1,8 @@
 <template>
   <div class="h-full flex flex-col overflow-hidden">
     <!-- 顶部工具栏 -->
-    <div class="flex-shrink-0 px-4 py-2 border-b border-[color:var(--app-border)] bg-transparent flex items-center justify-between workbench-panel-header">
-      <div class="workbench-panel-title">
+    <div class="flex-shrink-0 px-4 py-2 border-b border-[var(--app-border)] bg-transparent flex items-center justify-between bg-[var(--app-surface-muted)] rounded-t-[var(--app-radius)]">
+      <div class="flex items-center gap-2.5">
         <div class="p-1.5 rounded-lg bg-amber-100">
           <el-icon class="text-amber-600 text-base"><Edit /></el-icon>
         </div>
@@ -34,29 +34,29 @@
 
     <!-- 编辑区域 -->
     <div class="flex-1 px-6 py-5 overflow-y-auto min-h-0">
-      <div class="editor-panel-form">
-        <div v-if="!props.chapterId" class="h-full flex flex-col items-center justify-center app-muted">
+      <div class="">
+        <div v-if="!props.chapterId" class="h-full flex flex-col items-center justify-center text-[var(--app-text-muted)]">
           <div class="w-16 h-16 rounded-full bg-amber-50 flex items-center justify-center mb-4">
             <el-icon class="text-2xl text-amber-400"><Edit /></el-icon>
           </div>
           <div class="text-sm">请选择左侧章节开始写作</div>
         </div>
         <div v-else>
-          <div class="mb-4 app-section workbench-info-card p-3 flex flex-wrap items-center gap-3 text-sm">
-            <span class="workbench-section-title">当前章节</span>
-            <span class="app-muted">第 {{ chapterNumber || '-' }} 章</span>
-            <span class="app-muted">标题：{{ chapterTitle || '未命名章节' }}</span>
-            <el-tag size="small" :type="statusType" effect="plain" class="workbench-count">{{ statusText }}</el-tag>
-            <el-tag size="small" type="info" effect="plain" class="workbench-count">{{ wordCount }} 字</el-tag>
-            <el-tag v-if="mentionCount > 0" size="small" type="primary" effect="plain" class="workbench-count">
+          <div class="mb-4 bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] hover:shadow-[0_10px_24px_rgba(32,30,25,0.08)] bg-[var(--app-surface-strong)] border-[var(--app-border)] rounded-xl p-3 flex flex-wrap items-center gap-3 text-sm">
+            <span class="font-600 text-[var(--app-text)]">当前章节</span>
+            <span class="text-[var(--app-text-muted)]">第 {{ chapterNumber || '-' }} 章</span>
+            <span class="text-[var(--app-text-muted)]">标题：{{ chapterTitle || '未命名章节' }}</span>
+            <el-tag size="small" :type="statusType" effect="plain" class="border-[rgba(79,138,118,0.35)] bg-[var(--app-primary-soft)] text-[var(--app-primary)] font-600">{{ statusText }}</el-tag>
+            <el-tag size="small" type="info" effect="plain" class="border-[rgba(79,138,118,0.35)] bg-[var(--app-primary-soft)] text-[var(--app-primary)] font-600">{{ wordCount }} 字</el-tag>
+            <el-tag v-if="mentionCount > 0" size="small" type="primary" effect="plain" class="border-[rgba(79,138,118,0.35)] bg-[var(--app-primary-soft)] text-[var(--app-primary)] font-600">
               {{ mentionCount }} 个引用
             </el-tag>
           </div>
           <!-- 章节编号和标题 -->
-          <div class="mb-5 app-section p-4">
+          <div class="mb-5 bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] hover:shadow-[0_10px_24px_rgba(32,30,25,0.08)] p-4">
             <div class="flex items-end space-x-3">
               <div class="flex-shrink-0 w-28">
-                <div class="text-xs font-medium app-muted mb-2">章节编号</div>
+                <div class="text-xs font-medium text-[var(--app-text-muted)] mb-2">章节编号</div>
                 <el-input-number
                   v-model="chapterNumber"
                   :min="1"
@@ -65,7 +65,7 @@
                 />
               </div>
               <div class="flex-1">
-                <div class="text-xs font-medium app-muted mb-2">章节标题</div>
+                <div class="text-xs font-medium text-[var(--app-text-muted)] mb-2">章节标题</div>
                 <el-input
                   v-model="chapterTitle"
                   placeholder="请输入章节标题"
@@ -77,7 +77,7 @@
           </div>
 
           <!-- 正文编辑区 -->
-          <div class="app-section p-4">
+          <div class="bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] hover:shadow-[0_10px_24px_rgba(32,30,25,0.08)] p-4">
             <!-- 富文本编辑器模式 -->
             <RichEditor
               v-if="editorMode === 'rich'"
@@ -96,7 +96,7 @@
               :rows="25"
               placeholder="开始写作..."
               resize="none"
-              class="editor-textarea"
+              class="!text-[15px] !leading-[1.8] font-[inherit]"
               @input="handleContentInput"
               @select="handleTextSelect"
               @change="autoSave"
@@ -104,7 +104,7 @@
           </div>
 
           <!-- @DSL 提示 -->
-          <div v-if="editorMode === 'rich'" class="mt-3 px-2 flex items-center gap-2 text-xs app-muted">
+          <div v-if="editorMode === 'rich'" class="mt-3 px-2 flex items-center gap-2 text-xs text-[var(--app-text-muted)]">
             <el-icon><InfoFilled /></el-icon>
             <span>输入 <code class="px-1 py-0.5 bg-blue-50 text-blue-600 rounded">@</code> 可引用知识库中的角色、地点、事件等内容</span>
           </div>
@@ -337,27 +337,73 @@ async function autoSave() {
 }
 
 /**
- * 静默触发知识图谱分析
+ * 触发知识图谱分析，显示提取结果
  */
 async function triggerGraphAnalysis() {
   if (!props.novelId || !chapterNumber.value) return
   
   try {
-    // 后台静默执行，不阻塞用户操作
-    window.electronAPI?.graph?.analyzeChapter(
+    // 后台执行分析
+    const result = await window.electronAPI?.graph?.analyzeChapter(
       props.novelId,
       chapterNumber.value,
       content.value
-    ).then((result: any) => {
-      if (result?.entities?.length > 0 || result?.relations?.length > 0) {
-        console.log(`[图谱] 第 ${chapterNumber.value} 章分析完成: ${result.entities?.length || 0} 实体, ${result.relations?.length || 0} 关系`)
+    )
+
+    if (result) {
+      const entityCount = result.entities?.length || 0
+      const relationCount = result.relations?.length || 0
+      const stateChangeCount = result.stateChanges?.length || 0
+
+      // 有提取结果时显示通知
+      if (entityCount > 0 || relationCount > 0) {
+        // 构建实体列表
+        const entityNames = result.entities
+          ?.slice(0, 5)
+          .map((e: any) => e.name)
+          .join('、') || ''
+        
+        // 构建关系列表
+        const relationDescs = result.relations
+          ?.slice(0, 3)
+          .map((r: any) => `${r.source}→${r.target}`)
+          .join('、') || ''
+
+        // 显示提取结果通知
+        ElMessage({
+          type: 'success',
+          duration: 4000,
+          showClose: true,
+          dangerouslyUseHTMLString: true,
+          message: `
+            <div style="line-height: 1.6;">
+              <div style="font-weight: 600; margin-bottom: 4px;">📊 图谱分析完成</div>
+              <div style="font-size: 12px; color: #606266;">
+                ${entityCount > 0 ? `<div>🔹 识别 ${entityCount} 个实体${entityNames ? `：${entityNames}${entityCount > 5 ? '...' : ''}` : ''}</div>` : ''}
+                ${relationCount > 0 ? `<div>🔸 发现 ${relationCount} 个关系${relationDescs ? `：${relationDescs}${relationCount > 3 ? '...' : ''}` : ''}</div>` : ''}
+                ${stateChangeCount > 0 ? `<div>⚡ 检测到 ${stateChangeCount} 个状态变化</div>` : ''}
+              </div>
+            </div>
+          `
+        })
+
+        // 如果有冲突，额外提示
+        if (result.conflicts?.length > 0) {
+          setTimeout(() => {
+            ElMessage.warning({
+              duration: 5000,
+              showClose: true,
+              message: `⚠️ 发现 ${result.conflicts.length} 个一致性问题，请在知识图谱面板查看详情`
+            })
+          }, 1000)
+        }
       }
-    }).catch((error: any) => {
-      console.warn('图谱分析后台执行失败:', error)
-    })
-  } catch (error) {
-    // 静默失败，不影响保存流程
-    console.warn('触发图谱分析失败:', error)
+
+      console.log(`[图谱] 第 ${chapterNumber.value} 章: ${entityCount} 实体, ${relationCount} 关系, ${stateChangeCount} 状态变化`)
+    }
+  } catch (error: any) {
+    // 分析失败时静默处理，不打扰用户
+    console.warn('图谱分析失败:', error)
   }
 }
 
@@ -435,11 +481,3 @@ defineExpose({
   getContent: () => content.value,
 })
 </script>
-
-<style scoped>
-.editor-textarea :deep(.el-textarea__inner) {
-  font-size: 15px;
-  line-height: 1.8;
-  font-family: inherit;
-}
-</style>

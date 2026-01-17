@@ -1,8 +1,8 @@
 <template>
-  <div class="graph-panel">
+  <div class="h-full flex flex-col bg-[var(--app-bg)]">
     <!-- 工具栏 -->
-    <div class="panel-toolbar">
-      <div class="toolbar-left">
+    <div class="flex flex-wrap gap-y-4 justify-between items-center px-4 py-3 border-b border-[var(--app-border)] bg-[var(--app-surface-muted)] shrink-0">
+      <div class="flex items-center gap-2">
         <el-input 
           v-model="searchQuery" 
           placeholder="搜索实体..." 
@@ -23,7 +23,7 @@
           <el-option label="组织" value="organization" />
         </el-select>
       </div>
-      <div class="toolbar-right">
+      <div class="flex items-center gap-2">
         <el-button size="small" @click="analyzeAllChapters" :loading="analyzing">
           <el-icon><MagicStick /></el-icon>
           分析章节
@@ -40,40 +40,44 @@
           <el-icon><Refresh /></el-icon>
           刷新
         </el-button>
+        <el-button size="small" @click="showWorldSettings">
+          <el-icon><Setting /></el-icon>
+          世界观
+        </el-button>
       </div>
     </div>
 
     <!-- 统计栏 -->
-    <div class="panel-stats">
-      <div class="stat-item">
-        <el-icon class="stat-icon stat-icon--primary"><User /></el-icon>
-        <span class="stat-value">{{ stats.nodeTypes?.character || 0 }}</span>
-        <span class="stat-label">角色</span>
+    <div class="flex items-center gap-6 px-4 py-3 bg-[var(--el-fill-color-lighter)] border-b border-[var(--app-border)] shrink-0">
+      <div class="flex items-center gap-2 cursor-default">
+        <el-icon class="text-lg text-[var(--el-color-primary)]"><User /></el-icon>
+        <span class="text-lg font-bold">{{ stats.nodeTypes?.character || 0 }}</span>
+        <span class="text-xs text-[var(--el-text-color-secondary)]">角色</span>
       </div>
-      <div class="stat-item">
-        <el-icon class="stat-icon stat-icon--success"><Location /></el-icon>
-        <span class="stat-value">{{ stats.nodeTypes?.location || 0 }}</span>
-        <span class="stat-label">地点</span>
+      <div class="flex items-center gap-2 cursor-default">
+        <el-icon class="text-lg text-[var(--el-color-success)]"><Location /></el-icon>
+        <span class="text-lg font-bold">{{ stats.nodeTypes?.location || 0 }}</span>
+        <span class="text-xs text-[var(--el-text-color-secondary)]">地点</span>
       </div>
-      <div class="stat-item">
-        <el-icon class="stat-icon stat-icon--warning"><Present /></el-icon>
-        <span class="stat-value">{{ stats.nodeTypes?.item || 0 }}</span>
-        <span class="stat-label">物品</span>
+      <div class="flex items-center gap-2 cursor-default">
+        <el-icon class="text-lg text-[var(--el-color-warning)]"><Present /></el-icon>
+        <span class="text-lg font-bold">{{ stats.nodeTypes?.item || 0 }}</span>
+        <span class="text-xs text-[var(--el-text-color-secondary)]">物品</span>
       </div>
-      <div class="stat-item">
-        <el-icon class="stat-icon stat-icon--info"><Connection /></el-icon>
-        <span class="stat-value">{{ stats.edgeCount || 0 }}</span>
-        <span class="stat-label">关系</span>
+      <div class="flex items-center gap-2 cursor-default">
+        <el-icon class="text-lg text-[var(--el-color-info)]"><Connection /></el-icon>
+        <span class="text-lg font-bold">{{ stats.edgeCount || 0 }}</span>
+        <span class="text-xs text-[var(--el-text-color-secondary)]">关系</span>
       </div>
-      <div v-if="conflictCount > 0" class="stat-item stat-item--warning" @click="showConsistencyResult = true">
-        <el-icon class="stat-icon stat-icon--danger"><Warning /></el-icon>
-        <span class="stat-value">{{ conflictCount }}</span>
-        <span class="stat-label">冲突</span>
+      <div v-if="conflictCount > 0" class="flex items-center gap-2 cursor-pointer px-2 py-1 rounded-md bg-[#fef0f0]" @click="showConsistencyResult = true">
+        <el-icon class="text-lg text-[var(--el-color-danger)]"><Warning /></el-icon>
+        <span class="text-lg font-bold">{{ conflictCount }}</span>
+        <span class="text-xs text-[var(--el-text-color-secondary)]">冲突</span>
       </div>
     </div>
 
     <!-- 图谱区域 -->
-    <div class="panel-content">
+    <div class="flex-1 overflow-hidden">
       <KnowledgeGraphView 
         ref="graphViewRef"
         :novel-id="novelId"
@@ -111,53 +115,96 @@
 
     <!-- 一致性检查结果 -->
     <el-drawer v-model="showConsistencyResult" title="一致性检查结果" size="450px">
-      <div v-if="consistencyResult" class="consistency-result">
+      <div v-if="consistencyResult" class="px-2">
         <!-- 冲突 -->
-        <div v-if="consistencyResult.conflicts?.length" class="result-section">
-          <div class="section-header section-header--error">
+        <div v-if="consistencyResult.conflicts?.length" class="mb-5">
+          <div class="flex items-center gap-2 font-600 text-sm mb-3 px-3 py-2 rounded-md bg-[#fef0f0] text-[#f56c6c]">
             <el-icon><CircleClose /></el-icon>
             严重冲突 ({{ consistencyResult.conflicts.length }})
           </div>
-          <div v-for="(conflict, i) in consistencyResult.conflicts" :key="i" class="issue-item issue-item--error">
-            <div class="issue-title">{{ conflict.title }}</div>
-            <div class="issue-message">{{ conflict.message }}</div>
-            <div v-if="conflict.suggestion" class="issue-suggestion">
+          <div v-for="(conflict, i) in consistencyResult.conflicts" :key="i" class="p-3 rounded-md mb-2 bg-[#fef0f0] border-l-3 border-[#f56c6c]">
+            <div class="font-600 mb-1 text-[13px]">{{ conflict.title }}</div>
+            <div class="text-xs text-[var(--el-text-color-regular)] leading-relaxed">{{ conflict.message }}</div>
+            <div v-if="conflict.suggestion" class="mt-2 text-xs text-[var(--el-color-primary)]">
               💡 {{ conflict.suggestion }}
             </div>
           </div>
         </div>
 
         <!-- 警告 -->
-        <div v-if="consistencyResult.warnings?.length" class="result-section">
-          <div class="section-header section-header--warning">
+        <div v-if="consistencyResult.warnings?.length" class="mb-5">
+          <div class="flex items-center gap-2 font-600 text-sm mb-3 px-3 py-2 rounded-md bg-[#fdf6ec] text-[#e6a23c]">
             <el-icon><WarnTriangleFilled /></el-icon>
             警告 ({{ consistencyResult.warnings.length }})
           </div>
-          <div v-for="(warning, i) in consistencyResult.warnings" :key="i" class="issue-item issue-item--warning">
-            <div class="issue-title">{{ warning.title }}</div>
-            <div class="issue-message">{{ warning.message }}</div>
+          <div v-for="(warning, i) in consistencyResult.warnings" :key="i" class="p-3 rounded-md mb-2 bg-[#fdf6ec] border-l-3 border-[#e6a23c]">
+            <div class="font-600 mb-1 text-[13px]">{{ warning.title }}</div>
+            <div class="text-xs text-[var(--el-text-color-regular)] leading-relaxed">{{ warning.message }}</div>
           </div>
         </div>
 
         <!-- 建议 -->
-        <div v-if="consistencyResult.suggestions?.length" class="result-section">
-          <div class="section-header section-header--info">
+        <div v-if="consistencyResult.suggestions?.length" class="mb-5">
+          <div class="flex items-center gap-2 font-600 text-sm mb-3 px-3 py-2 rounded-md bg-[#f4f4f5] text-[#909399]">
             <el-icon><InfoFilled /></el-icon>
             建议 ({{ consistencyResult.suggestions.length }})
           </div>
-          <div v-for="(sug, i) in consistencyResult.suggestions" :key="i" class="issue-item issue-item--info">
-            <div class="issue-title">{{ sug.title }}</div>
-            <div class="issue-message">{{ sug.message }}</div>
+          <div v-for="(sug, i) in consistencyResult.suggestions" :key="i" class="p-3 rounded-md mb-2 bg-[#f4f4f5] border-l-3 border-[#909399]">
+            <div class="font-600 mb-1 text-[13px]">{{ sug.title }}</div>
+            <div class="text-xs text-[var(--el-text-color-regular)] leading-relaxed">{{ sug.message }}</div>
           </div>
         </div>
 
         <!-- 无问题 -->
-        <div v-if="!consistencyResult.conflicts?.length && !consistencyResult.warnings?.length" class="all-clear">
-          <el-icon class="all-clear-icon"><CircleCheckFilled /></el-icon>
+        <div v-if="!consistencyResult.conflicts?.length && !consistencyResult.warnings?.length" class="flex flex-col items-center py-10 text-[var(--el-color-success)]">
+          <el-icon class="text-5xl mb-3"><CircleCheckFilled /></el-icon>
           <span>太棒了！没有发现一致性问题</span>
         </div>
       </div>
     </el-drawer>
+    <!-- 世界观设定对话框 -->
+    <el-dialog
+      v-model="worldSettingsVisible"
+      title="世界观与规则设定"
+      width="800px"
+      :close-on-click-modal="false"
+      destroy-on-close
+    >
+      <div class="px-3">
+        <el-tabs v-model="activeSettingTab">
+          <el-tab-pane label="世界观设定" name="worldview">
+            <div class="flex flex-col gap-3 min-h-[300px]">
+              <div class="text-[13px] mb-1 app-muted">设定故事的背景、基调、力量体系等宏观信息</div>
+              <el-input
+                v-model="worldSettings.worldview"
+                type="textarea"
+                :rows="12"
+                placeholder="在此输入世界观设定..."
+                resize="none"
+              />
+            </div>
+          </el-tab-pane>
+          <el-tab-pane label="规则与限制" name="rules">
+            <div class="flex flex-col gap-3 min-h-[300px]">
+              <div class="text-[13px] mb-1 app-muted">设定故事中不可违反的客观规律、禁忌等</div>
+              <el-input
+                v-model="worldSettings.rules"
+                type="textarea"
+                :rows="12"
+                placeholder="在此输入规则与限制内..."
+                resize="none"
+              />
+            </div>
+          </el-tab-pane>
+        </el-tabs>
+      </div>
+      <template #footer>
+        <el-button @click="worldSettingsVisible = false">取消</el-button>
+        <el-button type="primary" @click="saveWorldSettings" :loading="savingSettings">
+          保存设定
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -167,7 +214,7 @@ import { ElMessage } from 'element-plus'
 import { 
   CircleCheckFilled, CircleClose, Connection, InfoFilled, 
   Location, MagicStick, Plus, Present, Refresh, 
-  Search, User, Warning, WarnTriangleFilled 
+  Search, Setting, User, Warning, WarnTriangleFilled 
 } from '@element-plus/icons-vue'
 import KnowledgeGraphView from '@/components/KnowledgeGraphView.vue'
 
@@ -197,6 +244,15 @@ const newEntity = ref({
   type: 'character',
   description: '',
   aliasesText: ''
+})
+
+// 世界观设定
+const worldSettingsVisible = ref(false)
+const activeSettingTab = ref('worldview')
+const savingSettings = ref(false)
+const worldSettings = ref({
+  worldview: '',
+  rules: ''
 })
 
 // 计算属性
@@ -334,10 +390,50 @@ async function addEntity() {
   }
 }
 
+// 世界观设定
+async function showWorldSettings() {
+  if (!props.novelId) {
+    ElMessage.warning('请先选择小说')
+    return
+  }
+  
+  worldSettingsVisible.value = true
+  // 加载现有设定
+  try {
+    const record = await window.electronAPI?.worldview?.get(props.novelId)
+    worldSettings.value = {
+      worldview: record?.worldview || '',
+      rules: record?.rules || ''
+    }
+  } catch (error) {
+    console.error('加载世界观失败:', error)
+  }
+}
+
+async function saveWorldSettings() {
+  if (!props.novelId) return
+  
+  savingSettings.value = true
+  try {
+    await window.electronAPI?.worldview?.save(props.novelId, {
+      worldview: worldSettings.value.worldview.trim(),
+      rules: worldSettings.value.rules.trim()
+    })
+    ElMessage.success('世界观设定已保存')
+    worldSettingsVisible.value = false
+  } catch (error: any) {
+    console.error('保存设定失败:', error)
+    ElMessage.error('保存失败')
+  } finally {
+    savingSettings.value = false
+  }
+}
+
 // 监听 novelId 变化
 watch(() => props.novelId, () => {
   loadStats()
   consistencyResult.value = null
+  worldSettingsVisible.value = false
 }, { immediate: true })
 
 onMounted(() => {
@@ -347,163 +443,4 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
-.graph-panel {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: var(--app-bg);
-}
 
-.panel-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--app-border);
-  background: var(--app-section-bg);
-  flex-shrink: 0;
-}
-
-.toolbar-left, .toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.panel-stats {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 12px 16px;
-  background: var(--el-fill-color-lighter);
-  border-bottom: 1px solid var(--app-border);
-  flex-shrink: 0;
-}
-
-.stat-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: default;
-}
-
-.stat-item--warning {
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: #fef0f0;
-}
-
-.stat-icon {
-  font-size: 18px;
-}
-
-.stat-icon--primary { color: var(--el-color-primary); }
-.stat-icon--success { color: var(--el-color-success); }
-.stat-icon--warning { color: var(--el-color-warning); }
-.stat-icon--info { color: var(--el-color-info); }
-.stat-icon--danger { color: var(--el-color-danger); }
-
-.stat-value {
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.stat-label {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.panel-content {
-  flex: 1;
-  overflow: hidden;
-}
-
-/* 一致性检查结果 */
-.consistency-result {
-  padding: 0 8px;
-}
-
-.result-section {
-  margin-bottom: 20px;
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 12px;
-  padding: 8px 12px;
-  border-radius: 6px;
-}
-
-.section-header--error {
-  background: #fef0f0;
-  color: #f56c6c;
-}
-
-.section-header--warning {
-  background: #fdf6ec;
-  color: #e6a23c;
-}
-
-.section-header--info {
-  background: #f4f4f5;
-  color: #909399;
-}
-
-.issue-item {
-  padding: 12px;
-  border-radius: 6px;
-  margin-bottom: 8px;
-}
-
-.issue-item--error {
-  background: #fef0f0;
-  border-left: 3px solid #f56c6c;
-}
-
-.issue-item--warning {
-  background: #fdf6ec;
-  border-left: 3px solid #e6a23c;
-}
-
-.issue-item--info {
-  background: #f4f4f5;
-  border-left: 3px solid #909399;
-}
-
-.issue-title {
-  font-weight: 600;
-  margin-bottom: 4px;
-  font-size: 13px;
-}
-
-.issue-message {
-  font-size: 12px;
-  color: var(--el-text-color-regular);
-  line-height: 1.5;
-}
-
-.issue-suggestion {
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--el-color-primary);
-}
-
-.all-clear {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 40px 20px;
-  color: var(--el-color-success);
-}
-
-.all-clear-icon {
-  font-size: 48px;
-  margin-bottom: 12px;
-}
-</style>

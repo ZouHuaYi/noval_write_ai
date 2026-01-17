@@ -1,36 +1,34 @@
 <template>
-  <div class="h-screen flex flex-col app-shell">
+  <div class="h-screen flex flex-col bg-[radial-gradient(circle_at_top,rgba(243,236,224,0.6),transparent_55%),var(--app-bg)] text-[var(--app-text)]">
 
     <!-- 顶部导航栏 -->
-    <div class="h-14 app-header flex items-center justify-between px-6 flex-shrink-0 z-10">
+    <div class="h-14 bg-[var(--app-surface)] border-b border-[var(--app-border)] shadow-[0_6px_18px_rgba(32,30,25,0.06)] flex items-center justify-between px-6 flex-shrink-0 z-10">
 
       <div class="flex items-center space-x-3">
         <el-button 
           text 
           @click="goBack"
-          class="flex items-center hover:bg-[color:var(--app-surface-muted)] rounded-lg px-2 py-1"
-
+          class="flex items-center hover:bg-[var(--app-surface-muted)] rounded-lg px-2 py-1"
         >
-          <el-icon class="mr-1 app-muted"><ArrowLeft /></el-icon>
-          <span class="text-sm app-muted">返回</span>
-
+          <el-icon class="mr-1 text-[var(--app-text-muted)]"><ArrowLeft /></el-icon>
+          <span class="text-sm text-[var(--app-text-muted)]">返回</span>
         </el-button>
         <el-divider direction="vertical" class="h-6" />
         <div v-if="novel" class="flex flex-col">
-          <span class="text-xs app-muted">当前小说</span>
-          <span class="workbench-title">{{ novel?.title }}</span>
+          <span class="text-xs text-[var(--app-text-muted)]">当前小说</span>
+          <span class="text-[1.05rem] font-600 tracking-wide">{{ novel?.title }}</span>
         </div>
-        <div v-else class="app-muted text-sm">加载中...</div>
+        <div v-else class="text-[var(--app-text-muted)] text-sm">加载中...</div>
 
       </div>
       <div class="flex items-center space-x-2">
-        <el-tag size="large" type="info" effect="plain" class="workbench-pill">
+        <el-tag size="large" type="info" effect="plain" class="rounded-full font-600 tracking-wide px-3 py-1.5 shadow-sm">
           {{ activeTabLabel }}
         </el-tag>
-        <el-tag v-if="currentChapter" size="large" type="primary" effect="plain" class="workbench-pill">
+        <el-tag v-if="currentChapter" size="large" type="primary" effect="plain" class="rounded-full font-600 tracking-wide px-3 py-1.5 shadow-sm">
           {{ currentChapter.title }}
         </el-tag>
-        <el-tag v-else size="large" type="info" effect="plain" class="workbench-pill">
+        <el-tag v-else size="large" type="info" effect="plain" class="rounded-full font-600 tracking-wide px-3 py-1.5 shadow-sm">
           未选择章节
         </el-tag>
         <el-button text @click="goToNovels">小说列表</el-button>
@@ -40,14 +38,14 @@
     </div>
 
     <!-- 工作台内容 -->
-    <WorkbenchLayout class="flex-1 overflow-hidden">
+    <WorkbenchLayout :show-right="leftTab === 'chapters'" class="flex-1 overflow-hidden">
       <template #left>
         <div class="h-full flex flex-col">
-          <div class="relative flex-shrink-0 px-4 py-3 border-b border-[color:var(--app-border)] workbench-panel-header">
+          <div class="relative flex-shrink-0 px-4 py-3 border-b border-[var(--app-border)] bg-[var(--app-surface-muted)] rounded-t-[var(--app-radius)]">
             <div class="flex items-center justify-between">
               <div>
                 <div class="text-sm font-semibold">工作区</div>
-                <div class="text-xs app-muted">资料导航</div>
+                <div class="text-xs text-[var(--app-text-muted)]">资料导航</div>
               </div>
               <div 
                 class="cursor-pointer text-gray-400 hover:text-gray-600 transition-colors p-1"
@@ -61,92 +59,49 @@
           </div>
           <el-collapse-transition>
             <div v-show="isLeftPanelOpen" class="flex-shrink-0 px-4 py-3">
-              <div class="workbench-nav">
+              <div class="flex flex-col gap-2">
                 <button
                   type="button"
-                  class="workbench-nav-item"
-                  :class="{ 'is-active': leftTab === 'chapters' }"
+                  class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl border border-transparent bg-transparent text-[var(--app-text)] cursor-pointer transition-all hover:bg-[var(--app-surface-muted)] hover:border-[var(--app-border)]"
+                  :class="leftTab === 'chapters' ? 'bg-[var(--app-primary-soft)] border-[rgba(79,138,118,0.4)] shadow-[0_10px_22px_rgba(79,138,118,0.18)]' : ''"
                   @click="leftTab = 'chapters'"
                 >
-                  <span class="workbench-nav-icon">
+                  <span class="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center bg-[var(--app-surface-strong)] text-[var(--app-primary)]" :class="leftTab === 'chapters' ? 'bg-[rgba(79,138,118,0.18)]' : ''">
                     <el-icon><Document /></el-icon>
                   </span>
                   <span>
                     <div class="text-sm font-semibold">章节</div>
-                    <div class="text-xs app-muted">章节管理与顺序</div>
+                    <div class="text-xs text-[var(--app-text-muted)]">章节管理与顺序</div>
                   </span>
                 </button>
                 <button
                   type="button"
-                  class="workbench-nav-item"
-                  :class="{ 'is-active': leftTab === 'outlines' }"
-                  @click="leftTab = 'outlines'"
-                >
-                  <span class="workbench-nav-icon">
-                    <el-icon><List /></el-icon>
-                  </span>
-                  <span>
-                    <div class="text-sm font-semibold">大纲</div>
-                    <div class="text-xs app-muted">情节结构与节奏</div>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  class="workbench-nav-item"
-                  :class="{ 'is-active': leftTab === 'world' }"
-                  @click="leftTab = 'world'"
-                >
-                  <span class="workbench-nav-icon">
-                    <el-icon><Edit /></el-icon>
-                  </span>
-                  <span>
-                    <div class="text-sm font-semibold">世界观</div>
-                    <div class="text-xs app-muted">设定与规则</div>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  class="workbench-nav-item"
-                  :class="{ 'is-active': leftTab === 'knowledge' }"
-                  @click="leftTab = 'knowledge'"
-                >
-                  <span class="workbench-nav-icon">
-                    <el-icon><CollectionTag /></el-icon>
-                  </span>
-                  <span>
-                    <div class="text-sm font-semibold">知识库与记忆</div>
-                    <div class="text-xs app-muted">角色/地点/时间线/事件</div>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  class="workbench-nav-item"
-                  :class="{ 'is-active': leftTab === 'planning' }"
+                  class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl border border-transparent bg-transparent text-[var(--app-text)] cursor-pointer transition-all hover:bg-[var(--app-surface-muted)] hover:border-[var(--app-border)]"
+                  :class="leftTab === 'planning' ? 'bg-[var(--app-primary-soft)] border-[rgba(79,138,118,0.4)] shadow-[0_10px_22px_rgba(79,138,118,0.18)]' : ''"
                   @click="leftTab = 'planning'"
                 >
-                  <span class="workbench-nav-icon">
+                  <span class="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center bg-[var(--app-surface-strong)] text-[var(--app-primary)]" :class="leftTab === 'planning' ? 'bg-[rgba(79,138,118,0.18)]' : ''">
                     <el-icon><DataAnalysis /></el-icon>
                   </span>
                   <span>
                     <div class="text-sm font-semibold">规划工作台</div>
-                    <div class="text-xs app-muted">事件图谱/看板/日程</div>
+                    <div class="text-xs text-[var(--app-text-muted)]">事件图谱/看板/日程</div>
                   </span>
                 </button>
                 <button
                   type="button"
-                  class="workbench-nav-item"
-                  :class="{ 'is-active': leftTab === 'graph' }"
+                  class="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl border border-transparent bg-transparent text-[var(--app-text)] cursor-pointer transition-all hover:bg-[var(--app-surface-muted)] hover:border-[var(--app-border)]"
+                  :class="leftTab === 'graph' ? 'bg-[var(--app-primary-soft)] border-[rgba(79,138,118,0.4)] shadow-[0_10px_22px_rgba(79,138,118,0.18)]' : ''"
                   @click="leftTab = 'graph'"
                 >
-                  <span class="workbench-nav-icon">
+                  <span class="w-[34px] h-[34px] rounded-[10px] flex items-center justify-center bg-[var(--app-surface-strong)] text-[var(--app-primary)]" :class="leftTab === 'graph' ? 'bg-[rgba(79,138,118,0.18)]' : ''">
                     <el-icon><Share /></el-icon>
                   </span>
                   <span>
                     <div class="text-sm font-semibold">知识图谱</div>
-                    <div class="text-xs app-muted">实体关系/一致性</div>
+                    <div class="text-xs text-[var(--app-text-muted)]">实体关系/一致性</div>
                   </span>
                 </button>
-
               </div>
             </div>
           </el-collapse-transition>
@@ -158,25 +113,12 @@
               :novel-id="novelId" 
               @chapter-selected="handleChapterSelected"
             />
-            <OutlinePanel 
-              v-else-if="leftTab === 'outlines'"
-              :novel-id="novelId" 
-              @outline-selected="handleOutlineSelected"
-            />
-            <div
-              v-else-if="leftTab === 'world' || leftTab === 'knowledge'"
-              class="h-full flex items-center justify-center text-sm app-muted"
-            >
-              {{ leftTab === 'world' ? '世界观在中间编辑' : '知识库在中间编辑' }}
-            </div>
             <div
               v-else
-              class="h-full flex items-center justify-center text-sm app-muted"
+              class="h-full flex items-center justify-center text-sm text-[var(--app-text-muted)]"
             >
               请在中间区域查看
             </div>
-
-
           </div>
         </div>
       </template>
@@ -191,22 +133,6 @@
           @chapter-updated="handleChapterUpdated"
           @text-selected="handleTextSelected"
           @content-changed="handleContentChanged"
-        />
-
-        <OutlineEditor
-          v-else-if="leftTab === 'outlines'"
-          :outline-id="currentOutlineId"
-          @outline-updated="handleOutlineUpdated"
-        />
-
-        <WorldPanel
-          v-else-if="leftTab === 'world'"
-          :novel-id="novelId"
-        />
-
-        <KnowledgePanel
-          v-else-if="leftTab === 'knowledge'"
-          :novel-id="novelId"
         />
 
         <PlanningPanel
@@ -234,26 +160,6 @@
           @chapter-generated="handleChapterGenerated"
           @content-updated="handleContentUpdated"
         />
-
-        <OutlineAgentPanel
-          v-else-if="leftTab === 'outlines'"
-          :novel-id="novelId"
-          :novel-title="novel?.title"
-          :outline-id="currentOutlineId"
-        />
-
-         <div
-           v-else-if="leftTab === 'world'"
-           class="h-full flex items-center justify-center text-sm app-muted"
-         >
-           世界观管理区
-         </div>
- 
-         <div v-else class="h-full flex items-center justify-center text-sm app-muted">
-           知识库管理区
-         </div>
-
-
       </template>
     </WorkbenchLayout>
   </div>
@@ -264,15 +170,10 @@
 import WorkbenchLayout from '@/layouts/WorkbenchLayout.vue'
 import AgentPanel from '@/panels/AgentPanel.vue'
 import EditorPanel from '@/panels/EditorPanel.vue'
-import KnowledgePanel from '@/panels/KnowledgePanel.vue'
 import NovelTree from '@/panels/NovelTree.vue'
-import OutlineAgentPanel from '@/panels/OutlineAgentPanel.vue'
-import OutlineEditor from '@/panels/OutlineEditor.vue'
-import OutlinePanel from '@/panels/OutlinePanel.vue'
-import WorldPanel from '@/panels/WorldPanel.vue'
 import PlanningPanel from '@/panels/PlanningPanel.vue'
 import GraphPanel from '@/panels/GraphPanel.vue'
-import { ArrowLeft, ArrowUp, CollectionTag, Document, Edit, List, DataAnalysis, Share } from '@element-plus/icons-vue'
+import { ArrowLeft, ArrowUp, Document, DataAnalysis, Share } from '@element-plus/icons-vue'
 
 
 import { ElMessage } from 'element-plus'
@@ -290,11 +191,10 @@ const toggleLeftPanel = () => {
 
 const novelId = ref<string>('')
 const novel = ref<any>(null)
-const leftTab = ref<'chapters' | 'outlines' | 'world' | 'knowledge' | 'planning' | 'graph'>('chapters')
+const leftTab = ref<'chapters' | 'planning' | 'graph'>('chapters')
 
 
 const currentChapterId = ref<string | null>(null)
-const currentOutlineId = ref<string | null>(null)
 const currentChapter = ref<any>(null)
 const currentChapterContent = ref<string>('')
 const selectedText = ref<string>('')
@@ -302,9 +202,6 @@ const selectedText = ref<string>('')
 const activeTabLabel = computed(() => {
   const labelMap: Record<string, string> = {
     chapters: '章节',
-    outlines: '大纲',
-    world: '世界观',
-    knowledge: '知识库与记忆',
     planning: '规划工作台',
     graph: '知识图谱'
   }
@@ -393,15 +290,6 @@ function handleTextSelected(text: string) {
 
 function handleContentChanged(content: string) {
   currentChapterContent.value = content
-}
-
-function handleOutlineSelected(outlineId: string) {
-
-  currentOutlineId.value = outlineId
-}
-
-function handleOutlineUpdated(_outline: any) {
-  // 大纲更新后的处理（如果需要可以在这里刷新大纲列表）
 }
 
 async function updateChapterContent(chapterId: string, content: string) {

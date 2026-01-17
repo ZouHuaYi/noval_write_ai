@@ -1,16 +1,16 @@
 <template>
   <div class="h-full flex flex-col overflow-hidden">
     <!-- 标题栏 -->
-    <div class="flex-shrink-0 px-4 py-3 border-b border-[color:var(--app-border)] bg-transparent workbench-panel-header">
+    <div class="flex-shrink-0 px-4 py-3 border-b border-[var(--app-border)] bg-transparent bg-[var(--app-surface-muted)] rounded-t-[var(--app-radius)]">
 
       <div class="flex items-center justify-between">
-        <div class="workbench-panel-title">
+        <div class="flex items-center gap-2.5">
           <div class="p-1.5 rounded-lg bg-emerald-500 shadow-md">
             <el-icon class="text-white text-lg"><Cpu /></el-icon>
           </div>
           <div>
             <div class="font-bold text-base">AI 写作助手</div>
-            <div class="text-xs app-muted">智能创作与编辑工具</div>
+            <div class="text-xs text-[var(--app-text-muted)]">智能创作与编辑工具</div>
           </div>
         </div>
       </div>
@@ -18,18 +18,18 @@
 
     <!-- 内容区域 - 可滚动 -->
     <div class="flex-1 px-4 py-4 min-h-0 overflow-y-auto">
-      <div class="app-section workbench-info-card p-3 mb-4 text-xs space-y-2">
+      <div class="bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] hover:shadow-[0_10px_24px_rgba(32,30,25,0.08)] bg-[var(--app-surface-strong)] border-[var(--app-border)] rounded-xl p-3 mb-4 text-xs space-y-2">
           <div>
-            <div class="workbench-section-title">当前状态</div>
-            <div v-if="!props.chapterId" class="app-muted">请选择章节后使用 AI 工具</div>
-            <div v-else class="app-muted">已选择章节：{{ props.chapterTitle || '未命名章节' }}</div>
-            <div v-if="props.selectedText" class="app-muted">已选中 {{ props.selectedText.length }} 字</div>
-            <div v-else class="app-muted">可选中文字进行精细润色</div>
+            <div class="font-600 text-[var(--app-text)]">当前状态</div>
+            <div v-if="!props.chapterId" class="text-[var(--app-text-muted)]">请选择章节后使用 AI 工具</div>
+            <div v-else class="text-[var(--app-text-muted)]">已选择章节：{{ props.chapterTitle || '未命名章节' }}</div>
+            <div v-if="props.selectedText" class="text-[var(--app-text-muted)]">已选中 {{ props.selectedText.length }} 字</div>
+            <div v-else class="text-[var(--app-text-muted)]">可选中文字进行精细润色</div>
           </div>
           <div>
-            <div class="workbench-section-title">结果摘要</div>
-            <div v-if="lastAction" class="app-muted">{{ lastAction }}（{{ formatActionTime(lastActionAt) }}）</div>
-            <div v-else class="app-muted">暂无执行记录</div>
+            <div class="font-600 text-[var(--app-text)]">结果摘要</div>
+            <div v-if="lastAction" class="text-[var(--app-text-muted)]">{{ lastAction }}（{{ formatActionTime(lastActionAt) }}）</div>
+            <div v-else class="text-[var(--app-text-muted)]">暂无执行记录</div>
           </div>
       </div>
       <el-collapse v-model="activeSections" class="mb-3">
@@ -37,10 +37,10 @@
           <template #title>
             <span class="text-xs font-semibold">写作工具</span>
           </template>
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <!-- 润色文本 -->
             <div 
-              class="group app-section shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
+              class="group bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] shadow-sm hover:shadow-md cursor-pointer overflow-hidden"
               @click="handlePolish"
             >
               <div class="p-4 space-y-2">
@@ -50,19 +50,19 @@
                   </div>
                   <el-icon 
                     v-if="processing" 
-                    class="is-loading app-muted text-sm"
+                    class="is-loading text-[var(--app-text-muted)] text-sm"
                   >
                     <Loading />
                   </el-icon>
                 </div>
                 <div class="text-sm font-semibold">润色文本</div>
-                <div class="text-xs app-muted">优化文字表达</div>
+                <div class="text-xs text-[var(--app-text-muted)]">优化文字表达</div>
               </div>
             </div>
 
             <!-- 生成内容 -->
             <div 
-              class="group app-section border-2 border-emerald-300 shadow-md hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden bg-emerald-50/60"
+              class="group bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] border-2 border-emerald-300 shadow-md hover:shadow-lg cursor-pointer overflow-hidden bg-emerald-50/60"
               @click="handleGenerateNextChapter"
             >
               <div class="p-4 space-y-2">
@@ -72,19 +72,19 @@
                   </div>
                   <el-icon 
                     v-if="processing" 
-                    class="is-loading app-muted text-sm"
+                    class="is-loading text-[var(--app-text-muted)] text-sm"
                   >
                     <Loading />
                   </el-icon>
                 </div>
                 <div class="text-sm font-semibold">生成内容</div>
-                <div class="text-xs app-muted">AI 自动续写</div>
+                <div class="text-xs text-[var(--app-text-muted)]">AI 自动续写</div>
               </div>
             </div>
 
             <!-- 一致性检查 -->
             <div 
-              class="group app-section shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer overflow-hidden"
+              class="group bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] shadow-sm hover:shadow-md cursor-pointer overflow-hidden"
               @click="handleConsistency"
             >
               <div class="p-4 space-y-2">
@@ -94,13 +94,13 @@
                   </div>
                   <el-icon 
                     v-if="processing" 
-                    class="is-loading app-muted text-sm"
+                    class="is-loading text-[var(--app-text-muted)] text-sm"
                   >
                     <Loading />
                   </el-icon>
                 </div>
                 <div class="text-sm font-semibold">一致性检查</div>
-                <div class="text-xs app-muted">检查内容一致性</div>
+                <div class="text-xs text-[var(--app-text-muted)]">检查内容一致性</div>
               </div>
             </div>
           </div>
@@ -109,7 +109,7 @@
           <template #title>
             <span class="text-xs font-semibold">创作建议</span>
           </template>
-          <div class="p-3 app-section">
+          <div class="p-3 bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] hover:shadow-[0_10px_24px_rgba(32,30,25,0.08)]">
             <div class="flex items-start space-x-2">
               <el-icon class="text-emerald-500 text-sm mt-0.5 flex-shrink-0"><InfoFilled /></el-icon>
               <div class="text-xs text-emerald-700 leading-relaxed">
@@ -131,29 +131,29 @@
           <div class="p-3 space-y-3">
             <!-- 统计概览 -->
             <div class="grid grid-cols-3 gap-2 text-center">
-              <div class="app-section p-2 rounded-lg">
+              <div class="bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] hover:shadow-[0_10px_24px_rgba(32,30,25,0.08)] p-2 rounded-lg">
                 <div class="text-lg font-bold text-blue-500">{{ reioStats.totalChecks }}</div>
-                <div class="text-xs app-muted">检查次数</div>
+                <div class="text-xs text-[var(--app-text-muted)]">检查次数</div>
               </div>
-              <div class="app-section p-2 rounded-lg">
+              <div class="bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] hover:shadow-[0_10px_24px_rgba(32,30,25,0.08)] p-2 rounded-lg">
                 <div class="text-lg font-bold text-green-500">{{ reioStats.passCount }}</div>
-                <div class="text-xs app-muted">通过</div>
+                <div class="text-xs text-[var(--app-text-muted)]">通过</div>
               </div>
-              <div class="app-section p-2 rounded-lg">
+              <div class="bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] hover:shadow-[0_10px_24px_rgba(32,30,25,0.08)] p-2 rounded-lg">
                 <div class="text-lg font-bold text-orange-500">{{ reioStats.rewriteCount }}</div>
-                <div class="text-xs app-muted">重写</div>
+                <div class="text-xs text-[var(--app-text-muted)]">重写</div>
               </div>
             </div>
             
             <!-- 最近检查 -->
-            <div v-if="reioStats.lastCheck" class="app-section p-3 rounded-lg">
+            <div v-if="reioStats.lastCheck" class="bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] hover:shadow-[0_10px_24px_rgba(32,30,25,0.08)] p-3 rounded-lg">
               <div class="flex items-center justify-between mb-2">
                 <span class="text-xs font-semibold">最近检查</span>
                 <el-tag :type="reioStats.lastCheck.passed ? 'success' : 'warning'" size="small">
                   {{ reioStats.lastCheck.passed ? '通过' : '需改进' }}
                 </el-tag>
               </div>
-              <div class="text-xs app-muted">
+              <div class="text-xs text-[var(--app-text-muted)]">
                 得分: {{ reioStats.lastCheck.score }}/100
               </div>
               <div v-if="reioStats.lastCheck.issues?.length" class="mt-2 space-y-1">
@@ -190,7 +190,7 @@
       <div class="space-y-4">
         <!-- 选中的文字（仅润色时显示） -->
         <div v-if="dialogType === 'polish' && props.selectedText">
-          <div class="text-sm font-semibold app-muted mb-2">选中的文字：</div>
+          <div class="text-sm font-semibold text-[var(--app-text-muted)] mb-2">选中的文字：</div>
           <el-input
             :model-value="props.selectedText"
             type="textarea"
@@ -206,7 +206,7 @@
         
         <!-- 自定义提示输入框 -->
         <div>
-          <div class="text-sm font-semibold app-muted mb-2">
+          <div class="text-sm font-semibold text-[var(--app-text-muted)] mb-2">
             {{ dialogType === 'polish' ? '润色要求（可选）：' :
                dialogType === 'consistency' ? '检查重点（可选）：' :
                '自定义提示（可选）：' }}
@@ -218,7 +218,7 @@
             :placeholder="getDialogPlaceholder()"
             clearable
           />
-          <div class="text-xs app-muted mt-1">
+          <div class="text-xs text-[var(--app-text-muted)] mt-1">
             {{ getDialogHint() }}
           </div>
         </div>
@@ -243,7 +243,19 @@ import { callChatModel } from '@/llm/client';
 import { chapterSkills } from '@/llm/prompts/chapter';
 import { Brush, Cpu, InfoFilled, Loading, Plus, Refresh, Search, Warning } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+
+// ... other imports ...
+
+// ... inside script setup ...
+
+onMounted(() => {
+  if (props.novelId) {
+    loadReIOStats()
+  }
+})
+
+// Keep closing script tag
 
 
 const props = defineProps<{
@@ -254,7 +266,6 @@ const props = defineProps<{
   selectedText?: string
   novelTitle?: string
 }>()
-
 
 const emit = defineEmits<{
   (e: 'chapter-generated', chapter: any): void
@@ -271,18 +282,34 @@ const lastActionAt = ref<number | null>(null)
 const activeSections = ref(['tools'])
 
 // ReIO 相关状态
-const reioStats = ref({
+interface ReICheckResult {
+  passed: boolean;
+  score: number;
+  issues: string[];
+}
+
+interface ReIOStats {
+  totalChecks: number;
+  passCount: number;
+  rewriteCount: number;
+  passRate: number;
+  lastCheck: ReICheckResult | null;
+}
+
+const reioStats = ref<ReIOStats>({
   totalChecks: 0,
   passCount: 0,
   rewriteCount: 0,
   passRate: 100,
-  lastCheck: null as any
+  lastCheck: null
 })
 const reioLoading = ref(false)
 const reioChecking = ref(false)
 
 // 加载 ReIO 统计
 async function loadReIOStats() {
+  if (!props.novelId) return
+  
   reioLoading.value = true
   try {
     if (window.electronAPI?.reio?.getStats) {
@@ -291,11 +318,11 @@ async function loadReIOStats() {
         reioStats.value = {
           totalChecks: stats.totalChecks || 0,
           passCount: stats.passedChecks || 0,
-          rewriteCount: stats.rewriteCount || 0,
+          rewriteCount: stats.totalRewrites || 0,
           passRate: stats.totalChecks > 0 
             ? Math.round((stats.passedChecks / stats.totalChecks) * 100) 
             : 100,
-          lastCheck: stats.lastCheck || null
+          lastCheck: stats.lastCheckResult || null
         }
       }
     }
@@ -308,18 +335,24 @@ async function loadReIOStats() {
 
 // 执行 ReIO 检查
 async function runReioCheck() {
-  if (!props.chapterId || !props.chapterContent) {
-    ElMessage.warning('请先选择章节')
+  if (!props.novelId || !props.chapterId || !props.chapterContent) {
+    ElMessage.warning('请先选择章节并输入内容')
     return
   }
 
   reioChecking.value = true
   try {
     if (window.electronAPI?.reio?.check) {
+      // 构建上下文
+      const { outlineContext, memoryContext } = await buildGenerationContext()
+      
       const result = await window.electronAPI.reio.check({
         novelId: props.novelId,
-        chapterId: props.chapterId,
-        content: props.chapterContent
+        generatedText: props.chapterContent,
+        eventGoal: outlineContext || '无明确目标',
+        memoryContext: memoryContext || '',
+        activeCharacters: [], // 可以从上下文提取，或由后端提取
+        worldRules: [] // 后端会自动提取
       })
 
       if (result) {
@@ -614,11 +647,4 @@ const formatActionTime = (timestamp: number | null) => {
 
 </script>
 
-<style scoped>
-/* 响应式调整 */
-@media (max-width: 640px) {
-  .grid-cols-2 {
-    grid-template-columns: repeat(1, minmax(0, 1fr));
-  }
-}
-</style>
+
