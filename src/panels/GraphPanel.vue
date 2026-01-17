@@ -81,6 +81,7 @@
       <KnowledgeGraphView 
         ref="graphViewRef"
         :novel-id="novelId"
+        hide-toolbar
       />
     </div>
 
@@ -280,8 +281,13 @@ function refreshGraph() {
 
 // 搜索
 function handleSearch() {
-  // 搜索逻辑由 KnowledgeGraphView 组件处理
+  graphViewRef.value?.performSearch?.(searchQuery.value, filterType.value)
 }
+
+// 监听筛选变化
+watch(filterType, () => {
+  handleSearch()
+})
 
 // 分析所有章节
 async function analyzeAllChapters() {
@@ -442,5 +448,3 @@ onMounted(() => {
   }
 })
 </script>
-
-

@@ -1,7 +1,7 @@
 <template>
   <div class="knowledge-graph-container">
     <!-- 工具栏 -->
-    <div class="graph-toolbar">
+    <div v-if="!hideToolbar" class="graph-toolbar">
       <div class="toolbar-left">
         <el-button size="small" @click="refreshGraph" :loading="loading">
           <el-icon><Refresh /></el-icon>
@@ -213,6 +213,7 @@ import type { Node, Edge } from '@vue-flow/core'
 
 const props = defineProps<{
   novelId?: string
+  hideToolbar?: boolean
 }>()
 
 const { fitView: doFitView } = useVueFlow()
@@ -227,6 +228,21 @@ const graphStats = ref<any>(null)
 const filterType = ref('')
 const searchQuery = ref('')
 const highlightedNodes = ref<Set<string>>(new Set())
+
+// ...
+
+// 搜索 (暴露给父组件调用)
+async function performSearch(query: string, type?: string) {
+  searchQuery.value = query
+  filterType.value = type || ''
+  await handleSearch()
+}
+
+defineExpose({
+  loadGraph,
+  performSearch,
+  fitView
+})
 
 // 一致性检查
 const showConsistencyCheck = ref(false)
