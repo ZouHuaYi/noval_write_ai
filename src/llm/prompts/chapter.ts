@@ -35,7 +35,7 @@ export const chapterSkills = {
     }: ChapterContinueInput) => {
       return [
         formatSection('小说信息', `标题：${novelTitle || '未命名'}\n章节：第 ${chapterNumber ?? '?'} 章 · ${chapterTitle || '未命名'}`),
-        formatSection('章节已写内容', content),
+        formatSection('章节已写内容', content || '无'),
         formatSection('关联大纲', outlineContext || '无匹配大纲'),
         formatSection('记忆上下文', memoryContext || '无可用记忆'),
         formatSection('作者补充要求', extraPrompt || '无'),
@@ -58,7 +58,7 @@ export const chapterSkills = {
     buildUserPrompt: ({ novelTitle, content, extraPrompt }: ChapterConsistencyInput) => {
       return [
         formatSection('小说标题', novelTitle || '未命名'),
-        formatSection('章节内容', content),
+        formatSection('章节内容', content || '无'),
         formatSection('检查重点', extraPrompt || '无'),
         formatSection('输出要求', '用列表输出不一致点与建议修复方案。')
       ].join('\n')

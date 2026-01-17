@@ -3,7 +3,6 @@ const chapterSnapshotDAO = require('../database/chapterSnapshotDAO')
 const chapterGenerationDAO = require('../database/chapterGenerationDAO')
 const chapterDAO = require('../database/chapterDAO')
 const outlineDAO = require('../database/outlineDAO')
-// const storyEngine = require('../storyEngine') // Removed in Phase 7
 const { buildKnowledgeSummary } = require('./knowledgeContext')
 const reioChecker = require('./reioChecker')
 

@@ -18,20 +18,6 @@
 
     <!-- 内容区域 - 可滚动 -->
     <div class="flex-1 px-4 py-4 min-h-0 overflow-y-auto">
-      <div class="bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] hover:shadow-[0_10px_24px_rgba(32,30,25,0.08)] bg-[var(--app-surface-strong)] border-[var(--app-border)] rounded-xl p-3 mb-4 text-xs space-y-2">
-          <div>
-            <div class="font-600 text-[var(--app-text)]">当前状态</div>
-            <div v-if="!props.chapterId" class="text-[var(--app-text-muted)]">请选择章节后使用 AI 工具</div>
-            <div v-else class="text-[var(--app-text-muted)]">已选择章节：{{ props.chapterTitle || '未命名章节' }}</div>
-            <div v-if="props.selectedText" class="text-[var(--app-text-muted)]">已选中 {{ props.selectedText.length }} 字</div>
-            <div v-else class="text-[var(--app-text-muted)]">可选中文字进行精细润色</div>
-          </div>
-          <div>
-            <div class="font-600 text-[var(--app-text)]">结果摘要</div>
-            <div v-if="lastAction" class="text-[var(--app-text-muted)]">{{ lastAction }}（{{ formatActionTime(lastActionAt) }}）</div>
-            <div v-else class="text-[var(--app-text-muted)]">暂无执行记录</div>
-          </div>
-      </div>
       <el-collapse v-model="activeSections" class="mb-3">
         <el-collapse-item name="tools">
           <template #title>
@@ -101,22 +87,6 @@
                 </div>
                 <div class="text-sm font-semibold">一致性检查</div>
                 <div class="text-xs text-[var(--app-text-muted)]">检查内容一致性</div>
-              </div>
-            </div>
-          </div>
-        </el-collapse-item>
-        <el-collapse-item name="tips">
-          <template #title>
-            <span class="text-xs font-semibold">创作建议</span>
-          </template>
-          <div class="p-3 bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] hover:shadow-[0_10px_24px_rgba(32,30,25,0.08)]">
-            <div class="flex items-start space-x-2">
-              <el-icon class="text-emerald-500 text-sm mt-0.5 flex-shrink-0"><InfoFilled /></el-icon>
-              <div class="text-xs text-emerald-700 leading-relaxed">
-                <div class="font-semibold mb-1">使用提示：</div>
-                <div>1. 选择章节 → 2. 选中段落 → 3. 选择工具</div>
-                <div>• 选中文字后可针对选中内容进行操作</div>
-                <div>• 所有操作都会自动保存到章节中</div>
               </div>
             </div>
           </div>
@@ -414,27 +384,17 @@ const getDialogHint = () => {
   return hints[dialogType.value] || ''
 }
 
-const formatOutlineRange = (start?: number | null, end?: number | null) => {
-  if (start && end) return `第 ${start} 章 - 第 ${end} 章`
-  if (start) return `第 ${start} 章起`
-  if (end) return `至第 ${end} 章`
-  return '未设置范围'
-}
-
-const buildOutlineContextForChapter = async (chapterNumber: number | null) => {
-  // 暂时移除旧的大纲上下文获取，等待新的 Planning 模块集成
-  return ''
-}
-
-const buildMemoryContextForChapter = async (chapterNumber: number | null) => {
-  if (!props.novelId || !chapterNumber) return ''
-  if (!window.electronAPI?.storyEngine?.compress) return ''
-
+const buildContextForChapter = async (chapterId: string | null) => {
+  if (!props.novelId || !chapterId) {
+    return { outlineContext: '', memoryContext: '' }
+  }
+  
   try {
-    return await window.electronAPI.storyEngine.compress(chapterNumber, props.novelId)
-  } catch (error: any) {
-    console.error('获取记忆上下文失败:', error)
-    return ''
+    const result = await window.electronAPI.planning.buildContext(props.novelId, chapterId)
+    return result
+  } catch (error) {
+    console.error('获取上下文失败:', error)
+    return { outlineContext: '', memoryContext: '' }
   }
 }
 
@@ -445,10 +405,8 @@ const buildGenerationContext = async () => {
 
   const chapter = await window.electronAPI.chapter.get(props.chapterId)
   const chapterNumber = chapter?.chapterNumber ?? null
-  const [outlineContext, memoryContext] = await Promise.all([
-    buildOutlineContextForChapter(chapterNumber),
-    buildMemoryContextForChapter(chapterNumber)
-  ])
+  
+  const { outlineContext, memoryContext } = await buildContextForChapter(props.chapterId)
 
   return {
     chapterNumber,
@@ -511,8 +469,8 @@ const confirmAction = async () => {
 
 
 const executeContinue = async () => {
-  if (!props.chapterId || !props.chapterContent) {
-    ElMessage.warning('请先选择章节并输入内容')
+  if (!props.chapterId) {
+    ElMessage.warning('请先选择章节')
     return null
   }
 
@@ -523,7 +481,7 @@ const executeContinue = async () => {
     novelTitle: props.novelTitle,
     chapterTitle: props.chapterTitle,
     chapterNumber,
-    content: props.chapterContent,
+    content: props.chapterContent || '',
     outlineContext,
     memoryContext,
     extraPrompt: prompt
@@ -536,7 +494,7 @@ const executeContinue = async () => {
     return null
   }
 
-  const separator = props.chapterContent.endsWith('\n') ? '\n' : '\n\n'
+  const separator = props.chapterContent?.endsWith('\n') ? '\n' : '\n\n'
   emit('content-updated', props.chapterContent + separator + trimmed)
   ElMessage.success('续写完成')
   return '续写完成'
@@ -616,14 +574,6 @@ const handleGenerateNextChapter = () => {
   dialogTitle.value = 'AI 续写内容'
   dialogPrompt.value = ''
   showDialog.value = true
-}
-
-const formatActionTime = (timestamp: number | null) => {
-  if (!timestamp) return '刚刚'
-  return new Date(timestamp).toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit'
-  })
 }
 
 </script>

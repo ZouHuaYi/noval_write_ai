@@ -93,6 +93,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 验证事件图谱
     validateGraph: (events) => ipcRenderer.invoke('outline:validateGraph', events),
 
+    // ===== Context Building =====
+    buildContext: (novelId, chapterId) => ipcRenderer.invoke('planning:buildContext', { novelId, chapterId }),
+
     // ===== Planning Agent =====
     // 生成章节计划
     generatePlan: (options) => ipcRenderer.invoke('planning:generatePlan', options),

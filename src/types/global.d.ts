@@ -132,16 +132,6 @@ declare global {
         reviewUpdate: (id: string, reviewStatus: string) => Promise<any>
       }
 
-      // StoryEngine 处理相关 API
-      storyEngine: {
-        run: (novelId: string) => Promise<{
-          total: number
-          successCount: number
-          failureCount: number
-        }>
-        compress: (chapter: number, novelId?: string) => Promise<string>
-      }
-
       // LLM 相关 API
 
       llm: {
@@ -274,6 +264,12 @@ declare global {
           valid: boolean
           issues: string[]
           stats: any
+        }>
+
+        // Context Building
+        buildContext: (novelId: string, chapterId: string) => Promise<{
+          outlineContext: string
+          memoryContext: string
         }>
 
         // Planning Agent

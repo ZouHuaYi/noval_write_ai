@@ -23,61 +23,6 @@ CREATE TABLE IF NOT EXISTS chapter (
   FOREIGN KEY (novelId) REFERENCES novel(id) ON DELETE CASCADE
 );
 
-
--- 实体表 章节内容相关实体
-CREATE TABLE IF NOT EXISTS entity (
-  id TEXT PRIMARY KEY,
-  eventId TEXT NOT NULL,
-  novelId TEXT NOT NULL,
-  chapterNumber INTEGER NOT NULL,
-  name TEXT NOT NULL,
-  states TEXT, -- JSON object
-  history TEXT, -- JSON array
-  createdAt INTEGER,
-  updatedAt INTEGER,
-  FOREIGN KEY (novelId) REFERENCES novel(id) ON DELETE CASCADE
-);
-
--- 依赖表 章节内容相关依赖
-CREATE TABLE IF NOT EXISTS dependency (
-  id TEXT PRIMARY KEY,
-  eventId TEXT NOT NULL,
-  novelId TEXT NOT NULL,
-  chapterNumber INTEGER NOT NULL,
-  description TEXT,
-  type TEXT,
-  relatedCharacters TEXT, -- JSON array
-  resolveWhen TEXT, -- JSON array
-  violateWhen TEXT, -- JSON array
-  status TEXT,
-  createdAt INTEGER,
-  updatedAt INTEGER,
-  FOREIGN KEY (novelId) REFERENCES novel(id) ON DELETE CASCADE
-);
-
--- 事件表 章节内容相关事件
-CREATE TABLE IF NOT EXISTS event (
-  id TEXT PRIMARY KEY,
-  eventId TEXT NOT NULL,
-  novelId TEXT NOT NULL,
-  chapterNumber INTEGER NOT NULL,
-  type TEXT,
-  summary TEXT,
-  detail TEXT,
-  actors TEXT, -- JSON array
-  effects TEXT, -- JSON array
-  createdAt INTEGER,
-  updatedAt INTEGER,
-  FOREIGN KEY (novelId) REFERENCES novel(id) ON DELETE CASCADE
-);
-
--- 事件表 章节内容相关事件
-
--- 设置表（用于存储应用配置，如大模型配置）
-CREATE TABLE IF NOT EXISTS settings (
-  id TEXT PRIMARY KEY,
-  key TEXT UNIQUE NOT NULL,
-  value TEXT,
   description TEXT,
   createdAt INTEGER,
   updatedAt INTEGER

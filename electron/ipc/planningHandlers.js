@@ -5,8 +5,62 @@
 const outlineAgent = require('../llm/outlineAgent')
 const planningAgent = require('../llm/planningAgent')
 
+const outlineDAO = require('../database/outlineDAO')
+const chapterDAO = require('../database/chapterDAO')
+const { buildKnowledgeSummary } = require('../llm/knowledgeContext')
+
+function buildOutlineContext(outlines = []) {
+  if (!outlines.length) return ''
+  return outlines.map(outline => {
+    const start = outline.startChapter
+    const end = outline.endChapter
+    let range = '未设置范围'
+    if (start && end) range = `第 ${start} 章 - 第 ${end} 章`
+    else if (start) range = `第 ${start} 章起`
+    else if (end) range = `至第 ${end} 章`
+    const content = outline.content?.trim() || '（该大纲暂无内容）'
+    return `【${outline.title}】(${range})\n${content}`
+  }).join('\n\n')
+}
+
 function registerPlanningHandlers(ipcMain) {
+  // ===== Context Building =====
+  ipcMain.handle('planning:buildContext', async (_, { novelId, chapterId }) => {
+    try {
+      const chapter = await chapterDAO.getChapterById(chapterId)
+      if (!chapter) throw new Error('章节不存在')
+
+      const chapterNumber = chapter.chapterNumber
+
+      // 1. 构建大纲上下文
+      const outlines = await outlineDAO.getOutlinesByNovel(novelId)
+      const matchedOutlines = outlines.filter(outline => {
+        if (outline.startChapter == null || outline.endChapter == null) return false
+        return chapterNumber && chapterNumber >= outline.startChapter && chapterNumber <= outline.endChapter
+      })
+      const outlineContext = buildOutlineContext(matchedOutlines)
+
+      // 2. 构建知识库/记忆上下文
+      const memoryContext = buildKnowledgeSummary({
+        novelId,
+        types: ['character', 'location', 'timeline', 'plot'],
+        maxItems: 12,
+        currentChapter: chapterNumber,
+        maxChars: 1200
+      })
+
+      return {
+        outlineContext,
+        memoryContext
+      }
+    } catch (error) {
+      console.error('构建上下文失败:', error)
+      throw error
+    }
+  })
+
   // ===== Outline Agent =====
+  // ... existing handlers ...
 
   // 生成事件图谱
   ipcMain.handle('outline:generateEventGraph', async (_, options) => {

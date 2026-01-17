@@ -8,19 +8,19 @@ let db = null
 function initDatabase() {
   const userDataPath = app.getPath('userData')
   const dbPath = join(userDataPath, 'novels.db')
-  
+
   db = new Database(dbPath)
-  
+
   // 启用外键约束
   db.pragma('foreign_keys = ON')
-  
+
   // 先检查并执行数据库迁移（在创建表之前处理现有表）
   try {
     // 检查 chapter 表是否存在
     const chapterTableExists = db.prepare(`
       SELECT name FROM sqlite_master WHERE type='table' AND name='chapter'
     `).get()
-    
+
     if (chapterTableExists) {
       const chapterTableInfo = db.prepare("PRAGMA table_info(chapter)").all()
       const hasChapterNumber = chapterTableInfo.some(col => col.name === 'chapterNumber')
@@ -49,24 +49,25 @@ function initDatabase() {
     const outlineTableExists = db.prepare(`
       SELECT name FROM sqlite_master WHERE type='table' AND name='outline'
     `).get()
-    
+
     if (outlineTableExists) {
       const outlineTableInfo = db.prepare("PRAGMA table_info(outline)").all()
       const hasStartChapter = outlineTableInfo.some(col => col.name === 'startChapter')
       const hasEndChapter = outlineTableInfo.some(col => col.name === 'endChapter')
-      
+
       if (!hasStartChapter) {
         console.log('执行数据库迁移：添加startChapter字段')
         db.exec(`ALTER TABLE outline ADD COLUMN startChapter INTEGER`)
       }
-      
+
       if (!hasEndChapter) {
         console.log('执行数据库迁移：添加endChapter字段')
         db.exec(`ALTER TABLE outline ADD COLUMN endChapter INTEGER`)
       }
     }
 
-    const memoryTables = ['entity', 'event', 'dependency']
+    // const memoryTables = ['entity', 'event', 'dependency'] // Removed in Phase 7
+    /*
     memoryTables.forEach((tableName) => {
       const tableExists = db.prepare(`
         SELECT name FROM sqlite_master WHERE type='table' AND name='${tableName}'
@@ -81,6 +82,7 @@ function initDatabase() {
         db.exec(`ALTER TABLE ${tableName} ADD COLUMN chapterNumber INTEGER`)
       }
     })
+    */
 
     const knowledgeTableExists = db.prepare(`
       SELECT name FROM sqlite_master WHERE type='table' AND name='knowledge_entry'
@@ -135,7 +137,7 @@ function initDatabase() {
 
     console.error('数据库迁移失败:', error)
   }
-  
+
   // 从 schema.sql 文件创建表结构
   // 注意：对于已存在的表，CREATE TABLE IF NOT EXISTS 不会修改表结构
   const schemaPath = join(__dirname, 'schema.sql')
@@ -153,7 +155,7 @@ function initDatabase() {
   }
 
 
-  
+
   console.log('数据库初始化成功:', dbPath)
   return db
 }
