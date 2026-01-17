@@ -232,10 +232,10 @@ const highlightedNodes = ref<Set<string>>(new Set())
 // ...
 
 // 搜索 (暴露给父组件调用)
-async function performSearch(query: string, type?: string) {
+async function performSearch(query: string, type?: string, targetIds?: string[]) {
   searchQuery.value = query
   filterType.value = type || ''
-  await handleSearch()
+  await handleSearch(targetIds)
 }
 
 defineExpose({
@@ -333,7 +333,13 @@ async function onNodeClick({ node }: { node: Node }) {
 }
 
 // 搜索
-async function handleSearch() {
+async function handleSearch(targetIds?: string[]) {
+  // 如果提供了目标ID列表（例如来自外部筛选），直接高亮这些节点
+  if (targetIds && targetIds.length > 0) {
+    highlightedNodes.value = new Set(targetIds)
+    return
+  }
+
   if (!props.novelId || !searchQuery.value) {
     highlightedNodes.value.clear()
     return

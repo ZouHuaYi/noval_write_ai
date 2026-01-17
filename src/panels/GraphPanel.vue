@@ -17,6 +17,7 @@
         </el-input>
         <el-select v-model="filterType" size="small" placeholder="筛选类型" clearable style="width: 120px">
           <el-option label="全部" value="" />
+          <el-option label="待确认" value="pending" />
           <el-option label="角色" value="character" />
           <el-option label="地点" value="location" />
           <el-option label="物品" value="item" />
@@ -280,8 +281,52 @@ function refreshGraph() {
 }
 
 // 搜索
-function handleSearch() {
-  graphViewRef.value?.performSearch?.(searchQuery.value, filterType.value)
+async function handleSearch() {
+  let targetIds: string[] | undefined = undefined
+
+  if (filterType.value === 'pending') {
+    // 如果选择了"待确认"，则基于一致性检查结果筛选
+    if (!consistencyResult.value) {
+      await runConsistencyCheck() // 自动执行检查
+    }
+    
+    // 收集所有涉及冲突或警告的节点ID
+    const ids = new Set<string>()
+    // 假设 conflict/warning 对象中有 entityIds 或类似字段，或者从 message 解析
+    // 这里需要根据 consistencyChecker 返回的具体结构来定。
+    // 如果没有明确 ID，可能需要后端配合。
+    //目前 consistencyChecker 返回结构： { title, message, suggestion, ids? }
+    // 需确认 consistencyChecker.js 返回结构是否包含 ids
+    
+    // 临时方案：如果 message 包含 'Node <ID>' 或 'Entity <ID>'
+    // 更好的方案：后端 checkConsistency 返回结果包含 ids 数组
+    
+    // 假设我们只能依靠 entityIds 字段 (需要后端支持)
+    // 或者我们遍历所有节点，看是否由 "unconfirmed" 等属性 (如果这是"待确认"的定义)
+    
+    // 既然用户说是 "基于一致性警告"，那么我们应该筛选出那些有一致性问题的节点。
+    
+    const issues = [
+      ...(consistencyResult.value?.conflicts || []),
+      ...(consistencyResult.value?.warnings || [])
+    ]
+    
+    issues.forEach((issue: any) => {
+      if (issue.nodeId) ids.add(issue.nodeId)
+      if (issue.sourceId) ids.add(issue.sourceId)
+      if (issue.targetId) ids.add(issue.targetId)
+      
+      // 兼容旧结构或根据 message 提取 (如果需要)
+    })
+    
+    targetIds = Array.from(ids)
+    
+    if (targetIds.length === 0 && issues.length > 0) {
+       ElMessage.info('未找到关联的实体ID，请查看一致性检查详情')
+    }
+  }
+
+  graphViewRef.value?.performSearch?.(searchQuery.value, filterType.value, targetIds)
 }
 
 // 监听筛选变化

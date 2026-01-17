@@ -12,6 +12,10 @@
             <el-icon><List /></el-icon>
             看板
           </el-radio-button>
+          <el-radio-button value="list">
+            <el-icon><Document /></el-icon>
+            列表
+          </el-radio-button>
         </el-radio-group>
       </div>
       <div class="flex items-center gap-2">
@@ -61,7 +65,7 @@
 
       <!-- 看板视图 -->
       <KanbanBoard
-        v-else
+        v-else-if="viewMode === 'kanban'"
         :board="kanbanBoard"
         :recommendation="recommendation"
         @task-select="handleTaskSelect"
@@ -70,6 +74,57 @@
         @refresh="loadData"
         @request-recommendation="getRecommendation"
       />
+
+      <!-- 列表视图 (大纲模式) -->
+      <div v-else class="h-full overflow-y-auto p-4 max-w-4xl mx-auto">
+        <div v-if="chapters.length === 0" class="flex flex-col items-center justify-center h-full text-[var(--app-text-muted)]">
+          <el-empty description="暂无章节计划，请点击上方“生成计划”" />
+        </div>
+        <div v-else class="space-y-4">
+          <div 
+            v-for="chapter in chapters" 
+            :key="chapter.chapterNumber"
+            class="bg-white border border-[var(--app-border)] rounded-lg p-4 hover:shadow-md transition-shadow"
+          >
+            <div class="flex justify-between items-start mb-3">
+              <div>
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="font-bold text-lg">第 {{ chapter.chapterNumber }} 章</span>
+                  <el-tag size="small" :type="chapter.status === 'completed' ? 'success' : 'info'">
+                    {{ chapter.status === 'completed' ? '已完成' : '写作中' }}
+                  </el-tag>
+                </div>
+                <div class="text-[15px] font-medium">{{ chapter.title }}</div>
+              </div>
+              <el-button type="primary" size="small" plain @click="handleStartWriting(chapter.chapterNumber)">
+                <el-icon class="mr-1"><Edit /></el-icon>写作
+              </el-button>
+            </div>
+            
+            <div class="text-sm text-[var(--app-text-muted)] leading-relaxed mb-3">
+              {{ chapter.summary || chapter.content?.substring(0, 100) + '...' }}
+            </div>
+
+            <!-- 包含的事件 -->
+            <div v-if="chapter.events?.length" class="mt-3 pt-3 border-t border-dashed border-[var(--app-border)]">
+              <div class="text-xs text-[var(--el-text-color-secondary)] mb-2">包含事件</div>
+              <div class="flex flex-wrap gap-2">
+                <el-tag 
+                  v-for="evtId in chapter.events" 
+                  :key="evtId" 
+                  size="small" 
+                  type="info" 
+                  effect="light"
+                  class="cursor-pointer"
+                  @click="handleEventSelect(events.find(e => e.id === evtId))"
+                >
+                  {{ events.find(e => e.id === evtId)?.label || evtId }}
+                </el-tag>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 生成图谱对话框 -->
@@ -137,7 +192,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Aim, Calendar, List, MagicStick, Share } from '@element-plus/icons-vue'
+import { Aim, Calendar, List, MagicStick, Share, Document, Edit } from '@element-plus/icons-vue'
 import EventGraph from '@/components/EventGraph.vue'
 import KanbanBoard from '@/components/KanbanBoard.vue'
 
@@ -151,7 +206,7 @@ const emit = defineEmits<{
 }>()
 
 // 视图状态
-const viewMode = ref<'graph' | 'kanban'>('graph')
+const viewMode = ref<'graph' | 'kanban' | 'list'>('graph')
 const graphLayout = ref<'horizontal' | 'vertical'>('horizontal')
 
 // 数据

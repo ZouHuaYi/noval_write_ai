@@ -16,11 +16,12 @@
       <div class="flex items-center space-x-2">
         <el-button 
           type="primary" 
-          @click="markMemory"
+          @click="manualAnalyze"
+          :loading="analyzing"
           class="shadow-sm hover:shadow-md transition-shadow"
         >
           <el-icon class="mr-1"><MagicStick /></el-icon>
-          记忆
+          分析
         </el-button>
         <el-button 
           type="success" 
@@ -407,43 +408,26 @@ async function triggerGraphAnalysis() {
   }
 }
 
-async function markMemory() {
-  if (!props.chapterId) {
+const analyzing = ref(false)
+
+async function manualAnalyze() {
+  if (!props.novelId || !chapterNumber.value) {
     ElMessage.warning('请先选择章节')
     return
   }
-  saving.value = true
+  
+  analyzing.value = true
   try {
-    // 1. 先保存章节内容，确保 StoryEngine 分析的是最新数据
-    if (window.electronAPI?.chapter) {
-      const updateData: any = {
-        title: chapterTitle.value,
-        content: content.value,
-        status: 'completed'
-      }
-      if (chapterNumber.value !== null) {
-        updateData.chapterNumber = chapterNumber.value
-      }
-      const chapter = await window.electronAPI.chapter.update(props.chapterId, updateData)
-      status.value = 'completed'
-      emit('chapter-updated', chapter)
-      ElMessage.success('章节已保存并标记为完成')
-    }
+    // 1. 先保存章节内容
+    await autoSave()
 
-    // 2. 运行记忆提取 (基于已保存的数据)
-    if (props.novelId && window.electronAPI?.storyEngine) {
-      try {
-        await window.electronAPI.storyEngine.run(props.novelId)
-        ElMessage.success('记忆提取完成')
-      } catch (error: any) {
-        console.error('运行记忆提取失败:', error)
-        ElMessage.warning('章节已保存，但记忆提取失败')
-      }
-    }
+    // 2. 触发分析
+    await triggerGraphAnalysis()
+    ElMessage.success('图谱分析完成')
   } catch (error: any) {
-    ElMessage.error('操作失败: ' + (error.message || '未知错误'))
+    ElMessage.error('分析失败: ' + (error.message || '未知错误'))
   } finally {
-    saving.value = false
+    analyzing.value = false
   }
 }
 
