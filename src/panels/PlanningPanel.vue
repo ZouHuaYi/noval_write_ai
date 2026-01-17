@@ -272,10 +272,41 @@ async function loadData() {
   if (!props.novelId) return
   
   try {
-    // 这里可以从本地存储或后端加载已保存的数据
-    // 暂时使用空数据，等待用户生成
+    const savedData = await window.electronAPI?.planning?.loadData(props.novelId)
+    if (savedData) {
+      events.value = savedData.events || []
+      chapters.value = savedData.chapters || []
+      kanbanBoard.value = savedData.kanbanBoard || null
+      if (savedData.generateOptions) {
+        generateOptions.value = savedData.generateOptions
+      }
+      console.log('已加载规划数据:', {
+        events: events.value.length,
+        chapters: chapters.value.length
+      })
+    }
   } catch (error) {
     console.error('加载数据失败:', error)
+  }
+}
+
+// 保存数据
+async function saveData() {
+  if (!props.novelId) return
+  
+  try {
+    // 使用 JSON 序列化确保数据可以通过 IPC 传输
+    const dataToSave = JSON.parse(JSON.stringify({
+      events: events.value,
+      chapters: chapters.value,
+      kanbanBoard: kanbanBoard.value,
+      generateOptions: generateOptions.value
+    }))
+    
+    await window.electronAPI?.planning?.saveData(props.novelId, dataToSave)
+    console.log('规划数据已保存')
+  } catch (error) {
+    console.error('保存数据失败:', error)
   }
 }
 
@@ -302,6 +333,8 @@ async function doGenerateGraph() {
       events.value = result.events
       ElMessage.success(`成功生成 ${result.events.length} 个事件节点`)
       showGenerateDialog.value = false
+      // 自动保存
+      await saveData()
     }
   } catch (error: any) {
     console.error('生成图谱失败:', error)
@@ -320,8 +353,11 @@ async function generatePlan() {
 
   planLoading.value = true
   try {
+    // 序列化事件数据
+    const serializedEvents = JSON.parse(JSON.stringify(events.value))
+    
     const result = await window.electronAPI?.planning?.generatePlan({
-      events: events.value,
+      events: serializedEvents,
       targetChapters: generateOptions.value.targetChapters,
       wordsPerChapter: 3000
     })
@@ -335,6 +371,8 @@ async function generatePlan() {
         kanbanBoard.value = board
         viewMode.value = 'kanban'
         ElMessage.success('章节计划生成完成')
+        // 自动保存
+        await saveData()
       }
     }
   } catch (error: any) {
@@ -350,9 +388,13 @@ async function getRecommendation() {
   if (chapters.value.length === 0) return
 
   try {
+    // 序列化数据
+    const serializedEvents = JSON.parse(JSON.stringify(events.value))
+    const serializedChapters = JSON.parse(JSON.stringify(chapters.value))
+
     const result = await window.electronAPI?.planning?.recommendTask(
-      events.value,
-      chapters.value,
+      serializedEvents,
+      serializedChapters,
       {} // 当前进度
     )
     
@@ -398,6 +440,8 @@ function handleTaskMove(taskId: string, targetStatus: string) {
     if (targetCol) {
       targetCol.tasks.push(movedTask)
     }
+    // 自动保存看板状态
+    saveData()
   }
 }
 

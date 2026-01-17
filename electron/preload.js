@@ -106,7 +106,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 估算写作时间
     estimateTime: (chapter, wordsPerHour) => ipcRenderer.invoke('planning:estimateTime', chapter, wordsPerHour),
     // 生成写作日程
-    generateSchedule: (chapters, options) => ipcRenderer.invoke('planning:generateSchedule', chapters, options)
+    generateSchedule: (chapters, options) => ipcRenderer.invoke('planning:generateSchedule', chapters, options),
+
+    // ===== 数据持久化 =====
+    // 保存规划数据
+    saveData: (novelId, data) => ipcRenderer.invoke('planning:saveData', novelId, data),
+    // 加载规划数据
+    loadData: (novelId) => ipcRenderer.invoke('planning:loadData', novelId),
+    // 清除规划数据
+    clearData: (novelId) => ipcRenderer.invoke('planning:clearData', novelId)
   },
 
   // 知识图谱 API

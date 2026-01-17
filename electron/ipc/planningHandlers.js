@@ -7,6 +7,7 @@ const planningAgent = require('../llm/planningAgent')
 
 const outlineDAO = require('../database/outlineDAO')
 const chapterDAO = require('../database/chapterDAO')
+const settingsDAO = require('../database/settingsDAO')
 const { buildKnowledgeSummary } = require('../llm/knowledgeContext')
 
 function buildOutlineContext(outlines = []) {
@@ -184,6 +185,44 @@ function registerPlanningHandlers(ipcMain) {
       return schedule
     } catch (error) {
       console.error('生成日程失败:', error)
+      throw error
+    }
+  })
+
+  // ===== 规划数据持久化 =====
+
+  // 保存规划数据 (事件图谱 + 章节计划 + 看板状态)
+  ipcMain.handle('planning:saveData', async (_, novelId, data) => {
+    try {
+      const key = `planning_data_${novelId}`
+      settingsDAO.setSetting(key, data, '规划工作台数据')
+      return { success: true }
+    } catch (error) {
+      console.error('保存规划数据失败:', error)
+      throw error
+    }
+  })
+
+  // 加载规划数据
+  ipcMain.handle('planning:loadData', async (_, novelId) => {
+    try {
+      const key = `planning_data_${novelId}`
+      const data = settingsDAO.getSetting(key)
+      return data || null
+    } catch (error) {
+      console.error('加载规划数据失败:', error)
+      throw error
+    }
+  })
+
+  // 清除规划数据
+  ipcMain.handle('planning:clearData', async (_, novelId) => {
+    try {
+      const key = `planning_data_${novelId}`
+      settingsDAO.deleteSetting(key)
+      return { success: true }
+    } catch (error) {
+      console.error('清除规划数据失败:', error)
       throw error
     }
   })

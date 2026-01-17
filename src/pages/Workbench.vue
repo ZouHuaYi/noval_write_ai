@@ -139,6 +139,7 @@
           v-else-if="leftTab === 'planning'"
           :novel-id="novelId"
           :novel-title="novel?.title"
+          @start-writing="handleStartWriting"
         />
 
         <GraphPanel
@@ -176,7 +177,7 @@ import GraphPanel from '@/panels/GraphPanel.vue'
 import { ArrowLeft, ArrowUp, Document, DataAnalysis, Share } from '@element-plus/icons-vue'
 
 
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -307,6 +308,60 @@ async function updateChapterContent(chapterId: string, content: string) {
   } catch (error: any) {
     console.error('更新章节内容失败:', error)
     ElMessage.error('自动保存失败')
+  }
+}
+
+async function handleStartWriting(chapterKey: string) {
+  // chapterKey format is usually 'chapter_N'
+  const chapterNumberMatch = chapterKey.match(/chapter_(\d+)/)
+  if (!chapterNumberMatch) return
+
+  const chapterNum = parseInt(chapterNumberMatch[1])
+  
+  // 1. 切换到章节选项卡
+  leftTab.value = 'chapters'
+  
+  try {
+    // 2. 检查该章节是否已存在
+    const chapters = await window.electronAPI.chapter.list(novelId.value)
+    const existingChapter = chapters.find((c: any) => c.chapterNumber === chapterNum)
+    
+    if (existingChapter) {
+      // 3. 如果存在，直接选中并加载
+      currentChapterId.value = existingChapter.id
+      await loadChapter(existingChapter.id)
+    } else {
+      // 4. 如果不存在，询问是否创建
+      try {
+        await ElMessageBox.confirm(
+          `第 ${chapterNum} 章尚未创建，是否立即创建并开始写作？`,
+          '章节未找到',
+          {
+            confirmButtonText: '立即创建',
+            cancelButtonText: '取消',
+            type: 'info'
+          }
+        )
+        
+        // 创建新章节
+        const newChapter = await window.electronAPI.chapter.create(novelId.value, {
+          title: `第 ${chapterNum} 章`,
+          chapterNumber: chapterNum,
+          status: 'draft'
+        })
+        
+        if (newChapter?.id) {
+          currentChapterId.value = newChapter.id
+          await loadChapter(newChapter.id)
+          ElMessage.success(`已创建第 ${chapterNum} 章`)
+        }
+      } catch {
+        // 用户取消
+      }
+    }
+  } catch (error) {
+    console.error('跳转写作失败:', error)
+    ElMessage.error('无法跳转到写作界面')
   }
 }
 

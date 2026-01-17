@@ -308,6 +308,21 @@ declare global {
           schedule: any[]
           summary: any
         }>
+
+        // 数据持久化
+        saveData: (novelId: string, data: {
+          events: any[]
+          chapters: any[]
+          kanbanBoard: any
+          generateOptions?: any
+        }) => Promise<{ success: boolean }>
+        loadData: (novelId: string) => Promise<{
+          events: any[]
+          chapters: any[]
+          kanbanBoard: any
+          generateOptions?: any
+        } | null>
+        clearData: (novelId: string) => Promise<{ success: boolean }>
       }
 
       // 知识图谱 API
