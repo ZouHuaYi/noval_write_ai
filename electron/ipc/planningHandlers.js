@@ -8,6 +8,7 @@ const planningAgent = require('../llm/planningAgent')
 const outlineDAO = require('../database/outlineDAO')
 const chapterDAO = require('../database/chapterDAO')
 const settingsDAO = require('../database/settingsDAO')
+const worldviewService = require('../worldviewService')
 const { buildKnowledgeSummary } = require('../llm/knowledgeContext')
 const { buildPlanningSummary } = require('../llm/planningContext')
 
@@ -56,9 +57,18 @@ function registerPlanningHandlers(ipcMain) {
         chapterNumber
       })
 
+      // 4. 构建世界观与规则上下文
+      const worldview = await worldviewService.getWorldview(novelId)
+      let worldviewContext = ''
+      if (worldview) {
+        if (worldview.worldview) worldviewContext += `【世界背景设定】\n${worldview.worldview.trim()}\n`
+        if (worldview.rules) worldviewContext += `\n【核心规则与限制】\n${worldview.rules.trim()}`
+      }
+
       return {
         outlineContext,
-        memoryContext: [memoryContext, planningContext].filter(Boolean).join('\n\n')
+        memoryContext: [memoryContext, planningContext].filter(Boolean).join('\n\n'),
+        worldviewContext
       }
     } catch (error) {
       console.error('构建上下文失败:', error)

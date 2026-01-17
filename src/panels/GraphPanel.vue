@@ -215,7 +215,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { 
   CircleCheckFilled, CircleClose, Connection, InfoFilled, 
@@ -240,6 +240,30 @@ const checking = ref(false)
 const adding = ref(false)
 const saving = ref(false)
 
+// 自动保存
+let autoSaveTimer: any = null
+function triggerAutoSave(_event?: any) {
+  if (!props.novelId) return
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
+  autoSaveTimer = setTimeout(() => {
+    handleSave(true)
+  }, 2000)
+}
+
+// 世界观设定状态
+const worldSettingsVisible = ref(false)
+const worldSettings = ref({
+  worldview: '',
+  rules: ''
+})
+
+// 监听数据变化触发自动保存
+watch([() => worldSettings.value.worldview, () => worldSettings.value.rules], () => {
+  if (worldSettingsVisible.value) {
+    triggerAutoSave()
+  }
+})
+
 // 一致性检查
 const consistencyResult = ref<any>(null)
 const showConsistencyResult = ref(false)
@@ -254,13 +278,8 @@ const newEntity = ref({
 })
 
 // 世界观设定
-const worldSettingsVisible = ref(false)
 const activeSettingTab = ref('worldview')
 const savingSettings = ref(false)
-const worldSettings = ref({
-  worldview: '',
-  rules: ''
-})
 
 // 计算属性
 const conflictCount = computed(() => {
@@ -286,21 +305,35 @@ function refreshGraph() {
 }
 
 // 保存图谱
-async function handleSave() {
+async function handleSave(isAuto = false) {
   if (!props.novelId) return
-  saving.value = true
-  try {
-    const success = await window.electronAPI.graph.save(props.novelId)
-    if (success) {
-      ElMessage.success('图谱保存成功')
-    } else {
-      ElMessage.warning('保存失败，请检查控制台')
+  
+  // 如果是手动保存，则保存图谱结构
+  if (!isAuto) {
+    saving.value = true
+    try {
+      const success = await window.electronAPI.graph.save(props.novelId)
+      if (success) {
+        ElMessage.success('图谱结构保存成功')
+      }
+    } catch (error) {
+      console.error('保存失败:', error)
+      ElMessage.error('保存失败')
+    } finally {
+      saving.value = false
     }
+  }
+
+  // 始终保存世界观数据
+  try {
+    await window.electronAPI.worldview.save(props.novelId, {
+      worldview: worldSettings.value.worldview,
+      rules: worldSettings.value.rules
+    })
+    if (!isAuto) ElMessage.success('世界观数据已保存')
   } catch (error) {
-    console.error('保存失败:', error)
-    ElMessage.error('保存过程中发生错误')
-  } finally {
-    saving.value = false
+    console.error('保存世界观失败:', error)
+    if (!isAuto) ElMessage.error('保存世界观失败')
   }
 }
 

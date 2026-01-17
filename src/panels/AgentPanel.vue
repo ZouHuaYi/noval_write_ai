@@ -63,8 +63,8 @@
                     <Loading />
                   </el-icon>
                 </div>
-                <div class="text-sm font-semibold">生成内容</div>
-                <div class="text-xs text-[var(--app-text-muted)]">AI 自动续写</div>
+                <div class="text-sm font-semibold">生成章节内容</div>
+                <div class="text-xs text-[var(--app-text-muted)]">基于规划生成内容</div>
               </div>
             </div>
 
@@ -314,13 +314,14 @@ async function runReioCheck() {
   try {
     if (window.electronAPI?.reio?.check) {
       // 构建上下文
-      const { outlineContext, memoryContext } = await buildGenerationContext()
+      const { outlineContext, memoryContext, worldviewContext } = await buildGenerationContext()
       
       const result = await window.electronAPI.reio.check({
         novelId: props.novelId,
         generatedText: props.chapterContent,
         eventGoal: outlineContext || '无明确目标',
         memoryContext: memoryContext || '',
+        worldviewContext: worldviewContext || '',
         activeCharacters: [], // 可以从上下文提取，或由后端提取
         worldRules: [] // 后端会自动提取
       })
@@ -386,7 +387,7 @@ const getDialogHint = () => {
 
 const buildContextForChapter = async (chapterId: string | null) => {
   if (!props.novelId || !chapterId) {
-    return { outlineContext: '', memoryContext: '' }
+    return { outlineContext: '', memoryContext: '', worldviewContext: '' }
   }
   
   try {
@@ -394,24 +395,25 @@ const buildContextForChapter = async (chapterId: string | null) => {
     return result
   } catch (error) {
     console.error('获取上下文失败:', error)
-    return { outlineContext: '', memoryContext: '' }
+    return { outlineContext: '', memoryContext: '', worldviewContext: '' }
   }
 }
 
 const buildGenerationContext = async () => {
   if (!props.chapterId || !window.electronAPI?.chapter) {
-    return { chapterNumber: null, outlineContext: '', memoryContext: '' }
+    return { chapterNumber: null, outlineContext: '', memoryContext: '', worldviewContext: '' }
   }
 
   const chapter = await window.electronAPI.chapter.get(props.chapterId)
   const chapterNumber = chapter?.chapterNumber ?? null
   
-  const { outlineContext, memoryContext } = await buildContextForChapter(props.chapterId)
+  const { outlineContext, memoryContext, worldviewContext } = await buildContextForChapter(props.chapterId)
 
   return {
     chapterNumber,
     outlineContext,
-    memoryContext
+    memoryContext,
+    worldviewContext
   }
 }
 
@@ -473,7 +475,7 @@ const executeContinue = async () => {
   }
 
   const prompt = dialogPrompt.value.trim()
-  const { chapterNumber, outlineContext, memoryContext } = await buildGenerationContext()
+  const { chapterNumber, outlineContext, memoryContext, worldviewContext } = await buildGenerationContext()
   const systemPrompt = chapterSkills.continue.systemPrompt
   const userPrompt = chapterSkills.continue.buildUserPrompt({
     novelTitle: props.novelTitle,
@@ -482,6 +484,7 @@ const executeContinue = async () => {
     content: props.chapterContent || '',
     outlineContext,
     memoryContext,
+    worldviewContext,
     extraPrompt: prompt
   })
 
@@ -569,7 +572,7 @@ const handleGenerateNextChapter = () => {
     return
   }
   dialogType.value = 'continue'
-  dialogTitle.value = 'AI 续写内容'
+  dialogTitle.value = '生成章节内容'
   dialogPrompt.value = ''
   showDialog.value = true
 }

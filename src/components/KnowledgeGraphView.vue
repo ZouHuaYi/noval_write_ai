@@ -52,6 +52,9 @@
       fit-view-on-init
       class="graph-flow"
       @node-click="onNodeClick"
+      @node-drag-stop="triggerAutoSave"
+      @edges-change="triggerAutoSave"
+      @nodes-change="triggerAutoSave"
     >
       <!-- 自定义节点 -->
       <template #node-graphNode="{ data }">
@@ -199,7 +202,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { VueFlow, useVueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
@@ -301,6 +304,22 @@ async function loadGraph() {
   } finally {
     loading.value = false
   }
+}
+
+// 自动保存
+let autoSaveTimer: any = null
+function triggerAutoSave() {
+  if (!props.novelId) return
+  
+  if (autoSaveTimer) clearTimeout(autoSaveTimer)
+  autoSaveTimer = setTimeout(async () => {
+    try {
+      await window.electronAPI?.graph?.save(props.novelId!)
+      console.log('图谱已自动保存')
+    } catch (error) {
+      console.error('自动保存图谱失败:', error)
+    }
+  }, 2000) // 2秒延迟
 }
 
 // 刷新

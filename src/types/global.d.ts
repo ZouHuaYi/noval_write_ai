@@ -175,6 +175,7 @@ declare global {
           generatedText: string
           eventGoal?: string
           memoryContext?: string
+          worldviewContext?: string
           activeCharacters?: string[]
           worldRules?: string[]
           novelId?: string
@@ -270,6 +271,7 @@ declare global {
         buildContext: (novelId: string, chapterId: string) => Promise<{
           outlineContext: string
           memoryContext: string
+          worldviewContext: string
         }>
 
         // Planning Agent

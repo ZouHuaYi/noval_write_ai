@@ -5,6 +5,7 @@ export type ChapterContinueInput = {
   content: string
   outlineContext?: string
   memoryContext?: string
+  worldviewContext?: string
   extraPrompt?: string
 }
 
@@ -31,6 +32,7 @@ export const chapterSkills = {
       content,
       outlineContext,
       memoryContext,
+      worldviewContext,
       extraPrompt
     }: ChapterContinueInput) => {
       return [
@@ -38,8 +40,9 @@ export const chapterSkills = {
         formatSection('章节已写内容', content || '无'),
         formatSection('关联大纲', outlineContext || '无匹配大纲'),
         formatSection('记忆上下文', memoryContext || '无可用记忆'),
+        formatSection('世界观与核心规则', worldviewContext || '无设定数据'),
         formatSection('作者补充要求', extraPrompt || '无'),
-        formatSection('输出要求', '续写 2-4 个自然段，保证情节连贯，避免重复已写内容。')
+        formatSection('输出要求', '请基于以上上下文（特别是章节计划中的目标与事件），生成本章后续内容。续写约 500-1000 字（或参考章节目标字数），保证情节生动、连贯，符合世界观设定。只输出正文内容。')
       ].join('\n')
     }
   },

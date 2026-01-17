@@ -26,6 +26,9 @@ function buildPlanningSummary({ novelId, chapterNumber }) {
 
     let summary = `【章节计划 - 第 ${chapterNumber} 章】\n`
     summary += `目标：${chapterPlan.title}\n`
+    if (chapterPlan.targetWords) {
+      summary += `目标字数：${chapterPlan.targetWords} 字\n`
+    }
     if (chapterPlan.description) {
       summary += `内容要点：${chapterPlan.description}\n`
     }
