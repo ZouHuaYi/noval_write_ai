@@ -3,7 +3,7 @@ const chapterSnapshotDAO = require('../database/chapterSnapshotDAO')
 const chapterGenerationDAO = require('../database/chapterGenerationDAO')
 const chapterDAO = require('../database/chapterDAO')
 const outlineDAO = require('../database/outlineDAO')
-const storyEngine = require('../storyEngine')
+// const storyEngine = require('../storyEngine') // Removed in Phase 7
 const { buildKnowledgeSummary } = require('./knowledgeContext')
 const reioChecker = require('./reioChecker')
 
@@ -21,29 +21,7 @@ function buildOutlineContext(outlines = []) {
   }).join('\n\n')
 }
 
-function buildContinuePrompt({
-  novelTitle,
-  chapterTitle,
-  chapterNumber,
-  content,
-  outlineContext,
-  memoryContext,
-  knowledgeContext,
-  extraPrompt,
-  chunkSize
-}) {
-  const formatSection = (title, body) => `【${title}】\n${body || '无'}\n`
-  const sizeHint = chunkSize ? `本次续写目标约 ${chunkSize} 字。` : ''
-  return [
-    formatSection('小说信息', `标题：${novelTitle || '未命名'}\n章节：第 ${chapterNumber ?? '?'} 章 · ${chapterTitle || '未命名'}`),
-    formatSection('章节已写内容', content || '无'),
-    formatSection('关联大纲', outlineContext || '无匹配大纲'),
-    formatSection('记忆上下文', memoryContext || '无可用记忆'),
-    formatSection('知识库要点', knowledgeContext || '无'),
-    formatSection('作者补充要求', extraPrompt || '无'),
-    formatSection('输出要求', `续写 2-4 个自然段，保证情节连贯，避免重复已写内容。${sizeHint}`)
-  ].join('\n')
-}
+// ... unchanged code ...
 
 async function buildGenerationContext({ novelId, chapterId }) {
   const chapter = await chapterDAO.getChapterById(chapterId)
@@ -57,7 +35,9 @@ async function buildGenerationContext({ novelId, chapterId }) {
     return chapterNumber && chapterNumber >= outline.startChapter && chapterNumber <= outline.endChapter
   })
 
+  // 暂时移除基于 StoryEngine 的记忆上下文获取
   let memoryContext = ''
+  /*
   if (chapterNumber) {
     try {
       memoryContext = await storyEngine.processCompressOutput(chapterNumber, novelId)
@@ -65,6 +45,7 @@ async function buildGenerationContext({ novelId, chapterId }) {
       console.error('获取记忆上下文失败:', error)
     }
   }
+  */
 
   return {
     chapter,

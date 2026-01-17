@@ -1,7 +1,7 @@
 const { ipcMain } = require('electron')
 const { registerNovelHandlers } = require('./ipc/novelHandlers')
 const { registerChapterHandlers } = require('./ipc/chapterHandlers')
-const { registerOutlineHandlers } = require('./ipc/outlineHandlers')
+// const { registerOutlineHandlers } = require('./ipc/outlineHandlers')
 const { registerWorldviewHandlers } = require('./ipc/worldviewHandlers')
 const { registerChapterGenerationHandlers } = require('./ipc/chapterGenerationHandlers')
 const { registerLlmHandlers } = require('./ipc/llmHandlers')
@@ -15,7 +15,7 @@ const { registerGraphHandlers } = require('./ipc/graphHandlers')
 function registerIpcHandlers() {
   registerNovelHandlers(ipcMain)
   registerChapterHandlers(ipcMain)
-  registerOutlineHandlers(ipcMain)
+  // registerOutlineHandlers(ipcMain) - Removed in Phase 7
   registerWorldviewHandlers(ipcMain)
   registerChapterGenerationHandlers(ipcMain)
   registerLlmHandlers(ipcMain)

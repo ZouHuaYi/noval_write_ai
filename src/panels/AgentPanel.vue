@@ -422,27 +422,8 @@ const formatOutlineRange = (start?: number | null, end?: number | null) => {
 }
 
 const buildOutlineContextForChapter = async (chapterNumber: number | null) => {
-  if (!props.novelId || !chapterNumber) return ''
-  if (!window.electronAPI?.outline) return ''
-
-  try {
-    const outlines = await window.electronAPI.outline.list(props.novelId)
-    const matched = outlines.filter(outline => {
-      if (outline.startChapter == null || outline.endChapter == null) return false
-      return chapterNumber >= outline.startChapter && chapterNumber <= outline.endChapter
-    })
-
-    if (matched.length === 0) return ''
-
-    return matched.map(outline => {
-      const range = formatOutlineRange(outline.startChapter, outline.endChapter)
-      const content = outline.content?.trim() || '（该大纲暂无内容）'
-      return `【${outline.title}】(${range})\n${content}`
-    }).join('\n\n')
-  } catch (error: any) {
-    console.error('加载关联大纲失败:', error)
-    return ''
-  }
+  // 暂时移除旧的大纲上下文获取，等待新的 Planning 模块集成
+  return ''
 }
 
 const buildMemoryContextForChapter = async (chapterNumber: number | null) => {

@@ -52,30 +52,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     save: (novelId, data) => ipcRenderer.invoke('worldview:save', novelId, data)
   },
 
-  // StoryEngine 记忆相关 API
-
-  memory: {
-    get: (novelId) => ipcRenderer.invoke('memory:get', novelId)
-  },
-
-  // 知识库相关 API
-  knowledge: {
-    list: (novelId, type, reviewStatus) => ipcRenderer.invoke('knowledge:list', novelId, type, reviewStatus),
-    search: (novelId, keyword, reviewStatus) => ipcRenderer.invoke('knowledge:search', novelId, keyword, reviewStatus),
-    create: (novelId, data) => ipcRenderer.invoke('knowledge:create', novelId, data),
-    update: (id, data) => ipcRenderer.invoke('knowledge:update', id, data),
-    delete: (id) => ipcRenderer.invoke('knowledge:delete', id),
-    upsert: (novelId, data) => ipcRenderer.invoke('knowledge:upsert', novelId, data),
-    syncFromMemory: (novelId) => ipcRenderer.invoke('knowledge:syncFromMemory', novelId),
-    reviewList: (novelId, reviewStatus) => ipcRenderer.invoke('knowledge:review:list', novelId, reviewStatus),
-    reviewUpdate: (id, reviewStatus) => ipcRenderer.invoke('knowledge:review:update', id, reviewStatus)
-  },
-
-  // StoryEngine 处理相关 API
-  storyEngine: {
-    run: (novelId) => ipcRenderer.invoke('storyEngine:run', novelId),
-    compress: (chapter, novelId) => ipcRenderer.invoke('storyEngine:compress', chapter, novelId)
-  },
 
   // LLM 相关 API（在主进程统一封装）
   llm: {
