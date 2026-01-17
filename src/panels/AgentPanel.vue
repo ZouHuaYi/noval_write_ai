@@ -121,6 +121,62 @@
             </div>
           </div>
         </el-collapse-item>
+        <el-collapse-item name="reio">
+          <template #title>
+            <span class="text-xs font-semibold">ReIO 质量检查</span>
+            <el-tag v-if="reioStats.totalChecks > 0" size="small" type="success" class="ml-2">
+              {{ reioStats.passRate }}%
+            </el-tag>
+          </template>
+          <div class="p-3 space-y-3">
+            <!-- 统计概览 -->
+            <div class="grid grid-cols-3 gap-2 text-center">
+              <div class="app-section p-2 rounded-lg">
+                <div class="text-lg font-bold text-blue-500">{{ reioStats.totalChecks }}</div>
+                <div class="text-xs app-muted">检查次数</div>
+              </div>
+              <div class="app-section p-2 rounded-lg">
+                <div class="text-lg font-bold text-green-500">{{ reioStats.passCount }}</div>
+                <div class="text-xs app-muted">通过</div>
+              </div>
+              <div class="app-section p-2 rounded-lg">
+                <div class="text-lg font-bold text-orange-500">{{ reioStats.rewriteCount }}</div>
+                <div class="text-xs app-muted">重写</div>
+              </div>
+            </div>
+            
+            <!-- 最近检查 -->
+            <div v-if="reioStats.lastCheck" class="app-section p-3 rounded-lg">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-semibold">最近检查</span>
+                <el-tag :type="reioStats.lastCheck.passed ? 'success' : 'warning'" size="small">
+                  {{ reioStats.lastCheck.passed ? '通过' : '需改进' }}
+                </el-tag>
+              </div>
+              <div class="text-xs app-muted">
+                得分: {{ reioStats.lastCheck.score }}/100
+              </div>
+              <div v-if="reioStats.lastCheck.issues?.length" class="mt-2 space-y-1">
+                <div v-for="(issue, i) in reioStats.lastCheck.issues.slice(0, 3)" :key="i" 
+                     class="text-xs text-orange-600 flex items-start gap-1">
+                  <el-icon class="mt-0.5"><Warning /></el-icon>
+                  {{ issue }}
+                </div>
+              </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="flex gap-2">
+              <el-button size="small" @click="runReioCheck" :loading="reioChecking" :disabled="!props.chapterId" class="flex-1">
+                <el-icon><Refresh /></el-icon>
+                执行检查
+              </el-button>
+              <el-button size="small" @click="resetReioStats" type="info" plain>
+                重置
+              </el-button>
+            </div>
+          </div>
+        </el-collapse-item>
       </el-collapse>
     </div>
 
@@ -185,9 +241,9 @@
 <script setup lang="ts">
 import { callChatModel } from '@/llm/client';
 import { chapterSkills } from '@/llm/prompts/chapter';
-import { Brush, Cpu, InfoFilled, Loading, Plus, Search, Warning } from '@element-plus/icons-vue';
+import { Brush, Cpu, InfoFilled, Loading, Plus, Refresh, Search, Warning } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 
 
 const props = defineProps<{
@@ -215,22 +271,33 @@ const lastActionAt = ref<number | null>(null)
 const activeSections = ref(['tools'])
 
 // ReIO 相关状态
-const reioStats = ref<any | null>(null)
-const reioLoading = ref(false)
-const enableReIO = ref(true)
-
-// ReIO 通过率计算
-const reioPassRate = computed(() => {
-  if (!reioStats.value || reioStats.value.totalChecks === 0) return 100
-  return Math.round((reioStats.value.passedChecks / reioStats.value.totalChecks) * 100)
+const reioStats = ref({
+  totalChecks: 0,
+  passCount: 0,
+  rewriteCount: 0,
+  passRate: 100,
+  lastCheck: null as any
 })
+const reioLoading = ref(false)
+const reioChecking = ref(false)
 
 // 加载 ReIO 统计
 async function loadReIOStats() {
   reioLoading.value = true
   try {
     if (window.electronAPI?.reio?.getStats) {
-      reioStats.value = await window.electronAPI.reio.getStats()
+      const stats = await window.electronAPI.reio.getStats()
+      if (stats) {
+        reioStats.value = {
+          totalChecks: stats.totalChecks || 0,
+          passCount: stats.passedChecks || 0,
+          rewriteCount: stats.rewriteCount || 0,
+          passRate: stats.totalChecks > 0 
+            ? Math.round((stats.passedChecks / stats.totalChecks) * 100) 
+            : 100,
+          lastCheck: stats.lastCheck || null
+        }
+      }
     }
   } catch (error) {
     console.error('加载 ReIO 统计失败:', error)
@@ -239,18 +306,61 @@ async function loadReIOStats() {
   }
 }
 
-// 重置 ReIO 统计
-async function resetReIOStats() {
-  try {
-    if (window.electronAPI?.reio?.resetStats) {
-      await window.electronAPI.reio.resetStats()
-      reioStats.value = null
-      ElMessage.success('ReIO 统计已重置')
-    }
-  } catch (error) {
-    console.error('重置 ReIO 统计失败:', error)
-    ElMessage.error('重置失败')
+// 执行 ReIO 检查
+async function runReioCheck() {
+  if (!props.chapterId || !props.chapterContent) {
+    ElMessage.warning('请先选择章节')
+    return
   }
+
+  reioChecking.value = true
+  try {
+    if (window.electronAPI?.reio?.check) {
+      const result = await window.electronAPI.reio.check({
+        novelId: props.novelId,
+        chapterId: props.chapterId,
+        content: props.chapterContent
+      })
+
+      if (result) {
+        reioStats.value.totalChecks++
+        if (result.passed) {
+          reioStats.value.passCount++
+        }
+        reioStats.value.passRate = Math.round(
+          (reioStats.value.passCount / reioStats.value.totalChecks) * 100
+        )
+        reioStats.value.lastCheck = {
+          passed: result.passed,
+          score: result.score || 0,
+          issues: result.issues || []
+        }
+
+        if (result.passed) {
+          ElMessage.success(`检查通过！得分: ${result.score}/100`)
+        } else {
+          ElMessage.warning(`发现 ${result.issues?.length || 0} 个问题需要改进`)
+        }
+      }
+    }
+  } catch (error: any) {
+    console.error('ReIO 检查失败:', error)
+    ElMessage.error('检查失败: ' + (error.message || '未知错误'))
+  } finally {
+    reioChecking.value = false
+  }
+}
+
+// 重置 ReIO 统计
+function resetReioStats() {
+  reioStats.value = {
+    totalChecks: 0,
+    passCount: 0,
+    rewriteCount: 0,
+    passRate: 100,
+    lastCheck: null
+  }
+  ElMessage.success('统计已重置')
 }
 
 const getDialogPlaceholder = () => {

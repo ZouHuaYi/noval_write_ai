@@ -242,9 +242,155 @@ declare global {
         extractWorldRules: (novelId: string) => Promise<string[]>
       }
 
+      // Planning Agent API
+      planning: {
+        // Outline Agent
+        generateEventGraph: (options: {
+          novelTitle: string
+          genre?: string
+          synopsis?: string
+          existingOutline?: string
+          targetChapters?: number
+        }) => Promise<{
+          events: Array<{
+            id: string
+            label: string
+            eventType: string
+            description?: string
+            chapter?: number
+            characters?: string[]
+            preconditions?: string[]
+            postconditions?: string[]
+            dependencies?: string[]
+          }>
+          summary?: string
+          mainCharacters?: string[]
+          mainConflicts?: string[]
+        }>
+        extractEvents: (options: { chapters: any[]; novelId: string }) => Promise<any[]>
+        analyzeDependencies: (events: any[]) => Promise<any[]>
+        expandEvent: (event: any, context?: any) => Promise<any>
+        validateGraph: (events: any[]) => Promise<{
+          valid: boolean
+          issues: string[]
+          stats: any
+        }>
+
+        // Planning Agent
+        generatePlan: (options: {
+          events: any[]
+          targetChapters?: number
+          wordsPerChapter?: number
+          pacing?: string
+        }) => Promise<{
+          chapters: any[]
+          summary: any
+        }>
+        createKanban: (chapters: any[]) => Promise<{
+          columns: Array<{
+            id: string
+            title: string
+            tasks: any[]
+          }>
+        }>
+        recommendTask: (events: any[], chapters: any[], progress?: any) => Promise<{
+          chapter: any
+          reason: string
+          blockedBy: any[]
+        } | null>
+        estimateTime: (chapter: any, wordsPerHour?: number) => Promise<{
+          estimatedHours: number
+          estimatedMinutes: number
+          breakdown: { writing: number; complexity: number; polish: number }
+        }>
+        generateSchedule: (chapters: any[], options?: {
+          startDate?: Date
+          hoursPerDay?: number
+          wordsPerHour?: number
+          restDays?: number[]
+        }) => Promise<{
+          schedule: any[]
+          summary: any
+        }>
+      }
+
+      // 知识图谱 API
+      graph: {
+        // 图谱管理
+        getStats: (novelId: string) => Promise<{
+          nodeCount: number
+          edgeCount: number
+          nodeTypes: Record<string, number>
+          edgeTypes: Record<string, number>
+          density: number
+        }>
+        exportForVisualization: (novelId: string) => Promise<{
+          nodes: any[]
+          edges: any[]
+        }>
+        getCharacterNetwork: (novelId: string) => Promise<{
+          nodes: any[]
+          edges: any[]
+        }>
+        save: (novelId: string) => Promise<boolean>
+        exportJSON: (novelId: string) => Promise<any>
+
+        // 节点操作
+        getAllNodes: (novelId: string, type?: string) => Promise<any[]>
+        getNode: (novelId: string, nodeId: string) => Promise<any | null>
+        addNode: (novelId: string, id: string, attributes: {
+          type?: string
+          label?: string
+          description?: string
+          aliases?: string[]
+          properties?: Record<string, any>
+        }) => Promise<boolean>
+        updateNode: (novelId: string, id: string, attributes: any) => Promise<boolean>
+        removeNode: (novelId: string, id: string) => Promise<boolean>
+
+        // 边操作
+        addEdge: (novelId: string, source: string, target: string, attributes?: {
+          type?: string
+          label?: string
+          chapter?: number
+          bidirectional?: boolean
+        }) => Promise<string | null>
+        getNodeEdges: (novelId: string, nodeId: string, direction?: 'in' | 'out' | 'all') => Promise<any[]>
+        removeEdge: (novelId: string, edgeId: string) => Promise<boolean>
+
+        // 查询操作
+        findNeighbors: (novelId: string, nodeId: string, depth?: number) => Promise<any[]>
+        findPath: (novelId: string, source: string, target: string) => Promise<any[] | null>
+        searchEntities: (novelId: string, query: string, type?: string) => Promise<any[]>
+
+        // 一致性检查
+        checkConsistency: (novelId: string) => Promise<{
+          conflicts: any[]
+          warnings: any[]
+          suggestions: any[]
+          stats: { totalChecks: number; conflictsFound: number; warningsFound: number }
+        }>
+        validateContent: (novelId: string, content: string, chapter: number) => Promise<{
+          valid: boolean
+          issues: any[]
+        }>
+
+        // 自动关系提取
+        analyzeChapter: (novelId: string, chapter: number, content: string, previousContent?: string) => Promise<{
+          entities: any[]
+          relations: any[]
+          stateChanges: any[]
+          graphUpdates: any
+          conflicts: any[]
+        }>
+
+        // 批量操作
+        importEntities: (novelId: string, entities: any[]) => Promise<{ added: number }>
+        addRelations: (novelId: string, relations: any[]) => Promise<{ added: number }>
+      }
+
     }
   }
 }
 
 export { }
-

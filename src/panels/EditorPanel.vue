@@ -325,9 +325,39 @@ async function autoSave() {
       await window.electronAPI.chapter.update(props.chapterId, updateData)
       // 静默保存，不显示消息
       status.value = 'draft'
+      
+      // 自动触发知识图谱分析（仅当内容足够长时）
+      if (props.novelId && content.value.length > 200 && chapterNumber.value) {
+        triggerGraphAnalysis()
+      }
     }
   } catch (error: any) {
     ElMessage.error('保存失败: ' + (error.message || '未知错误'))
+  }
+}
+
+/**
+ * 静默触发知识图谱分析
+ */
+async function triggerGraphAnalysis() {
+  if (!props.novelId || !chapterNumber.value) return
+  
+  try {
+    // 后台静默执行，不阻塞用户操作
+    window.electronAPI?.graph?.analyzeChapter(
+      props.novelId,
+      chapterNumber.value,
+      content.value
+    ).then((result: any) => {
+      if (result?.entities?.length > 0 || result?.relations?.length > 0) {
+        console.log(`[图谱] 第 ${chapterNumber.value} 章分析完成: ${result.entities?.length || 0} 实体, ${result.relations?.length || 0} 关系`)
+      }
+    }).catch((error: any) => {
+      console.warn('图谱分析后台执行失败:', error)
+    })
+  } catch (error) {
+    // 静默失败，不影响保存流程
+    console.warn('触发图谱分析失败:', error)
   }
 }
 

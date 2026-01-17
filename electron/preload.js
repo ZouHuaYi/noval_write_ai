@@ -101,7 +101,72 @@ contextBridge.exposeInMainWorld('electronAPI', {
     extractCharacters: (memoryContext) => ipcRenderer.invoke('reio:extractCharacters', memoryContext),
     // 从世界观提取规则
     extractWorldRules: (novelId) => ipcRenderer.invoke('reio:extractWorldRules', novelId)
+  },
+
+  // Planning Agent API（事件图谱 + 看板 + 智能分配）
+  planning: {
+    // ===== Outline Agent =====
+    // 生成事件图谱
+    generateEventGraph: (options) => ipcRenderer.invoke('outline:generateEventGraph', options),
+    // 从章节提取事件
+    extractEvents: (options) => ipcRenderer.invoke('outline:extractEvents', options),
+    // 分析事件依赖
+    analyzeDependencies: (events) => ipcRenderer.invoke('outline:analyzeDependencies', events),
+    // 扩展事件节点
+    expandEvent: (event, context) => ipcRenderer.invoke('outline:expandEvent', event, context),
+    // 验证事件图谱
+    validateGraph: (events) => ipcRenderer.invoke('outline:validateGraph', events),
+
+    // ===== Planning Agent =====
+    // 生成章节计划
+    generatePlan: (options) => ipcRenderer.invoke('planning:generatePlan', options),
+    // 创建看板
+    createKanban: (chapters) => ipcRenderer.invoke('planning:createKanban', chapters),
+    // 推荐下一个任务
+    recommendTask: (events, chapters, progress) => ipcRenderer.invoke('planning:recommendTask', events, chapters, progress),
+    // 估算写作时间
+    estimateTime: (chapter, wordsPerHour) => ipcRenderer.invoke('planning:estimateTime', chapter, wordsPerHour),
+    // 生成写作日程
+    generateSchedule: (chapters, options) => ipcRenderer.invoke('planning:generateSchedule', chapters, options)
+  },
+
+  // 知识图谱 API
+  graph: {
+    // 图谱管理
+    getStats: (novelId) => ipcRenderer.invoke('graph:getStats', novelId),
+    exportForVisualization: (novelId) => ipcRenderer.invoke('graph:exportForVisualization', novelId),
+    getCharacterNetwork: (novelId) => ipcRenderer.invoke('graph:getCharacterNetwork', novelId),
+    save: (novelId) => ipcRenderer.invoke('graph:save', novelId),
+    exportJSON: (novelId) => ipcRenderer.invoke('graph:exportJSON', novelId),
+
+    // 节点操作
+    getAllNodes: (novelId, type) => ipcRenderer.invoke('graph:getAllNodes', novelId, type),
+    getNode: (novelId, nodeId) => ipcRenderer.invoke('graph:getNode', novelId, nodeId),
+    addNode: (novelId, id, attributes) => ipcRenderer.invoke('graph:addNode', novelId, id, attributes),
+    updateNode: (novelId, id, attributes) => ipcRenderer.invoke('graph:updateNode', novelId, id, attributes),
+    removeNode: (novelId, id) => ipcRenderer.invoke('graph:removeNode', novelId, id),
+
+    // 边操作
+    addEdge: (novelId, source, target, attributes) => ipcRenderer.invoke('graph:addEdge', novelId, source, target, attributes),
+    getNodeEdges: (novelId, nodeId, direction) => ipcRenderer.invoke('graph:getNodeEdges', novelId, nodeId, direction),
+    removeEdge: (novelId, edgeId) => ipcRenderer.invoke('graph:removeEdge', novelId, edgeId),
+
+    // 查询操作
+    findNeighbors: (novelId, nodeId, depth) => ipcRenderer.invoke('graph:findNeighbors', novelId, nodeId, depth),
+    findPath: (novelId, source, target) => ipcRenderer.invoke('graph:findPath', novelId, source, target),
+    searchEntities: (novelId, query, type) => ipcRenderer.invoke('graph:searchEntities', novelId, query, type),
+
+    // 一致性检查
+    checkConsistency: (novelId) => ipcRenderer.invoke('graph:checkConsistency', novelId),
+    validateContent: (novelId, content, chapter) => ipcRenderer.invoke('graph:validateContent', novelId, content, chapter),
+
+    // 自动关系提取
+    analyzeChapter: (novelId, chapter, content, previousContent) =>
+      ipcRenderer.invoke('graph:analyzeChapter', novelId, chapter, content, previousContent),
+
+    // 批量操作
+    importEntities: (novelId, entities) => ipcRenderer.invoke('graph:importEntities', novelId, entities),
+    addRelations: (novelId, relations) => ipcRenderer.invoke('graph:addRelations', novelId, relations)
   }
 
 })
-

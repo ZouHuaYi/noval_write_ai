@@ -118,6 +118,34 @@
                     <div class="text-xs app-muted">角色/地点/时间线/事件</div>
                   </span>
                 </button>
+                <button
+                  type="button"
+                  class="workbench-nav-item"
+                  :class="{ 'is-active': leftTab === 'planning' }"
+                  @click="leftTab = 'planning'"
+                >
+                  <span class="workbench-nav-icon">
+                    <el-icon><DataAnalysis /></el-icon>
+                  </span>
+                  <span>
+                    <div class="text-sm font-semibold">规划工作台</div>
+                    <div class="text-xs app-muted">事件图谱/看板/日程</div>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  class="workbench-nav-item"
+                  :class="{ 'is-active': leftTab === 'graph' }"
+                  @click="leftTab = 'graph'"
+                >
+                  <span class="workbench-nav-icon">
+                    <el-icon><Share /></el-icon>
+                  </span>
+                  <span>
+                    <div class="text-sm font-semibold">知识图谱</div>
+                    <div class="text-xs app-muted">实体关系/一致性</div>
+                  </span>
+                </button>
 
               </div>
             </div>
@@ -136,17 +164,17 @@
               @outline-selected="handleOutlineSelected"
             />
             <div
-              v-else-if="leftTab === 'world'"
+              v-else-if="leftTab === 'world' || leftTab === 'knowledge'"
               class="h-full flex items-center justify-center text-sm app-muted"
             >
-              世界观在中间编辑
+              {{ leftTab === 'world' ? '世界观在中间编辑' : '知识库在中间编辑' }}
             </div>
-             <div
-               v-else
-               class="h-full flex items-center justify-center text-sm app-muted"
-             >
-               知识库在中间编辑
-             </div>
+            <div
+              v-else
+              class="h-full flex items-center justify-center text-sm app-muted"
+            >
+              请在中间区域查看
+            </div>
 
 
           </div>
@@ -177,7 +205,18 @@
         />
 
         <KnowledgePanel
-          v-else
+          v-else-if="leftTab === 'knowledge'"
+          :novel-id="novelId"
+        />
+
+        <PlanningPanel
+          v-else-if="leftTab === 'planning'"
+          :novel-id="novelId"
+          :novel-title="novel?.title"
+        />
+
+        <GraphPanel
+          v-else-if="leftTab === 'graph'"
           :novel-id="novelId"
         />
 
@@ -231,7 +270,9 @@ import OutlineAgentPanel from '@/panels/OutlineAgentPanel.vue'
 import OutlineEditor from '@/panels/OutlineEditor.vue'
 import OutlinePanel from '@/panels/OutlinePanel.vue'
 import WorldPanel from '@/panels/WorldPanel.vue'
-import { ArrowLeft, ArrowUp, CollectionTag, Document, Edit, List } from '@element-plus/icons-vue'
+import PlanningPanel from '@/panels/PlanningPanel.vue'
+import GraphPanel from '@/panels/GraphPanel.vue'
+import { ArrowLeft, ArrowUp, CollectionTag, Document, Edit, List, DataAnalysis, Share } from '@element-plus/icons-vue'
 
 
 import { ElMessage } from 'element-plus'
@@ -249,7 +290,7 @@ const toggleLeftPanel = () => {
 
 const novelId = ref<string>('')
 const novel = ref<any>(null)
-const leftTab = ref<'chapters' | 'outlines' | 'world' | 'knowledge'>('chapters')
+const leftTab = ref<'chapters' | 'outlines' | 'world' | 'knowledge' | 'planning' | 'graph'>('chapters')
 
 
 const currentChapterId = ref<string | null>(null)
@@ -259,11 +300,13 @@ const currentChapterContent = ref<string>('')
 const selectedText = ref<string>('')
 
 const activeTabLabel = computed(() => {
-  const labelMap = {
+  const labelMap: Record<string, string> = {
     chapters: '章节',
     outlines: '大纲',
     world: '世界观',
-    knowledge: '知识库与记忆'
+    knowledge: '知识库与记忆',
+    planning: '规划工作台',
+    graph: '知识图谱'
   }
   return labelMap[leftTab.value]
 })
