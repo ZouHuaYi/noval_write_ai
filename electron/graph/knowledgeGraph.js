@@ -111,6 +111,46 @@ class KnowledgeGraph {
     return true
   }
 
+  /**
+   * 清理指定章节关联的节点和关系
+   */
+  cleanupChapter(chapterNumber) {
+    if (chapterNumber == null) return { nodesRemoved: 0, edgesRemoved: 0 }
+
+    let nodesRemoved = 0
+    let edgesRemoved = 0
+
+    // 删除该章节产生的边
+    const edgeKeys = this.graph.edges()
+    edgeKeys.forEach(edgeKey => {
+      const attrs = this.graph.getEdgeAttributes(edgeKey)
+      if (attrs?.chapter === chapterNumber) {
+        this.graph.dropEdge(edgeKey)
+        edgesRemoved += 1
+      }
+    })
+
+    // 删除首次出现或最后出现为该章节的节点
+    const nodesToRemove = []
+    this.graph.forEachNode((id, attrs) => {
+      if (attrs?.firstMention === chapterNumber || attrs?.lastMention === chapterNumber) {
+        nodesToRemove.push(id)
+      }
+    })
+
+    nodesToRemove.forEach(id => {
+      this.graph.dropNode(id)
+      nodesRemoved += 1
+    })
+
+    if (nodesRemoved > 0 || edgesRemoved > 0) {
+      this.metadata.updatedAt = Date.now()
+    }
+
+    return { nodesRemoved, edgesRemoved }
+  }
+
+
   // ===== 边操作 =====
 
   /**

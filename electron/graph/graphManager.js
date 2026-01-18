@@ -67,6 +67,17 @@ class GraphManager {
   }
 
   /**
+   * 删除指定章节相关的图谱数据
+   */
+  cleanupChapter(novelId, chapterNumber) {
+    const graph = this.getGraph(novelId)
+    const result = graph.cleanupChapter(chapterNumber)
+    this.saveGraph(novelId)
+    return result
+  }
+
+
+  /**
    * 删除图谱
    */
   deleteGraph(novelId) {

@@ -90,10 +90,19 @@
                   <Star />
                 </el-icon>
               </div>
-              <div class="task-actions opacity-0 group-hover:opacity-100 transition-opacity">
+              <div class="task-actions opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                <el-button
+                  size="small"
+                  circle
+                  text
+                  :type="task.lockWritingTarget ? 'warning' : 'info'"
+                  :icon="task.lockWritingTarget ? Lock : Unlock"
+                  @click.stop="emit('toggle-lock', task)"
+                />
                 <el-button size="small" circle text :icon="Delete" @click.stop="emit('delete-chapter', task.id)" />
               </div>
             </div>
+
             
             <!-- 任务标题 -->
             <div class="task-title">{{ task.title }}</div>
@@ -214,6 +223,7 @@
       </div>
     </el-drawer>
 
+
     <!-- 推荐弹窗 -->
     <el-dialog
       v-model="showRecommendDialog"
@@ -299,10 +309,11 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { 
-  Aim, CircleCheck, Document, Edit, Folder, 
-  InfoFilled, List, Refresh, Star, Warning, Plus, Delete
+import {
+  Aim, CircleCheck, Document, Edit, Folder,
+  InfoFilled, List, Refresh, Star, Warning, Plus, Delete, Lock, Unlock
 } from '@element-plus/icons-vue'
+
 import { ElMessage } from 'element-plus'
 
 interface Task {
@@ -316,6 +327,7 @@ interface Task {
   hints: string[]
   status: string
   progress: number
+  lockWritingTarget?: boolean
 }
 
 interface Column {
@@ -339,7 +351,7 @@ const props = defineProps<{
   recommendation?: Recommendation | null
 }>()
 
-const emit = defineEmits<{
+interface KanbanEmits {
   (e: 'task-select', task: Task): void
   (e: 'task-move', taskId: string, targetStatus: string): void
   (e: 'start-writing', chapterNumber: number): void
@@ -347,9 +359,11 @@ const emit = defineEmits<{
   (e: 'request-recommendation'): void
   (e: 'add-chapter', chapterData: any): void
   (e: 'delete-chapter', taskId: string): void
-}>()
+  (e: 'toggle-lock', task: Task): void
+}
 
-// 状态
+const emit = defineEmits<KanbanEmits>()
+
 const showTaskDetail = ref(false)
 const selectedTask = ref<Task | null>(null)
 const showRecommendDialog = ref(false)
@@ -357,7 +371,6 @@ const draggedTask = ref<Task | null>(null)
 const recommendedTaskId = ref<string | null>(null)
 const taskTimeEstimate = ref<any>(null)
 
-// 新增任务相关
 const addTaskDialogVisible = ref(false)
 const taskForm = ref({
   chapterNumber: 1,
@@ -368,12 +381,11 @@ const taskForm = ref({
 })
 
 function showAddTaskDialog() {
-  // 根据现有任务推测章节号
   const maxChapter = props.board?.columns.reduce((max, col) => {
     const colMax = col.tasks.reduce((m, t) => Math.max(m, t.chapterNumber), 0)
     return Math.max(max, colMax)
   }, 0) || 0
-  
+
   taskForm.value = {
     chapterNumber: maxChapter + 1,
     title: '',
@@ -388,11 +400,12 @@ function handleAddTask() {
   if (!taskForm.value.title.trim()) {
     taskForm.value.title = `第 ${taskForm.value.chapterNumber} 章`
   }
-  
+
   emit('add-chapter', { ...taskForm.value })
   addTaskDialogVisible.value = false
   ElMessage.success('已添加章节任务')
 }
+
 
 // 默认看板
 const defaultBoard: Board = {

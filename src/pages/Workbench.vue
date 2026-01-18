@@ -312,20 +312,37 @@ async function updateChapterContent(chapterId: string, content: string) {
 }
 
 async function handleStartWriting(chapterKey: string) {
-  // chapterKey format is usually 'chapter_N'
+  if (!chapterKey) return
+
+  // chapterKey may be a chapter id or 'chapter_N'
   const chapterNumberMatch = chapterKey.match(/chapter_(\d+)/)
-  if (!chapterNumberMatch) return
+  if (!chapterNumberMatch) {
+    try {
+      if (!window.electronAPI?.chapter) return
+      const chapter = await window.electronAPI.chapter.get(chapterKey)
+      if (chapter?.id) {
+        leftTab.value = 'chapters'
+        currentChapterId.value = chapter.id
+        await loadChapter(chapter.id)
+        return
+      }
+    } catch (error) {
+      console.error('跳转写作失败:', error)
+      ElMessage.error('无法跳转到写作界面')
+    }
+    return
+  }
 
   const chapterNum = parseInt(chapterNumberMatch[1])
-  
+
   // 1. 切换到章节选项卡
   leftTab.value = 'chapters'
-  
+
   try {
     // 2. 检查该章节是否已存在
     const chapters = await window.electronAPI.chapter.list(novelId.value)
     const existingChapter = chapters.find((c: any) => c.chapterNumber === chapterNum)
-    
+
     if (existingChapter) {
       // 3. 如果存在，直接选中并加载
       currentChapterId.value = existingChapter.id
@@ -342,14 +359,14 @@ async function handleStartWriting(chapterKey: string) {
             type: 'info'
           }
         )
-        
+
         // 创建新章节
         const newChapter = await window.electronAPI.chapter.create(novelId.value, {
           title: `第 ${chapterNum} 章`,
           chapterNumber: chapterNum,
           status: 'draft'
         })
-        
+
         if (newChapter?.id) {
           currentChapterId.value = newChapter.id
           await loadChapter(newChapter.id)

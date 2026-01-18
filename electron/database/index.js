@@ -133,6 +133,109 @@ function initDatabase() {
       if (!hasColumn('updatedAt')) addColumn('updatedAt', 'INTEGER')
     }
 
+    const planningEventTableExists = db.prepare(`
+      SELECT name FROM sqlite_master WHERE type='table' AND name='planning_event'
+    `).get()
+
+    if (!planningEventTableExists) {
+      console.log('执行数据库迁移：创建 planning_event 表')
+      db.exec(`
+        CREATE TABLE planning_event (
+          id TEXT PRIMARY KEY,
+          novelId TEXT NOT NULL,
+          label TEXT NOT NULL,
+          description TEXT,
+          eventType TEXT,
+          chapter INTEGER,
+          characters TEXT,
+          preconditions TEXT,
+          postconditions TEXT,
+          dependencies TEXT,
+          createdAt INTEGER,
+          updatedAt INTEGER
+        )
+      `)
+    }
+
+    const planningChapterTableExists = db.prepare(`
+      SELECT name FROM sqlite_master WHERE type='table' AND name='planning_chapter'
+    `).get()
+
+    if (!planningChapterTableExists) {
+      console.log('执行数据库迁移：创建 planning_chapter 表')
+      db.exec(`
+        CREATE TABLE planning_chapter (
+          id TEXT PRIMARY KEY,
+          novelId TEXT NOT NULL,
+          chapterNumber INTEGER NOT NULL,
+          title TEXT NOT NULL,
+          summary TEXT,
+          targetWords INTEGER,
+          status TEXT,
+          priority TEXT,
+          focus TEXT,
+          writingHints TEXT,
+          events TEXT,
+          lockWritingTarget INTEGER,
+          progress INTEGER,
+          createdAt INTEGER,
+          updatedAt INTEGER
+        )
+      `)
+    } else {
+      const planningChapterInfo = db.prepare('PRAGMA table_info(planning_chapter)').all()
+      const hasChapterColumn = (name) => planningChapterInfo.some(col => col.name === name)
+      if (!hasChapterColumn('lockWritingTarget')) {
+        console.log('执行数据库迁移：为 planning_chapter 添加 lockWritingTarget 字段')
+        db.exec('ALTER TABLE planning_chapter ADD COLUMN lockWritingTarget INTEGER')
+      }
+    }
+
+    const planningMetaTableExists = db.prepare(`
+      SELECT name FROM sqlite_master WHERE type='table' AND name='planning_meta'
+    `).get()
+
+    if (!planningMetaTableExists) {
+      console.log('执行数据库迁移：创建 planning_meta 表')
+      db.exec(`
+        CREATE TABLE planning_meta (
+          novelId TEXT PRIMARY KEY,
+          synopsis TEXT,
+          targetChapters INTEGER,
+          wordsPerChapter INTEGER,
+          lockWritingTarget INTEGER,
+          updatedAt INTEGER
+        )
+      `)
+    } else {
+      const planningMetaInfo = db.prepare('PRAGMA table_info(planning_meta)').all()
+      const hasMetaColumn = (name) => planningMetaInfo.some(col => col.name === name)
+      if (!hasMetaColumn('lockWritingTarget')) {
+        console.log('执行数据库迁移：为 planning_meta 添加 lockWritingTarget 字段')
+        db.exec('ALTER TABLE planning_meta ADD COLUMN lockWritingTarget INTEGER')
+      }
+    }
+
+    const reioStatsTableExists = db.prepare(`
+      SELECT name FROM sqlite_master WHERE type='table' AND name='reio_stats'
+    `).get()
+
+    if (!reioStatsTableExists) {
+      console.log('执行数据库迁移：创建 reio_stats 表')
+      db.exec(`
+        CREATE TABLE reio_stats (
+          id TEXT PRIMARY KEY,
+          totalChecks INTEGER,
+          passedChecks INTEGER,
+          failedChecks INTEGER,
+          totalRewrites INTEGER,
+          lastCheckTime INTEGER,
+          lastCheckResult TEXT,
+          updatedAt INTEGER
+        )
+      `)
+    }
+
   } catch (error) {
 
     console.error('数据库迁移失败:', error)

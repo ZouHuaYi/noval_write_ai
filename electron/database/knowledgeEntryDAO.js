@@ -201,6 +201,20 @@ function deleteEntry(id) {
   `).run(id)
 }
 
+function deleteEntriesByChapter(novelId, chapterNumber) {
+  const db = getDatabase()
+  return db.prepare(`
+    DELETE FROM knowledge_entry WHERE novelId = ? AND sourceChapter = ?
+  `).run(novelId, chapterNumber)
+}
+
+function deleteEntriesByNovel(novelId) {
+  const db = getDatabase()
+  return db.prepare(`
+    DELETE FROM knowledge_entry WHERE novelId = ?
+  `).run(novelId)
+}
+
 function upsertEntry(novelId, data) {
   const db = getDatabase()
   const existing = db.prepare(`
@@ -242,5 +256,7 @@ module.exports = {
   searchEntries,
   updateEntry,
   deleteEntry,
+  deleteEntriesByChapter,
+  deleteEntriesByNovel,
   upsertEntry
 }

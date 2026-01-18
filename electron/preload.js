@@ -108,6 +108,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 生成写作日程
     generateSchedule: (chapters, options) => ipcRenderer.invoke('planning:generateSchedule', chapters, options),
 
+    // ===== 规划元数据与章节 =====
+    getChapterPlan: (novelId, chapterNumber) => ipcRenderer.invoke('planning:getChapterPlan', novelId, chapterNumber),
+    updateChapterStatus: (novelId, chapterNumber, status, extra) => ipcRenderer.invoke('planning:updateChapterStatus', novelId, chapterNumber, status, extra),
+    getMeta: (novelId) => ipcRenderer.invoke('planning:getMeta', novelId),
+    updateMeta: (novelId, meta) => ipcRenderer.invoke('planning:updateMeta', novelId, meta),
+
     // ===== 数据持久化 =====
     // 保存规划数据
     saveData: (novelId, data) => ipcRenderer.invoke('planning:saveData', novelId, data),
@@ -152,6 +158,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 自动关系提取
     analyzeChapter: (novelId, chapter, content, previousContent) =>
       ipcRenderer.invoke('graph:analyzeChapter', novelId, chapter, content, previousContent),
+
+    // 删除章节相关图谱数据
+    cleanupChapter: (novelId, chapterNumber) => ipcRenderer.invoke('graph:cleanupChapter', novelId, chapterNumber),
 
     // 批量操作
     importEntities: (novelId, entities) => ipcRenderer.invoke('graph:importEntities', novelId, entities),

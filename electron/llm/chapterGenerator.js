@@ -4,7 +4,33 @@ const chapterGenerationDAO = require('../database/chapterGenerationDAO')
 const chapterDAO = require('../database/chapterDAO')
 const outlineDAO = require('../database/outlineDAO')
 const { buildKnowledgeSummary } = require('./knowledgeContext')
+const { buildPlanningSummary } = require('./planningContext')
 const reioChecker = require('./reioChecker')
+
+const formatSection = (title, content) => `【${title}】\n${content || '无'}\n`
+
+function buildContinuePrompt({
+  novelTitle,
+  chapterTitle,
+  chapterNumber,
+  content,
+  outlineContext,
+  memoryContext,
+  knowledgeContext,
+  extraPrompt,
+  chunkSize
+}) {
+  const targetHint = chunkSize ? `续写约 ${Math.max(300, Math.round(chunkSize * 0.6))}-${chunkSize} 字` : '续写约 500-1000 字'
+  return [
+    formatSection('小说信息', `标题：${novelTitle || '未命名'}\n章节：第 ${chapterNumber ?? '?'} 章 · ${chapterTitle || '未命名'}`),
+    formatSection('章节已写内容', content || '无'),
+    formatSection('关联大纲', outlineContext || '无匹配大纲'),
+    formatSection('记忆上下文', memoryContext || '无可用记忆'),
+    formatSection('知识与设定', knowledgeContext || '无设定数据'),
+    formatSection('作者补充要求', extraPrompt || '无'),
+    formatSection('输出要求', `请基于以上上下文（特别是章节计划中的目标与事件），生成本章后续内容。${targetHint}，保证情节生动、连贯，符合世界观设定。只输出正文内容。`)
+  ].join('\n')
+}
 
 function buildOutlineContext(outlines = []) {
   if (!outlines.length) return ''
@@ -46,11 +72,16 @@ async function buildGenerationContext({ novelId, chapterId }) {
   }
   */
 
+  const planningContext = chapterNumber != null
+    ? buildPlanningSummary({ novelId, chapterNumber })
+    : ''
+
   return {
     chapter,
     chapterNumber,
     outlineContext: buildOutlineContext(matched),
-    memoryContext
+    memoryContext: [memoryContext, planningContext].filter(Boolean).join('\n\n'),
+    planningContext
   }
 }
 
@@ -83,6 +114,7 @@ async function generateChunk({
   outlineContext,
   memoryContext,
   knowledgeContext,
+  planningContext,
   extraPrompt,
   systemPrompt,
   chunkIndex,
@@ -118,7 +150,7 @@ async function generateChunk({
       const result = await reioChecker.generateWithReIO({
         generate,
         context: {
-          eventGoal: `第 ${chapterNumber} 章续写，章节标题：${chapter.title}`,
+          eventGoal: `${planningContext ? planningContext + '\n' : ''}第 ${chapterNumber} 章续写，章节标题：${chapter.title}`,
           memoryContext,
           activeCharacters: [], // 可从 memoryContext 中提取
           worldRules: [],
@@ -157,7 +189,7 @@ async function generateChapterChunks({
   }
 
   const generation = ensureGeneration(novelId, chapterId, { chunkSize, maxChunks })
-  const { chapter, chapterNumber, outlineContext, memoryContext } = await buildGenerationContext({ novelId, chapterId })
+  const { chapter, chapterNumber, outlineContext, memoryContext, planningContext } = await buildGenerationContext({ novelId, chapterId })
   const knowledgeContext = buildKnowledgeSummary({
     novelId,
     types: ['character', 'location', 'timeline', 'plot'],
@@ -172,12 +204,19 @@ async function generateChapterChunks({
   const currentLength = currentContent.replace(/[\s\p{P}]/gu, '').length
 
   if (generation.status === 'completed') {
-    return {
-      chapter,
-      status: 'completed',
-      currentChunk: generation.currentChunk,
-      totalChunks: generation.maxChunks
-    }
+      return {
+        chapter,
+        status: 'completed',
+        currentChunk: generation.currentChunk,
+        totalChunks: generation.maxChunks,
+        contextSummary: {
+          outlineContext,
+          memoryContext,
+          knowledgeContext,
+          planningContext
+        }
+      }
+
   }
 
   for (let i = generation.currentChunk; i < maxChunks; i += 1) {
@@ -188,6 +227,7 @@ async function generateChapterChunks({
       outlineContext,
       memoryContext,
       knowledgeContext,
+      planningContext,
       extraPrompt,
       systemPrompt,
       chunkIndex: i + 1,
@@ -202,7 +242,13 @@ async function generateChapterChunks({
       return {
         chapter,
         status: 'failed',
-        error: '未生成有效内容'
+        error: '未生成有效内容',
+        contextSummary: {
+          outlineContext,
+          memoryContext,
+          knowledgeContext,
+          planningContext
+        }
       }
     }
 
@@ -233,7 +279,13 @@ async function generateChapterChunks({
         chapter,
         status: i + 1 >= maxChunks ? 'completed' : 'paused',
         currentChunk: i + 1,
-        totalChunks: maxChunks
+        totalChunks: maxChunks,
+        contextSummary: {
+          outlineContext,
+          memoryContext,
+          knowledgeContext,
+          planningContext
+        }
       }
     }
   }
@@ -247,7 +299,13 @@ async function generateChapterChunks({
     chapter,
     status: 'completed',
     currentChunk: maxChunks,
-    totalChunks: maxChunks
+    totalChunks: maxChunks,
+    contextSummary: {
+      outlineContext,
+      memoryContext,
+      knowledgeContext,
+      planningContext
+    }
   }
 }
 

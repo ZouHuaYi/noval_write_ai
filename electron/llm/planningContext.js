@@ -1,4 +1,5 @@
-const settingsDAO = require('../database/settingsDAO')
+const planningDAO = require('../database/planningDAO')
+
 
 function normalizeText(value) {
   return (value || '').toString().trim()
@@ -15,13 +16,10 @@ function buildPlanningSummary({ novelId, chapterNumber }) {
   if (!novelId || chapterNumber == null) return ''
 
   try {
-    const key = `planning_data_${novelId}`
-    const data = settingsDAO.getSetting(key)
+    const chapters = planningDAO.listPlanningChapters(novelId)
+    if (!chapters.length) return ''
 
-    if (!data || !data.chapters) return ''
-
-    // 找到匹配的章节规划
-    const chapterPlan = data.chapters.find(c => c.chapterNumber === chapterNumber)
+    const chapterPlan = chapters.find(c => c.chapterNumber === chapterNumber)
     if (!chapterPlan) return ''
 
     let summary = `【章节计划 - 第 ${chapterNumber} 章】\n`
@@ -29,13 +27,13 @@ function buildPlanningSummary({ novelId, chapterNumber }) {
     if (chapterPlan.targetWords) {
       summary += `目标字数：${chapterPlan.targetWords} 字\n`
     }
-    if (chapterPlan.description) {
-      summary += `内容要点：${chapterPlan.description}\n`
+    if (chapterPlan.summary) {
+      summary += `内容要点：${chapterPlan.summary}\n`
     }
 
-    // 查找关联的事件 (如果有 events 数据)
-    if (data.events && data.events.length > 0) {
-      const relatedEvents = data.events.filter(e => e.chapter === chapterNumber)
+    const events = planningDAO.listPlanningEvents(novelId)
+    if (events.length > 0) {
+      const relatedEvents = events.filter(e => e.chapter === chapterNumber)
       if (relatedEvents.length > 0) {
         summary += `关键事件：\n`
         relatedEvents.forEach(e => {

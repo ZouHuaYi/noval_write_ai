@@ -69,6 +69,17 @@ function registerGraphHandlers(ipcMain) {
     }
   })
 
+  // 删除章节相关图谱数据
+  ipcMain.handle('graph:cleanupChapter', async (_, novelId, chapterNumber) => {
+    try {
+      return manager.cleanupChapter(novelId, chapterNumber)
+    } catch (error) {
+      console.error('清理章节图谱失败:', error)
+      throw error
+    }
+  })
+
+
   // ===== 节点操作 =====
 
   // 获取所有节点

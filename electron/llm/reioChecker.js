@@ -6,6 +6,7 @@
  */
 
 const llmService = require('./llmService')
+const reioStatsDAO = require('../database/reioStatsDAO')
 
 // ReIO 检查统计
 const reioStats = {
@@ -15,6 +16,22 @@ const reioStats = {
   totalRewrites: 0,
   lastCheckTime: null,
   lastCheckResult: null
+}
+
+try {
+  const stored = reioStatsDAO.getReioStats()
+  if (stored) {
+    reioStats.totalChecks = stored.totalChecks || 0
+    reioStats.passedChecks = stored.passedChecks || 0
+    reioStats.failedChecks = stored.failedChecks || 0
+    reioStats.totalRewrites = stored.totalRewrites || 0
+    reioStats.lastCheckTime = stored.lastCheckTime || null
+    reioStats.lastCheckResult = stored.lastCheckResult || null
+  }
+} catch (error) {
+  if (!String(error?.message || '').includes('数据库未初始化')) {
+    console.error('读取 ReIO 统计失败:', error)
+  }
 }
 
 /**
@@ -34,6 +51,11 @@ function resetReIOStats() {
   reioStats.totalRewrites = 0
   reioStats.lastCheckTime = null
   reioStats.lastCheckResult = null
+  try {
+    reioStatsDAO.resetReioStats()
+  } catch (error) {
+    console.error('重置 ReIO 统计失败:', error)
+  }
 }
 
 /**
@@ -70,7 +92,8 @@ async function extractWorldRules(novelId) {
 
   try {
     const worldviewDAO = require('../database/worldviewDAO')
-    const worldview = worldviewDAO.getWorldview(novelId)
+    const worldview = worldviewDAO.getWorldviewByNovel(novelId)
+
     if (!worldview || !worldview.rules) return []
 
     // 解析规则文本
@@ -114,6 +137,11 @@ async function checkContent({
     const result = { passed: false, issues: ['生成内容过短'], suggestion: '需要更多内容' }
     reioStats.failedChecks++
     reioStats.lastCheckResult = result
+    try {
+      reioStatsDAO.upsertReioStats(reioStats)
+    } catch (error) {
+      console.error('保存 ReIO 统计失败:', error)
+    }
     return result
   }
 
@@ -187,11 +215,21 @@ ${generatedText}
     }
 
     reioStats.lastCheckResult = result
+    try {
+      reioStatsDAO.upsertReioStats(reioStats)
+    } catch (error) {
+      console.error('保存 ReIO 统计失败:', error)
+    }
     return result
   } catch (error) {
     console.error('ReIO 检查失败:', error)
     const result = { passed: true, issues: [], warning: '检查服务暂时不可用' }
     reioStats.lastCheckResult = result
+    try {
+      reioStatsDAO.upsertReioStats(reioStats)
+    } catch (dbError) {
+      console.error('保存 ReIO 统计失败:', dbError)
+    }
     return result
   }
 }
@@ -257,6 +295,12 @@ async function rewriteContent({
   systemPrompt
 }) {
   reioStats.totalRewrites++
+  try {
+    reioStatsDAO.upsertReioStats(reioStats)
+  } catch (error) {
+    console.error('保存 ReIO 统计失败:', error)
+  }
+
 
   const rewritePrompt = `你之前生成的内容经过审核，发现以下问题需要修正：
 

@@ -31,7 +31,9 @@ async function generateEventGraph({
   genre,
   synopsis,
   existingOutline,
-  targetChapters = 10
+  targetChapters = 10,
+  startChapter = 1,
+  endChapter = null
 }) {
   const systemPrompt = `你是一个专业的小说故事架构师，擅长将故事大纲分解为结构化的事件图谱。
 
@@ -73,6 +75,9 @@ async function generateEventGraph({
   "mainConflicts": ["核心冲突1", "核心冲突2"]
 }`
 
+  const rangeLabel = endChapter != null ? `第 ${startChapter} 章 - 第 ${endChapter} 章` : `第 ${startChapter} 章起`
+  const chaptersCount = endChapter != null ? Math.max(endChapter - startChapter + 1, 1) : targetChapters
+
   const userPrompt = `请为以下小说生成事件图谱：
 
 【小说标题】
@@ -87,16 +92,17 @@ ${synopsis || '无'}
 【现有大纲】
 ${existingOutline || '无'}
 
-【目标章节数】
-${targetChapters} 章
+【目标章节范围】
+${rangeLabel}
 
-请生成 ${Math.max(targetChapters * 2, 15)} 个左右的事件节点，确保：
+请生成 ${Math.max(chaptersCount * 2, 6)} 个左右的事件节点，确保：
 1. 事件之间有清晰的因果关系（通过 dependencies 表示）
-2. 覆盖故事的开端、发展、高潮、结局
+2. 覆盖该章节范围的开端、发展与阶段性收束
 3. 角色发展事件与情节事件交织
 4. 每个章节有 2-3 个主要事件
 
 返回 JSON 格式的事件图谱。`
+
 
   try {
     const response = await llmService.callChatModel({
@@ -105,7 +111,7 @@ ${targetChapters} 章
         { role: 'user', content: userPrompt }
       ],
       temperature: 0.7,
-      maxTokens: 4000
+      maxTokens: 8000
     })
 
     const result = safeParseJSON(response)
@@ -123,7 +129,11 @@ ${targetChapters} 章
       throw new Error('生成的内容不包含有效的事件数据')
     }
 
-    return result
+    return {
+      ...result,
+      range: { startChapter, endChapter }
+    }
+
   } catch (error) {
     console.error('生成事件图谱失败:', error)
     throw error

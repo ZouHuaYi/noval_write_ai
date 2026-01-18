@@ -110,6 +110,66 @@ CREATE TABLE IF NOT EXISTS knowledge_entry (
   FOREIGN KEY (novelId) REFERENCES novel(id) ON DELETE CASCADE
 );
 
+-- 规划事件表
+CREATE TABLE IF NOT EXISTS planning_event (
+  id TEXT PRIMARY KEY,
+  novelId TEXT NOT NULL,
+  label TEXT NOT NULL,
+  description TEXT,
+  eventType TEXT,
+  chapter INTEGER,
+  characters TEXT,
+  preconditions TEXT,
+  postconditions TEXT,
+  dependencies TEXT,
+  createdAt INTEGER,
+  updatedAt INTEGER,
+  FOREIGN KEY (novelId) REFERENCES novel(id) ON DELETE CASCADE
+);
+
+-- 规划章节表
+CREATE TABLE IF NOT EXISTS planning_chapter (
+  id TEXT PRIMARY KEY,
+  novelId TEXT NOT NULL,
+  chapterNumber INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  summary TEXT,
+  targetWords INTEGER,
+  status TEXT,
+  priority TEXT,
+  focus TEXT,
+  writingHints TEXT,
+  events TEXT,
+  lockWritingTarget INTEGER,
+  progress INTEGER,
+  createdAt INTEGER,
+  updatedAt INTEGER,
+  FOREIGN KEY (novelId) REFERENCES novel(id) ON DELETE CASCADE
+);
+
+-- 规划元数据
+CREATE TABLE IF NOT EXISTS planning_meta (
+  novelId TEXT PRIMARY KEY,
+  synopsis TEXT,
+  targetChapters INTEGER,
+  wordsPerChapter INTEGER,
+  lockWritingTarget INTEGER,
+  updatedAt INTEGER,
+  FOREIGN KEY (novelId) REFERENCES novel(id) ON DELETE CASCADE
+);
+
+-- ReIO 统计
+CREATE TABLE IF NOT EXISTS reio_stats (
+  id TEXT PRIMARY KEY,
+  totalChecks INTEGER,
+  passedChecks INTEGER,
+  failedChecks INTEGER,
+  totalRewrites INTEGER,
+  lastCheckTime INTEGER,
+  lastCheckResult TEXT,
+  updatedAt INTEGER
+);
+
 -- 创建索引以提升查询性能
 CREATE INDEX IF NOT EXISTS idx_chapter_novelId ON chapter(novelId);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_chapter_novel_number ON chapter(novelId, chapterNumber);
@@ -122,3 +182,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_chapter_generation_chapterId ON chapter_ge
 CREATE INDEX IF NOT EXISTS idx_knowledge_entry_novelId ON knowledge_entry(novelId);
 CREATE INDEX IF NOT EXISTS idx_knowledge_entry_type ON knowledge_entry(type);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_knowledge_entry_unique ON knowledge_entry(novelId, type, name);
+CREATE INDEX IF NOT EXISTS idx_planning_event_novelId ON planning_event(novelId);
+CREATE INDEX IF NOT EXISTS idx_planning_event_chapter ON planning_event(novelId, chapter);
+CREATE INDEX IF NOT EXISTS idx_planning_chapter_novelId ON planning_chapter(novelId);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_planning_chapter_unique ON planning_chapter(novelId, chapterNumber);

@@ -7,10 +7,45 @@ const planningAgent = require('../llm/planningAgent')
 
 const outlineDAO = require('../database/outlineDAO')
 const chapterDAO = require('../database/chapterDAO')
-const settingsDAO = require('../database/settingsDAO')
+const planningDAO = require('../database/planningDAO')
 const worldviewService = require('../worldviewService')
 const { buildKnowledgeSummary } = require('../llm/knowledgeContext')
 const { buildPlanningSummary } = require('../llm/planningContext')
+
+function mergeEvents(existingEvents = [], newEvents = []) {
+  const merged = [...existingEvents]
+  const existingMap = new Map(existingEvents.map(event => [String(event.label).trim().toLowerCase(), event]))
+
+  newEvents.forEach(event => {
+    const labelKey = String(event.label || '').trim().toLowerCase()
+    if (!labelKey) return
+
+    const existing = existingMap.get(labelKey)
+    if (existing) {
+      if (event.description && event.description !== existing.description) {
+        existing.description = event.description
+      }
+      if (event.chapter != null) {
+        existing.chapter = event.chapter
+      }
+      if (event.eventType) {
+        existing.eventType = event.eventType
+      }
+      if (Array.isArray(event.characters) && event.characters.length) {
+        existing.characters = Array.from(new Set([...(existing.characters || []), ...event.characters]))
+      }
+      if (Array.isArray(event.dependencies) && event.dependencies.length) {
+        existing.dependencies = Array.from(new Set([...(existing.dependencies || []), ...event.dependencies]))
+      }
+      return
+    }
+
+    merged.push(event)
+    existingMap.set(labelKey, event)
+  })
+
+  return merged
+}
 
 function buildOutlineContext(outlines = []) {
   if (!outlines.length) return ''
@@ -87,14 +122,27 @@ function registerPlanningHandlers(ipcMain) {
         genre: options.genre,
         synopsis: options.synopsis,
         existingOutline: options.existingOutline,
-        targetChapters: options.targetChapters || 10
+        targetChapters: options.targetChapters || 10,
+        startChapter: options.startChapter || 1,
+        endChapter: options.endChapter ?? null
       })
+
+      if (options.mergeEvents) {
+        const existingEvents = options.existingEvents || []
+        const merged = mergeEvents(existingEvents, result.events || [])
+        return {
+          ...result,
+          events: merged
+        }
+      }
+
       return result
     } catch (error) {
       console.error('生成事件图谱失败:', error)
       throw error
     }
   })
+
 
   // 从章节提取事件
   ipcMain.handle('outline:extractEvents', async (_, options) => {
@@ -145,21 +193,77 @@ function registerPlanningHandlers(ipcMain) {
 
   // ===== Planning Agent =====
 
+  ipcMain.handle('planning:getChapterPlan', async (_, novelId, chapterNumber) => {
+    try {
+      const chapters = planningDAO.listPlanningChapters(novelId)
+      return chapters.find(ch => ch.chapterNumber === chapterNumber) || null
+    } catch (error) {
+      console.error('获取章节规划失败:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('planning:updateChapterStatus', async (_, novelId, chapterNumber, status, extra = {}) => {
+    try {
+      const chapters = planningDAO.listPlanningChapters(novelId)
+      const chapter = chapters.find(ch => ch.chapterNumber === chapterNumber)
+      if (!chapter) return null
+
+      const updated = {
+        ...chapter,
+        status,
+        ...extra
+      }
+      planningDAO.upsertPlanningChapters(novelId, [updated])
+      return updated
+    } catch (error) {
+      console.error('更新章节规划状态失败:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('planning:getMeta', async (_, novelId) => {
+    try {
+      return planningDAO.getPlanningMeta(novelId)
+    } catch (error) {
+      console.error('获取规划元数据失败:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('planning:updateMeta', async (_, novelId, meta) => {
+    try {
+      planningDAO.upsertPlanningMeta(novelId, meta || {})
+      return planningDAO.getPlanningMeta(novelId)
+    } catch (error) {
+      console.error('更新规划元数据失败:', error)
+      throw error
+    }
+  })
+
+
   // 生成章节计划
   ipcMain.handle('planning:generatePlan', async (_, options) => {
     try {
+      const chapterEvents = (options.events || []).filter(event => event.chapter != null)
       const result = await planningAgent.generateChapterPlan({
-        events: options.events,
+        events: chapterEvents,
         targetChapters: options.targetChapters,
         wordsPerChapter: options.wordsPerChapter,
-        pacing: options.pacing
+        pacing: options.pacing,
+        startChapter: options.startChapter,
+        endChapter: options.endChapter
       })
-      return result
+      return {
+        ...result,
+        unassignedEvents: (options.events || []).filter(event => event.chapter == null)
+      }
     } catch (error) {
       console.error('生成章节计划失败:', error)
       throw error
     }
   })
+
 
   // 创建看板
   ipcMain.handle('planning:createKanban', async (_, chapters) => {
@@ -210,8 +314,27 @@ function registerPlanningHandlers(ipcMain) {
   // 保存规划数据 (事件图谱 + 章节计划 + 看板状态)
   ipcMain.handle('planning:saveData', async (_, novelId, data) => {
     try {
-      const key = `planning_data_${novelId}`
-      settingsDAO.setSetting(key, data, '规划工作台数据')
+      const { PlanningEventListSchema, PlanningChapterListSchema, PlanningMetaSchema } = require('../validation/planningSchemas')
+
+      const eventsResult = PlanningEventListSchema.safeParse(data?.events || [])
+      if (!eventsResult.success) {
+        throw new Error(`事件数据校验失败: ${eventsResult.error.issues.map(i => i.message).join('; ')}`)
+      }
+
+      const chaptersResult = PlanningChapterListSchema.safeParse(data?.chapters || [])
+      if (!chaptersResult.success) {
+        throw new Error(`章节数据校验失败: ${chaptersResult.error.issues.map(i => i.message).join('; ')}`)
+      }
+
+      const metaResult = PlanningMetaSchema.safeParse(data?.generateOptions || {})
+      if (!metaResult.success) {
+        throw new Error(`规划元数据校验失败: ${metaResult.error.issues.map(i => i.message).join('; ')}`)
+      }
+
+      planningDAO.upsertPlanningEvents(novelId, eventsResult.data)
+      planningDAO.upsertPlanningChapters(novelId, chaptersResult.data)
+      planningDAO.upsertPlanningMeta(novelId, metaResult.data)
+
       return { success: true }
     } catch (error) {
       console.error('保存规划数据失败:', error)
@@ -222,9 +345,20 @@ function registerPlanningHandlers(ipcMain) {
   // 加载规划数据
   ipcMain.handle('planning:loadData', async (_, novelId) => {
     try {
-      const key = `planning_data_${novelId}`
-      const data = settingsDAO.getSetting(key)
-      return data || null
+      const events = planningDAO.listPlanningEvents(novelId)
+      const chapters = planningDAO.listPlanningChapters(novelId)
+      const meta = planningDAO.getPlanningMeta(novelId)
+
+      if (!events.length && !chapters.length && !meta) {
+        return null
+      }
+
+      return {
+        events,
+        chapters,
+        kanbanBoard: planningAgent.createKanbanBoard(chapters),
+        generateOptions: meta || {}
+      }
     } catch (error) {
       console.error('加载规划数据失败:', error)
       throw error
@@ -234,14 +368,16 @@ function registerPlanningHandlers(ipcMain) {
   // 清除规划数据
   ipcMain.handle('planning:clearData', async (_, novelId) => {
     try {
-      const key = `planning_data_${novelId}`
-      settingsDAO.deleteSetting(key)
+      planningDAO.deletePlanningEventsByNovel(novelId)
+      planningDAO.deletePlanningChaptersByNovel(novelId)
+      planningDAO.clearPlanningMeta(novelId)
       return { success: true }
     } catch (error) {
       console.error('清除规划数据失败:', error)
       throw error
     }
   })
+
 }
 
 module.exports = {

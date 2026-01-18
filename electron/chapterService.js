@@ -22,11 +22,32 @@ function updateChapterContent(id, content, chapterNumber) {
 }
 
 function deleteChapter(id) {
+  const chapter = chapterDAO.getChapterById(id)
+  if (chapter) {
+    try {
+      const { getGraphManager } = require('./graph/graphManager')
+      const knowledgeEntryDAO = require('./database/knowledgeEntryDAO')
+      const manager = getGraphManager()
+      manager.cleanupChapter(chapter.novelId, chapter.chapterNumber)
+      knowledgeEntryDAO.deleteEntriesByChapter(chapter.novelId, chapter.chapterNumber)
+    } catch (error) {
+      console.error('删除章节关联图谱失败:', error)
+    }
+  }
   chapterDAO.deleteChapter(id)
   return { success: true }
 }
 
 function deleteAllChapters(novelId) {
+  try {
+    const { getGraphManager } = require('./graph/graphManager')
+    const knowledgeEntryDAO = require('./database/knowledgeEntryDAO')
+    const manager = getGraphManager()
+    manager.deleteGraph(novelId)
+    knowledgeEntryDAO.deleteEntriesByNovel(novelId)
+  } catch (error) {
+    console.error('删除章节关联图谱失败:', error)
+  }
   const deletedCount = chapterDAO.deleteAllChaptersByNovel(novelId)
   return { success: true, deletedCount }
 }

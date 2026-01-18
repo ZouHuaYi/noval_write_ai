@@ -158,6 +158,101 @@
       :close-on-click-modal="false"
     >
       <div class="space-y-4">
+        <!-- 章节计划预览 (仅生成时显示) -->
+        <div v-if="dialogType === 'continue'" class="space-y-4">
+          <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-bold text-blue-700 flex items-center gap-1">
+                <el-icon><Calendar /></el-icon>
+                当前章节规划
+              </span>
+              <el-tag v-if="currentPlan" size="small" type="primary">{{ currentPlan.title }}</el-tag>
+            </div>
+            
+            <div v-if="loadingPlan" class="py-4 text-center text-blue-400">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              <span class="text-xs ml-2">正在加载规划...</span>
+            </div>
+            
+            <div v-else-if="currentPlan" class="space-y-2">
+              <div class="text-sm text-gray-700 leading-relaxed bg-white/60 p-2 rounded">
+                {{ currentPlan.summary || currentPlan.description || '暂无详细规划' }}
+              </div>
+              
+              <div v-if="currentPlan.events?.length" class="flex flex-wrap gap-1">
+                <el-tag 
+                  v-for="evt in currentPlan.events" 
+                  :key="evt" 
+                  size="small" 
+                  type="warning" 
+                  effect="plain"
+                  class="text-xs"
+                >
+                  {{ evt }}
+                </el-tag>
+              </div>
+              
+              <div v-if="currentPlan.focus?.length" class="flex flex-wrap gap-1 mt-1">
+                 <span class="text-xs text-blue-600 mr-1">重点:</span>
+                 <span v-for="(f, i) in currentPlan.focus" :key="i" class="text-xs text-blue-800 bg-blue-100 px-1 rounded">
+                   {{ f }}
+                 </span>
+              </div>
+            </div>
+            
+            <div v-else class="text-xs text-blue-400 italic text-center py-2">
+              该章节暂无特定规划，将基于上下文自由发挥
+            </div>
+          </div>
+
+          <!-- 上下文预览 -->
+          <div class="bg-purple-50/50 p-3 rounded-lg border border-purple-100">
+             <div class="flex items-center justify-between mb-2">
+               <span class="text-xs font-bold text-purple-700 flex items-center gap-1">
+                 <el-icon><List /></el-icon>
+                 上下文预览
+               </span>
+             </div>
+             
+             <div v-if="loadingContext" class="py-4 text-center text-purple-400">
+               <el-icon class="is-loading"><Loading /></el-icon>
+               <span class="text-xs ml-2">正在准备上下文...</span>
+             </div>
+             
+             <div v-else-if="previewContext" class="space-y-2">
+               <el-collapse class="context-preview-collapse">
+                 <el-collapse-item name="1" v-if="previewContext.outlineContext">
+                   <template #title>
+                     <span class="text-xs text-purple-800">大纲上下文 ({{ previewContext.outlineContext.length }} chars)</span>
+                   </template>
+                   <div class="text-xs text-gray-600 max-h-32 overflow-y-auto whitespace-pre-wrap">
+                     {{ previewContext.outlineContext }}
+                   </div>
+                 </el-collapse-item>
+                 <el-collapse-item name="2" v-if="previewContext.memoryContext">
+                   <template #title>
+                     <span class="text-xs text-purple-800">记忆上下文 ({{ previewContext.memoryContext.length }} chars)</span>
+                   </template>
+                   <div class="text-xs text-gray-600 max-h-32 overflow-y-auto whitespace-pre-wrap">
+                     {{ previewContext.memoryContext }}
+                   </div>
+                 </el-collapse-item>
+                 <el-collapse-item name="3" v-if="previewContext.worldviewContext">
+                   <template #title>
+                     <span class="text-xs text-purple-800">世界观上下文 ({{ previewContext.worldviewContext.length }} chars)</span>
+                   </template>
+                   <div class="text-xs text-gray-600 max-h-32 overflow-y-auto whitespace-pre-wrap">
+                     {{ previewContext.worldviewContext }}
+                   </div>
+                 </el-collapse-item>
+               </el-collapse>
+               <div v-if="!previewContext.outlineContext && !previewContext.memoryContext" class="text-xs text-gray-400 italic">
+                 无相关上下文信息
+               </div>
+             </div>
+          </div>
+        </div>
+
         <!-- 选中的文字（仅润色时显示） -->
         <div v-if="dialogType === 'polish' && props.selectedText">
           <div class="text-sm font-semibold text-[var(--app-text-muted)] mb-2">选中的文字：</div>
@@ -205,15 +300,81 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 章节完成确认对话框 -->
+    <el-dialog
+      v-model="showCompletionConfirmDialog"
+      title="计划完成建议"
+      width="400px"
+      append-to-body
+    >
+      <div class="flex gap-3">
+        <el-icon class="text-success text-2xl mt-1"><Check /></el-icon>
+        <div>
+          <div class="text-base font-bold mb-2">是否标记为完成？</div>
+          <div class="text-sm text-gray-600 leading-relaxed">
+            AI 检测到当前情节已较好地完成了规划目标，是否将该章节计划标记为"已完成"？
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <div class="flex justify-between items-center w-full">
+          <el-checkbox v-model="dontShowCompletionPrompt">不再提示</el-checkbox>
+          <div class="flex gap-2">
+            <el-button @click="showCompletionConfirmDialog = false">暂不标记</el-button>
+            <el-button type="primary" @click="confirmCompletion">标记为完成</el-button>
+          </div>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 上下文摘要对话框 -->
+    <el-dialog
+      v-model="showContextSummaryDialog"
+      title="本次生成引用的上下文"
+      width="600px"
+    >
+      <div v-if="contextSummaryData" class="space-y-4">
+        <div v-if="contextSummaryData.outline" class="bg-blue-50 p-3 rounded-lg border border-blue-100">
+          <div class="font-bold text-blue-800 mb-1 flex items-center gap-1">
+            <el-icon><List /></el-icon> 引用大纲
+          </div>
+          <div class="text-sm text-blue-900 leading-relaxed whitespace-pre-wrap">{{ contextSummaryData.outline }}</div>
+        </div>
+        
+        <div v-if="contextSummaryData.memory" class="bg-amber-50 p-3 rounded-lg border border-amber-100">
+          <div class="font-bold text-amber-800 mb-1 flex items-center gap-1">
+            <el-icon><Cpu /></el-icon> 引用记忆
+          </div>
+          <div class="text-sm text-amber-900 leading-relaxed whitespace-pre-wrap">{{ contextSummaryData.memory }}</div>
+        </div>
+
+        <div v-if="contextSummaryData.rules" class="bg-purple-50 p-3 rounded-lg border border-purple-100">
+          <div class="font-bold text-purple-800 mb-1 flex items-center gap-1">
+            <el-icon><Warning /></el-icon> 引用规则
+          </div>
+          <div class="text-sm text-purple-900 leading-relaxed whitespace-pre-wrap">{{ contextSummaryData.rules }}</div>
+        </div>
+        
+        <!-- 兜底显示 -->
+        <div v-if="typeof contextSummaryData === 'string'" class="bg-gray-50 p-3 rounded-lg border border-gray-100">
+           <div class="text-sm text-gray-700 whitespace-pre-wrap">{{ contextSummaryData }}</div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="showContextSummaryDialog = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { callChatModel } from '@/llm/client';
-import { chapterSkills } from '@/llm/prompts/chapter';
-import { Brush, Cpu, Loading, Plus, Refresh, Search, Warning } from '@element-plus/icons-vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { ref, onMounted } from 'vue';
+import { callChatModel } from '@/llm/client'
+import { chapterSkills } from '@/llm/prompts/chapter'
+import { Brush, Calendar, Cpu, Loading, Plus, Refresh, Search, Warning, List, Check } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { onMounted, ref } from 'vue'
+
 
 // ... other imports ...
 
@@ -250,6 +411,23 @@ const dialogPrompt = ref('')
 const lastAction = ref('')
 const lastActionAt = ref<number | null>(null)
 const activeSections = ref(['tools'])
+const currentPlan = ref<any>(null)
+const loadingPlan = ref(false)
+const previewContext = ref<{
+  outlineContext: string
+  memoryContext: string
+  worldviewContext: string
+} | null>(null)
+const loadingContext = ref(false)
+
+// Completion Dialog
+const showCompletionConfirmDialog = ref(false)
+const dontShowCompletionPrompt = ref(false)
+const completionTargetChapter = ref<{ novelId: string; chapterNumber: number } | null>(null)
+
+// 上下文摘要显示
+const showContextSummaryDialog = ref(false)
+const contextSummaryData = ref<any>(null)
 
 // ReIO 相关状态
 interface ReICheckResult {
@@ -475,28 +653,62 @@ const executeContinue = async () => {
   }
 
   const prompt = dialogPrompt.value.trim()
-  const { chapterNumber, outlineContext, memoryContext, worldviewContext } = await buildGenerationContext()
   const systemPrompt = chapterSkills.continue.systemPrompt
-  const userPrompt = chapterSkills.continue.buildUserPrompt({
+
+  if (!props.novelId || !window.electronAPI?.chapter?.generateChunks) {
+    ElMessage.warning('写作服务未就绪，请稍后重试')
+    return null
+  }
+
+  const result = await window.electronAPI.chapter.generateChunks({
+    novelId: props.novelId,
+    chapterId: props.chapterId,
     novelTitle: props.novelTitle,
-    chapterTitle: props.chapterTitle,
-    chapterNumber,
-    content: props.chapterContent || '',
-    outlineContext,
-    memoryContext,
-    worldviewContext,
-    extraPrompt: prompt
+    chunkSize: 1200,
+    maxChunks: 1,
+    extraPrompt: prompt,
+    systemPrompt
   })
 
-  const newText = await callChatModel(systemPrompt, userPrompt)
-  const trimmed = newText.trim()
-  if (!trimmed) {
+  // 处理上下文摘要
+  if (result?.contextSummary) {
+    const summary = result.contextSummary
+    contextSummaryData.value = {
+      outline: summary.outlineContext || '',
+      memory: summary.memoryContext || summary.planningContext || '',
+      rules: summary.knowledgeContext || ''
+    }
+    showContextSummaryDialog.value = true
+  }
+
+
+  const updatedContent = result?.chapter?.content
+  if (!updatedContent) {
     ElMessage.warning('未生成有效续写内容')
     return null
   }
 
-  const separator = props.chapterContent?.endsWith('\n') ? '\n' : '\n\n'
-  emit('content-updated', props.chapterContent + separator + trimmed)
+  // 建议完成计划
+  if (result?.planCompletionSuggested && props.novelId) {
+    // 获取章节号
+    const chapter = await window.electronAPI.chapter.get(props.chapterId)
+    if (chapter?.chapterNumber) {
+      // 检查设置
+      let promptDisabled = false
+      try {
+        promptDisabled = await window.electronAPI.settings.get('writing:completionPromptDisabled')
+      } catch (e) {
+        console.error('读取设置失败', e)
+      }
+
+      if (!promptDisabled) {
+        completionTargetChapter.value = { novelId: props.novelId, chapterNumber: chapter.chapterNumber }
+        showCompletionConfirmDialog.value = true
+      }
+    }
+  }
+
+  emit('content-updated', updatedContent)
   ElMessage.success('续写完成')
   return '续写完成'
 }
@@ -566,7 +778,7 @@ const executeConsistency = async () => {
 }
 
 
-const handleGenerateNextChapter = () => {
+const handleGenerateNextChapter = async () => {
   if (!props.chapterId) {
     ElMessage.warning('请先选择章节')
     return
@@ -575,6 +787,82 @@ const handleGenerateNextChapter = () => {
   dialogTitle.value = '生成章节内容'
   dialogPrompt.value = ''
   showDialog.value = true
+
+  if (!props.novelId || !window.electronAPI?.planning?.getChapterPlan) return
+
+  // 获取章节计划
+  loadingPlan.value = true
+  loadingContext.value = true
+  currentPlan.value = null
+  previewContext.value = null
+  
+  try {
+    const chapter = await window.electronAPI.chapter.get(props.chapterId)
+    if (!chapter?.chapterNumber) {
+      loadingPlan.value = false
+      loadingContext.value = false
+      return
+    }
+
+    const meta = await window.electronAPI.planning.getMeta(props.novelId)
+    const chapterPlan = await window.electronAPI.planning.getChapterPlan(props.novelId, chapter.chapterNumber)
+    if (chapterPlan?.lockWritingTarget || meta?.lockWritingTarget) {
+      try {
+        await ElMessageBox.confirm(
+          '当前章节已锁定写作目标。是否继续使用规划目标生成？',
+          '写作目标锁定',
+          {
+            confirmButtonText: '使用规划目标',
+            cancelButtonText: '本次解锁',
+            type: 'info'
+          }
+        )
+      } catch {
+        if (chapterPlan?.lockWritingTarget) {
+          await window.electronAPI.planning.updateChapterStatus(props.novelId, chapter.chapterNumber, chapterPlan.status || 'pending', {
+            lockWritingTarget: false
+          })
+        } else {
+          await window.electronAPI.planning.updateMeta(props.novelId, {
+            ...meta,
+            lockWritingTarget: false
+          })
+        }
+      }
+    }
+
+    // 并行获取计划和上下文
+    const [plan, context] = await Promise.all([
+      window.electronAPI.planning.getChapterPlan(props.novelId, chapter.chapterNumber),
+      buildContextForChapter(props.chapterId)
+    ])
+    
+    if (plan) {
+      currentPlan.value = plan
+    }
+    previewContext.value = context
+
+  } catch (error) {
+    if (error !== 'cancel') {
+      console.error('获取数据失败:', error)
+    }
+  } finally {
+    loadingPlan.value = false
+    loadingContext.value = false
+  }
+}
+
+const confirmCompletion = async () => {
+  showCompletionConfirmDialog.value = false
+  if (completionTargetChapter.value) {
+    const { novelId, chapterNumber } = completionTargetChapter.value
+    await window.electronAPI.planning.updateChapterStatus(novelId, chapterNumber, 'completed')
+    ElMessage.success('已更新章节状态')
+    
+    if (dontShowCompletionPrompt.value) {
+      await window.electronAPI.settings.set('writing:completionPromptDisabled', true, '不再提示章节计划完成建议')
+    }
+  }
 }
 
 </script>

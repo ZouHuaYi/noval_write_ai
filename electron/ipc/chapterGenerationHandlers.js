@@ -22,7 +22,28 @@ function registerChapterGenerationHandlers(ipcMain) {
 
   ipcMain.handle('chapter:generateChunks', async (_, payload) => {
     try {
-      return await chapterGenerator.generateChapterChunks(payload)
+      const result = await chapterGenerator.generateChapterChunks(payload)
+      if (result?.chapter?.chapterNumber != null) {
+        try {
+          const planningDAO = require('../database/planningDAO')
+          const chapters = planningDAO.listPlanningChapters(payload.novelId)
+          const matched = chapters.find(ch => ch.chapterNumber === result.chapter.chapterNumber)
+          if (matched) {
+            const updated = {
+              ...matched,
+              status: result.status === 'completed' ? matched.status : 'in_progress'
+            }
+            planningDAO.upsertPlanningChapters(payload.novelId, [updated])
+
+            if (result.status === 'completed') {
+              result.planCompletionSuggested = true
+            }
+          }
+        } catch (syncError) {
+          console.error('同步规划状态失败:', syncError)
+        }
+      }
+      return result
     } catch (error) {
       console.error('生成章节失败:', error)
       throw error

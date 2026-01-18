@@ -31,7 +31,19 @@ declare global {
           maxChunks?: number
           extraPrompt?: string
           systemPrompt: string
-        }) => Promise<any>
+        }) => Promise<{
+          chapter: any
+          status: string
+          currentChunk?: number
+          totalChunks?: number
+          planCompletionSuggested?: boolean
+          contextSummary?: {
+            outlineContext?: string
+            memoryContext?: string
+            knowledgeContext?: string
+            planningContext?: string
+          }
+        }>
         generateStatus: (chapterId: string) => Promise<any>
         generateReset: (chapterId: string) => Promise<{ success: boolean }>
       }
@@ -235,97 +247,48 @@ declare global {
 
       // Planning Agent API
       planning: {
-        // Outline Agent
-        generateEventGraph: (options: {
-          novelTitle: string
-          genre?: string
-          synopsis?: string
-          existingOutline?: string
-          targetChapters?: number
-        }) => Promise<{
-          events: Array<{
-            id: string
-            label: string
-            eventType: string
-            description?: string
-            chapter?: number
-            characters?: string[]
-            preconditions?: string[]
-            postconditions?: string[]
-            dependencies?: string[]
-          }>
-          summary?: string
-          mainCharacters?: string[]
-          mainConflicts?: string[]
-        }>
-        extractEvents: (options: { chapters: any[]; novelId: string }) => Promise<any[]>
-        analyzeDependencies: (events: any[]) => Promise<any[]>
-        expandEvent: (event: any, context?: any) => Promise<any>
-        validateGraph: (events: any[]) => Promise<{
-          valid: boolean
-          issues: string[]
-          stats: any
-        }>
+        // ===== Outline Agent =====
+        // 生成事件图谱
+        generateEventGraph: (options) => Promise<any>
+        // 从章节提取事件
+        extractEvents: (options) => Promise<any>
+        // 分析事件依赖
+        analyzeDependencies: (events) => Promise<any>
+        // 扩展事件节点
+        expandEvent: (event, context) => Promise<any>
+        // 验证事件图谱
+        validateGraph: (events) => Promise<any>
 
-        // Context Building
-        buildContext: (novelId: string, chapterId: string) => Promise<{
-          outlineContext: string
-          memoryContext: string
-          worldviewContext: string
-        }>
+        // ===== Context Building =====
+        buildContext: (novelId: string, chapterId: string) => Promise<any>
 
-        // Planning Agent
-        generatePlan: (options: {
-          events: any[]
-          targetChapters?: number
-          wordsPerChapter?: number
-          pacing?: string
-        }) => Promise<{
-          chapters: any[]
-          summary: any
-        }>
-        createKanban: (chapters: any[]) => Promise<{
-          columns: Array<{
-            id: string
-            title: string
-            tasks: any[]
-          }>
-        }>
-        recommendTask: (events: any[], chapters: any[], progress?: any) => Promise<{
-          chapter: any
-          reason: string
-          blockedBy: any[]
-        } | null>
-        estimateTime: (chapter: any, wordsPerHour?: number) => Promise<{
-          estimatedHours: number
-          estimatedMinutes: number
-          breakdown: { writing: number; complexity: number; polish: number }
-        }>
-        generateSchedule: (chapters: any[], options?: {
-          startDate?: Date
-          hoursPerDay?: number
-          wordsPerHour?: number
-          restDays?: number[]
-        }) => Promise<{
-          schedule: any[]
-          summary: any
-        }>
+        // ===== Planning Agent =====
+        // 生成章节计划
+        generatePlan: (options) => Promise<any>
+        // 创建看板
+        createKanban: (chapters) => Promise<any>
+        // 推荐下一个任务
+        recommendTask: (events, chapters, progress) => Promise<any>
+        // 估算写作时间
+        estimateTime: (chapter, wordsPerHour) => Promise<any>
+        // 生成写作日程
+        generateSchedule: (chapters, options) => Promise<any>
 
-        // 数据持久化
-        saveData: (novelId: string, data: {
-          events: any[]
-          chapters: any[]
-          kanbanBoard: any
-          generateOptions?: any
-        }) => Promise<{ success: boolean }>
-        loadData: (novelId: string) => Promise<{
-          events: any[]
-          chapters: any[]
-          kanbanBoard: any
-          generateOptions?: any
-        } | null>
-        clearData: (novelId: string) => Promise<{ success: boolean }>
+        // ===== 规划元数据与章节 =====
+        getChapterPlan: (novelId: string, chapterNumber: number) => Promise<any>
+        updateChapterStatus: (novelId: string, chapterNumber: number, status: string, extra?: { lockWritingTarget?: boolean }) => Promise<any>
+        getMeta: (novelId: string) => Promise<any>
+        updateMeta: (novelId: string, meta: any) => Promise<any>
+
+        // ===== 数据持久化 =====
+        // 保存规划数据
+        saveData: (novelId: string, data: any) => Promise<any>
+        // 加载规划数据
+        loadData: (novelId: string) => Promise<any>
+        // 清除规划数据
+        clearData: (novelId: string) => Promise<any>
       }
+
 
       // 知识图谱 API
       graph: {
@@ -397,6 +360,12 @@ declare global {
           stateChanges: any[]
           graphUpdates: any
           conflicts: any[]
+        }>
+
+        // 删除章节相关图谱数据
+        cleanupChapter: (novelId: string, chapterNumber: number) => Promise<{
+          nodesRemoved: number
+          edgesRemoved: number
         }>
 
         // 批量操作

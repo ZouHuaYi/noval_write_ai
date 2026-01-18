@@ -38,7 +38,9 @@ async function generateChapterPlan({
   events,
   targetChapters = 10,
   wordsPerChapter = 3000,
-  pacing = 'medium'
+  pacing = 'medium',
+  startChapter = 1,
+  endChapter = null
 }) {
   // 按章节分组现有事件
   const chapterEvents = new Map()
@@ -50,9 +52,13 @@ async function generateChapterPlan({
     chapterEvents.get(chapter).push(event)
   })
 
+  const totalChapters = endChapter != null
+    ? Math.max(endChapter, startChapter)
+    : targetChapters
+
   // 构建章节计划
   const chapters = []
-  for (let i = 1; i <= targetChapters; i++) {
+  for (let i = startChapter; i <= totalChapters; i++) {
     const eventsInChapter = chapterEvents.get(i) || []
     const mainEvent = eventsInChapter.find(e => e.eventType === 'plot' || e.eventType === 'conflict')
 
@@ -62,11 +68,12 @@ async function generateChapterPlan({
       events: eventsInChapter.map(e => e.id),
       targetWords: wordsPerChapter,
       status: eventsInChapter.length > 0 ? TASK_STATUS.PENDING : TASK_STATUS.BLOCKED,
-      priority: determinePriority(i, targetChapters, eventsInChapter),
+      priority: determinePriority(i, totalChapters, eventsInChapter),
       focus: determineFocus(eventsInChapter),
       writingHints: []
     })
   }
+
 
   // 生成写作提示
   const systemPrompt = `你是一个小说写作规划师，负责为每个章节生成具体的写作提示。
@@ -104,12 +111,13 @@ async function generateChapterPlan({
   return {
     chapters,
     summary: {
-      totalChapters: targetChapters,
+      totalChapters,
       totalEvents: events.length,
-      averageEventsPerChapter: (events.length / targetChapters).toFixed(1),
-      estimatedTotalWords: targetChapters * wordsPerChapter
+      averageEventsPerChapter: (events.length / totalChapters).toFixed(1),
+      estimatedTotalWords: totalChapters * wordsPerChapter
     }
   }
+
 }
 
 /**
@@ -204,9 +212,11 @@ function createKanbanBoard(chapters) {
       focus: chapter.focus,
       hints: chapter.writingHints,
       status: chapter.status,
+      lockWritingTarget: chapter.lockWritingTarget || false,
       progress: 0,
       createdAt: Date.now()
     }
+
 
     // 根据状态分配到不同列
     switch (chapter.status) {
