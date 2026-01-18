@@ -72,8 +72,8 @@
       <EventGraph
         v-if="viewMode === 'graph'"
         :events="events"
-        :layout="graphLayout"
-        @event-select="handleEventSelect"
+        :layout-direction="graphLayout === 'vertical' ? 'TB' : 'LR'"
+        @node-select="handleEventSelect"
       />
 
       <!-- 看板视图 -->
@@ -125,7 +125,7 @@
             </div>
             
             <div class="text-sm text-[var(--app-text-muted)] leading-relaxed mb-3">
-              {{ chapter.summary || chapter.content?.substring(0, 100) + '...' }}
+              {{ chapter.summary || chapter.content?.substring(0, 100) || '...' }}
             </div>
 
             <!-- 包含的事件 -->
@@ -481,7 +481,7 @@ function handleAddEvent() {
   showAddEventDialog.value = true
 }
 
-function handleSaveNewEvent() {
+async function handleSaveNewEvent() {
   if (!eventForm.value.label.trim()) {
     ElMessage.warning('请输入事件名称')
     return
@@ -498,7 +498,7 @@ function handleSaveNewEvent() {
   }
   
   events.value = [...events.value, newEvent]
-  saveData()
+  await saveData()
   showAddEventDialog.value = false
   ElMessage.success('已新增事件节点')
 }

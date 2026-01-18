@@ -512,6 +512,11 @@ const handleClearAllChapters = async () => {
       if (window.electronAPI?.chapter) {
         const result = await window.electronAPI.chapter.deleteAll(props.novelId)
         
+        // 同时清空知识图谱
+        if (window.electronAPI.graph?.delete) {
+          await window.electronAPI.graph.delete(props.novelId)
+        }
+        
         // 清空当前选中
         activeChapterId.value = null
         emit('chapter-selected', '')

@@ -70,57 +70,6 @@ class GraphManager {
    * 删除图谱
    */
   deleteGraph(novelId) {
-    this.graphs.delete(novelId)
-
-    const filePath = this.getGraphPath(novelId)
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath)
-    }
-  }
-
-  /**
-   * 获取图谱文件路径
-   */
-  getGraphPath(novelId) {
-    return path.join(this.dataDir, `${novelId}.json`)
-  }
-
-  /**
-   * 章节更新后自动更新图谱
-   * @param {string} novelId 
-   * @param {number} chapter 
-   * @param {string} content 
-   * @param {string} previousContent 
-   */
-  /**
-   * 更新节点
-   */
-  async updateNode(novelId, id, attributes) {
-    const graph = this.graphs.get(novelId)
-    // 检查节点是否存在
-    if (!graph.getNode(id)) {
-      console.warn(`更新节点失败: 节点 ${id} 不存在`)
-      return false
-    }
-    const result = graph.updateNode(id, attributes)
-    this.saveGraph(novelId)
-    return result
-  }
-
-  /**
-   * 删除节点
-   */
-  async removeNode(novelId, id) {
-    const graph = this.graphs.get(novelId)
-    const result = graph.removeNode(id)
-    this.saveGraph(novelId)
-    return result
-  }
-
-  /**
-   * 删除图谱
-   */
-  deleteGraph(novelId) {
     try {
       this.graphs.delete(novelId)
 
@@ -144,10 +93,6 @@ class GraphManager {
 
   /**
    * 章节更新后自动更新图谱
-   * @param {string} novelId 
-   * @param {number} chapter 
-   * @param {string} content 
-   * @param {string} previousContent 
    */
   async onChapterUpdate(novelId, chapter, content, previousContent = '') {
     const graph = this.getGraph(novelId)
@@ -163,7 +108,6 @@ class GraphManager {
 
     // 保存更新后的图谱
     this.saveGraph(novelId)
-
     return result
   }
 
@@ -200,29 +144,6 @@ class GraphManager {
     const graph = this.getGraph(novelId)
     return graph.getStats()
   }
-
-
-  /**
-   * 添加边
-   */
-  async addEdge(novelId, source, target, attributes) {
-    const graph = this.getGraph(novelId)
-
-    // 检查源节点和目标节点是否存在
-    if (!graph.getNode(source)) {
-      console.warn(`添加边失败: 源节点 ${source} 不存在`)
-      return false
-    }
-    if (!graph.getNode(target)) {
-      console.warn(`添加边失败: 目标节点 ${target} 不存在`)
-      return false
-    }
-
-    const result = graph.addEdge(source, target, attributes)
-    this.saveGraph(novelId)
-    return result
-  }
-
 
   /**
    * 导出图谱为可视化格式 (兼容 Vue Flow)
@@ -318,22 +239,6 @@ class GraphManager {
 
     this.saveGraph(novelId)
     return { added }
-  }
-
-  /**
-   * 查询相关实体
-   */
-  queryRelatedEntities(novelId, entityId, depth = 2) {
-    const graph = this.getGraph(novelId)
-    return graph.findNeighbors(entityId, depth)
-  }
-
-  /**
-   * 查找两个实体之间的关系路径
-   */
-  findPath(novelId, source, target) {
-    const graph = this.getGraph(novelId)
-    return graph.findPath(source, target)
   }
 
   /**

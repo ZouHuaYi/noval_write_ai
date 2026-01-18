@@ -59,6 +59,16 @@ function registerGraphHandlers(ipcMain) {
     }
   })
 
+  // 删除图谱
+  ipcMain.handle('graph:delete', async (_, novelId) => {
+    try {
+      return manager.deleteGraph(novelId)
+    } catch (error) {
+      console.error('删除图谱失败:', error)
+      throw error
+    }
+  })
+
   // ===== 节点操作 =====
 
   // 获取所有节点

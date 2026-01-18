@@ -196,7 +196,8 @@ interface EventNodeData {
 }
 
 const props = defineProps<{
-  eventNodes?: EventNodeData[]
+  events?: EventNodeData[]
+  layoutDirection?: 'LR' | 'TB'
   showMiniMap?: boolean
 }>()
 
@@ -212,7 +213,7 @@ const { fitView } = useVueFlow()
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
 const selectedNode = ref<Node | null>(null)
-const layoutDirection = ref<'LR' | 'TB'>('LR')
+const layoutDirection = ref<'LR' | 'TB'>(props.layoutDirection || 'LR')
 
 // 事件类型标签
 const eventTypeLabels: Record<string, string> = {
@@ -355,8 +356,8 @@ function onNodeDragStop() {
 }
 
 // 监听事件节点数据变化
-watch(() => props.eventNodes, (newNodes) => {
-  if (newNodes && newNodes.length > 0) {
+watch(() => props.events, (newNodes) => {
+  if (newNodes) {
     const { nodes: flowNodes, edges: flowEdges } = convertToFlowNodes(newNodes)
     nodes.value = flowNodes
     edges.value = flowEdges
@@ -366,7 +367,15 @@ watch(() => props.eventNodes, (newNodes) => {
   }
 }, { immediate: true, deep: true })
 
-// 监听布局方向变化
+// 监听布局方向 prop 变化
+watch(() => props.layoutDirection, (newDir) => {
+  if (newDir) {
+    layoutDirection.value = newDir
+    layoutNodes()
+  }
+})
+
+// 监听本地布局方向变化
 watch(layoutDirection, () => {
   layoutNodes()
 })

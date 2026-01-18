@@ -347,6 +347,7 @@ declare global {
         }>
         save: (novelId: string) => Promise<boolean>;
         load: (novelId: string) => Promise<{ success: boolean }>;
+        delete: (novelId: string) => Promise<boolean>;
         exportJSON: (novelId: string) => Promise<any>;
 
         // 节点操作
