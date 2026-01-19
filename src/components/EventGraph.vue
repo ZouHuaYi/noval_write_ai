@@ -122,7 +122,7 @@ import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
 import { 
-  Close, FullScreen, Grid, Operation, User, 
+  FullScreen, Grid, Operation, User, 
   StarFilled, Check, Connection, CaretRight, CaretLeft 
 } from '@element-plus/icons-vue'
 import type { Node, Edge } from '@vue-flow/core'

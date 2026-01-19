@@ -32,10 +32,6 @@
           智能推荐
         </el-button>
         <el-divider direction="vertical" />
-        <el-button size="small" type="primary" plain @click="handleAddEvent">
-          <el-icon><Plus /></el-icon>
-          新增事件
-        </el-button>
         <el-button size="small" @click="runConsistencyCheck">
           <el-icon><Check /></el-icon>
           一致性检查
@@ -81,9 +77,7 @@
         @node-select="handleEventSelect"
       />
 
-
       <!-- 看板视图 -->
-
       <KanbanBoard
         v-else-if="viewMode === 'kanban'"
         :key="'kanban-' + planRefreshKey"
@@ -101,7 +95,6 @@
 
       <!-- 列表视图 (大纲模式) -->
       <div v-else :key="'list-' + planRefreshKey" class="h-full overflow-y-auto p-4 max-w-4xl mx-auto">
-
         <div v-if="chapters.length === 0" class="flex flex-col items-center justify-center h-full text-[var(--app-text-muted)]">
           <el-empty description="暂无章节计划，请点击上方“生成计划”" />
         </div>
@@ -310,34 +303,6 @@
       </div>
     </el-drawer>
 
-
-    <!-- 新增事件对话框 -->
-    <el-dialog v-model="showAddEventDialog" title="新增事件节点" width="500px">
-      <el-form :model="eventForm" label-width="80px">
-        <el-form-item label="事件名称">
-          <el-input v-model="eventForm.label" placeholder="如：集市邂逅" />
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="eventForm.description" type="textarea" placeholder="事件具体发生的过程..." />
-        </el-form-item>
-        <el-form-item label="事件类型">
-          <el-select v-model="eventForm.eventType" style="width: 100%">
-            <el-option label="情节 (Plot)" value="plot" />
-            <el-option label="冲突 (Conflict)" value="conflict" />
-            <el-option label="角色 (Character)" value="character" />
-            <el-option label="转折 (Twist)" value="twist" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="建议章节">
-          <el-input-number v-model="eventForm.chapter" :min="1" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showAddEventDialog = false">取消</el-button>
-        <el-button type="primary" @click="handleSaveNewEvent">提交</el-button>
-      </template>
-    </el-dialog>
-
     <!-- 编辑章节对话框 -->
     <el-dialog v-model="showEditChapterDialog" title="编辑章节计划" width="450px">
       <el-form :model="editChapterForm" label-width="80px">
@@ -346,9 +311,6 @@
         </el-form-item>
         <el-form-item label="标题">
           <el-input v-model="editChapterForm.title" />
-        </el-form-item>
-        <el-form-item label="目标字数">
-          <el-input-number v-model="editChapterForm.targetWords" :step="500" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -408,8 +370,6 @@ const eventGenerationMode = ref<'append' | 'override'>('append')
 const eventAppendCount = ref(6)
 const eventRangeStart = ref(1)
 const eventRangeEnd = ref(6)
-
-const showAddEventDialog = ref(false)
 
 const eventForm = ref({
   label: '',
@@ -552,46 +512,10 @@ async function syncPlanWithEvents() {
   }
 }
 
-function handleAddEvent() {
-  showAddEventDialog.value = true
-  eventForm.value = {
-    label: '',
-    description: '',
-    eventType: 'plot',
-    chapter: 1
-  }
-}
-
-
-async function handleSaveNewEvent() {
-  const label = eventForm.value.label.trim()
-  if (!label) {
-    ElMessage.warning('请填写事件名称')
-    return
-  }
-
-  const newEvent = {
-    id: `evt_${Date.now()}`,
-    label,
-    description: eventForm.value.description?.trim() || '',
-    eventType: eventForm.value.eventType,
-    chapter: eventForm.value.chapter
-  }
-
-  events.value = [...events.value, newEvent]
-  graphRefreshKey.value += 1
-  planRefreshKey.value += 1
-  showAddEventDialog.value = false
-  await syncPlanWithEvents()
-  saveData()
-  ElMessage.success('事件已添加')
-}
-
 async function handleDeleteEvent(eventId: string) {
   events.value = events.value.filter(e => e.id !== eventId)
   graphRefreshKey.value += 1
   planRefreshKey.value += 1
-  showEventDetail.value = false
   await syncPlanWithEvents()
   saveData()
   ElMessage.success('事件已删除')
@@ -621,7 +545,7 @@ async function loadData() {
       kanbanBoard.value = await window.electronAPI?.planning?.createKanban(chapters.value)
     }
 
-    console.log('已加载规划数据:', {
+    console.log('已加载规划数据:', {  
       events: events.value.length,
       chapters: chapters.value.length
     })
@@ -781,7 +705,6 @@ async function handleExport() {
 }
 
 
-
 // 生成事件图谱
 function getMaxChapterNumber() {
   const eventMax = events.value.reduce((max, event) => {
@@ -841,6 +764,55 @@ async function doGenerateGraph() {
 
     if (result?.events) {
       events.value = result.events
+
+      // 1. 自动补充缺失的章节计划
+      const existingChapters = new Set(chapters.value.map(c => Number(c.chapterNumber)))
+      const neededChapters = new Set(events.value.map(e => Number(e.chapter)).filter(n => Number.isFinite(n)))
+      
+      const newChapters = []
+      for (const chNum of neededChapters) {
+        if (!existingChapters.has(chNum)) {
+          newChapters.push({
+            id: `ch_gen_${Date.now()}_${chNum}`,
+            chapterNumber: chNum,
+            title: `第 ${chNum} 章`,
+            targetWords: 3000,
+            priority: 'medium',
+            status: 'pending',
+            events: [],
+            focus: [],
+            writingHints: []
+          })
+        }
+      }
+      
+      if (newChapters.length > 0) {
+        chapters.value = [...chapters.value, ...newChapters].sort((a, b) => a.chapterNumber - b.chapterNumber)
+      }
+
+      // 2. 将事件 ID 同步到章节的 events 列表
+      const evtMap = new Map<number, string[]>()
+      events.value.forEach((e: any) => {
+        const c = Number(e.chapter)
+        if (Number.isFinite(c)) {
+            if (!evtMap.has(c)) evtMap.set(c, [])
+            evtMap.get(c)?.push(e.id)
+        }
+      })
+      
+      chapters.value = chapters.value.map(ch => {
+        const chNum = Number(ch.chapterNumber)
+        if (evtMap.has(chNum)) {
+            const newIds = evtMap.get(chNum) || []
+            const existing = ch.events || []
+            return {
+                ...ch,
+                events: Array.from(new Set([...existing, ...newIds]))
+            }
+        }
+        return ch
+      })
+
       graphRefreshKey.value += 1
       planRefreshKey.value += 1
       await syncPlanWithEvents()
@@ -850,7 +822,6 @@ async function doGenerateGraph() {
       await saveData()
     }
   } catch (error: any) {
-    console.error('生成图谱失败:', error)
     ElMessage.error('生成图谱失败: ' + (error.message || '未知错误'))
   } finally {
     generating.value = false
@@ -952,7 +923,6 @@ async function generatePlan() {
         // 自动保存
         await saveData()
       }
-
     }
   } catch (error: any) {
     console.error('生成计划失败:', error)
@@ -1044,7 +1014,6 @@ async function handleTaskMove(taskId: string, targetStatus: string) {
   }
 }
 
-
 // 锁定/解锁章节目标
 async function handleToggleLock(chapter: any) {
   if (!props.novelId) return
@@ -1089,13 +1058,6 @@ async function handleToggleLock(chapter: any) {
     }
     console.error('更新锁定状态失败:', error)
     ElMessage.error('操作失败')
-  }
-}
-
-function handleKanbanToggleLock(task: any) {
-  const chapter = chapters.value.find(c => c.chapterNumber === task.chapterNumber)
-  if (chapter) {
-    handleToggleLock(chapter)
   }
 }
 
@@ -1158,8 +1120,7 @@ const showEditChapterDialog = ref(false)
 const editChapterForm = ref({
   id: '',
   chapterNumber: 1,
-  title: '',
-  targetWords: 3000
+  title: ''
 })
 
 function handleEditChapter(chapter: any) {
@@ -1167,7 +1128,6 @@ function handleEditChapter(chapter: any) {
     id: chapter.id,
     chapterNumber: chapter.chapterNumber,
     title: chapter.title,
-    targetWords: chapter.targetWords || 3000
   }
   showEditChapterDialog.value = true
 }
@@ -1195,7 +1155,6 @@ async function handleUpdateChapter() {
     ...chapters.value[chIdx],
     chapterNumber: newNum,
     title: editChapterForm.value.title,
-    targetWords: editChapterForm.value.targetWords
   }
   
   // 重新排序
@@ -1203,8 +1162,7 @@ async function handleUpdateChapter() {
 
   if (props.novelId && window.electronAPI?.planning?.updateChapter) {
     await window.electronAPI.planning.updateChapter(props.novelId, newNum, {
-      title: editChapterForm.value.title,
-      targetWords: editChapterForm.value.targetWords
+      title: editChapterForm.value.title
     })
   }
 
