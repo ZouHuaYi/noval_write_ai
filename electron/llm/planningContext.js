@@ -30,19 +30,32 @@ function buildPlanningSummary({ novelId, chapterNumber }) {
     if (chapterPlan.summary) {
       summary += `内容要点：${chapterPlan.summary}\n`
     }
+    if (Array.isArray(chapterPlan.focus) && chapterPlan.focus.length) {
+      summary += `写作重点：${chapterPlan.focus.join('、')}\n`
+    }
+    if (Array.isArray(chapterPlan.writingHints) && chapterPlan.writingHints.length) {
+      summary += `写作提示：${chapterPlan.writingHints.join('；')}\n`
+    }
 
     const events = planningDAO.listPlanningEvents(novelId)
-    if (events.length > 0) {
-      const relatedEvents = events.filter(e => e.chapter === chapterNumber)
-      if (relatedEvents.length > 0) {
-        summary += `关键事件：\n`
-        relatedEvents.forEach(e => {
-          summary += `- ${e.label}：${e.description || '无描述'}\n`
-          if (e.characters && e.characters.length > 0) {
-            summary += `  参与角色：${e.characters.join('、')}\n`
-          }
-        })
-      }
+    let relatedEvents = []
+    if (Array.isArray(chapterPlan.events) && chapterPlan.events.length) {
+      const eventMap = new Map(events.map(e => [e.id, e]))
+      relatedEvents = chapterPlan.events
+        .map(id => eventMap.get(id))
+        .filter(Boolean)
+    } else if (events.length > 0) {
+      relatedEvents = events.filter(e => e.chapter === chapterNumber)
+    }
+
+    if (relatedEvents.length > 0) {
+      summary += `关键事件：\n`
+      relatedEvents.forEach(e => {
+        summary += `- ${e.label || e.id}：${e.description || '无描述'}\n`
+        if (e.characters && e.characters.length > 0) {
+          summary += `  参与角色：${e.characters.join('、')}\n`
+        }
+      })
     }
 
     return summary

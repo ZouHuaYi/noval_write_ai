@@ -68,6 +68,28 @@
               </div>
             </div>
 
+            <div 
+              class="group bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] shadow-sm hover:shadow-md cursor-pointer overflow-hidden"
+              @click="handleRegenerateChapter"
+            >
+              <div class="p-4 space-y-2">
+                <div class="flex items-center justify-between">
+                  <div class="p-2 rounded-lg bg-amber-100 group-hover:bg-amber-200 transition-colors">
+                    <el-icon class="text-amber-600 text-lg"><Refresh /></el-icon>
+                  </div>
+                  <el-icon 
+                    v-if="processing" 
+                    class="is-loading text-[var(--app-text-muted)] text-sm"
+                  >
+                    <Loading />
+                  </el-icon>
+                </div>
+                <div class="text-sm font-semibold">重新生成</div>
+                <div class="text-xs text-[var(--app-text-muted)]">重置后再生成</div>
+              </div>
+            </div>
+
+
             <!-- 一致性检查 -->
             <div 
               class="group bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] shadow-sm hover:shadow-md cursor-pointer overflow-hidden"
@@ -413,6 +435,7 @@ const lastAction = ref('')
 const lastActionAt = ref<number | null>(null)
 const activeSections = ref(['tools'])
 const currentPlan = ref<any>(null)
+const currentPlanEvents = ref<any[]>([])
 const loadingPlan = ref(false)
 const previewContext = ref<{
   outlineContext: string
@@ -617,6 +640,39 @@ const handleConsistency = () => {
   dialogPrompt.value = ''
   showDialog.value = true
 }
+
+const handleRegenerateChapter = async () => {
+  if (!props.chapterId) {
+    ElMessage.warning('请先选择章节')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      '将清除本次生成记录并基于当前内容重新生成，是否继续？',
+      '重新生成确认',
+      {
+        confirmButtonText: '重新生成',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+  } catch {
+    return
+  }
+
+  try {
+    await window.electronAPI?.chapter?.update(props.chapterId, {
+      content: ''
+    })
+    emit('content-updated', '')
+    await window.electronAPI?.chapter?.generateReset(props.chapterId)
+    await handleGenerateNextChapter()
+  } catch (error: any) {
+    ElMessage.error('重新生成失败: ' + (error.message || '未知错误'))
+  }
+}
+
 
 const confirmAction = async () => {
   processing.value = true
@@ -833,13 +889,24 @@ const handleGenerateNextChapter = async () => {
     }
 
     // 并行获取计划和上下文
-    const [plan, context] = await Promise.all([
+    const [plan, context, planningData] = await Promise.all([
       window.electronAPI.planning.getChapterPlan(props.novelId, chapter.chapterNumber),
-      buildContextForChapter(props.chapterId)
+      buildContextForChapter(props.chapterId),
+      window.electronAPI.planning.loadData(props.novelId)
     ])
     
     if (plan) {
       currentPlan.value = plan
+      if (planningData?.events && Array.isArray(plan.events)) {
+        const eventMap = new Map(planningData.events.map((evt: any) => [evt.id, evt]))
+        currentPlanEvents.value = plan.events
+          .map((id: string) => eventMap.get(id))
+          .filter(Boolean)
+      } else {
+        currentPlanEvents.value = []
+      }
+    } else {
+      currentPlanEvents.value = []
     }
     previewContext.value = context
 

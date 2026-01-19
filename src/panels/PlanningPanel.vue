@@ -85,8 +85,8 @@
       <!-- 看板视图 -->
 
       <KanbanBoard
-        v-if="viewMode === 'kanban'"
-        :key="planRefreshKey"
+        v-else-if="viewMode === 'kanban'"
+        :key="'kanban-' + planRefreshKey"
         :board="kanbanBoard"
         :recommendation="recommendation"
         @task-select="handleTaskSelect"
@@ -100,7 +100,7 @@
       />
 
       <!-- 列表视图 (大纲模式) -->
-      <div v-else :key="planRefreshKey" class="h-full overflow-y-auto p-4 max-w-4xl mx-auto">
+      <div v-else :key="'list-' + planRefreshKey" class="h-full overflow-y-auto p-4 max-w-4xl mx-auto">
 
         <div v-if="chapters.length === 0" class="flex flex-col items-center justify-center h-full text-[var(--app-text-muted)]">
           <el-empty description="暂无章节计划，请点击上方“生成计划”" />

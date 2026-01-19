@@ -257,8 +257,9 @@ async function loadChapter(chapterId: string) {
       ElMessage.warning('Electron API 未加载')
       return
     }
+    const chapter = await window.electronAPI.chapter.get(chapterId)
+    const chapterNum = chapter?.chapterNumber
     const existingChapter = await window.electronAPI.chapter.getByNumber(novelId.value, chapterNum)
-
 
     if (existingChapter) {
       // 3. 如果存在，直接选中并加载
