@@ -913,7 +913,7 @@ async function runConsistencyCheck() {
   // 3. 依赖关系检查
   events.value.forEach(event => {
     if (event.dependencies && event.dependencies.length) {
-      event.dependencies.forEach(depId => {
+      event.dependencies.forEach((depId: string) => {
         const depEvent = eventMap.get(depId)
         
         // 3.1 无效依赖
