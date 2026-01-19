@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   chapter: {
     list: (novelId) => ipcRenderer.invoke('chapter:list', novelId),
     get: (id) => ipcRenderer.invoke('chapter:get', id),
+    getByNumber: (novelId, chapterNumber) => ipcRenderer.invoke('chapter:getByNumber', novelId, chapterNumber),
     create: (novelId, data) => ipcRenderer.invoke('chapter:create', novelId, data),
     update: (id, data) => ipcRenderer.invoke('chapter:update', id, data),
     updateContent: (id, content) => ipcRenderer.invoke('chapter:updateContent', id, content),
@@ -113,6 +114,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     updateChapterStatus: (novelId, chapterNumber, status, extra) => ipcRenderer.invoke('planning:updateChapterStatus', novelId, chapterNumber, status, extra),
     getMeta: (novelId) => ipcRenderer.invoke('planning:getMeta', novelId),
     updateMeta: (novelId, meta) => ipcRenderer.invoke('planning:updateMeta', novelId, meta),
+    ensureChapter: (novelId, data) => ipcRenderer.invoke('planning:ensureChapter', novelId, data),
+    updateChapter: (novelId, chapterNumber, patch) => ipcRenderer.invoke('planning:updateChapter', novelId, chapterNumber, patch),
+    updateChapterNumber: (novelId, fromChapter, toChapter) => ipcRenderer.invoke('planning:updateChapterNumber', novelId, fromChapter, toChapter),
 
     // ===== 数据持久化 =====
     // 保存规划数据

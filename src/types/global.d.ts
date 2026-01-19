@@ -16,6 +16,7 @@ declare global {
       chapter: {
         list: (novelId: string) => Promise<any[]>
         get: (id: string) => Promise<any>
+        getByNumber: (novelId: string, chapterNumber: number) => Promise<any>
         create: (novelId: string, data?: { title?: string; content?: string; status?: string; chapterNumber?: number }) => Promise<any>
         update: (id: string, data: Partial<{ title: string; content: string; status: string; idx: number; chapterNumber: number }>) => Promise<any>
         updateContent: (id: string, content: string, chapterNumber?: number) => Promise<any>
@@ -279,6 +280,9 @@ declare global {
         updateChapterStatus: (novelId: string, chapterNumber: number, status: string, extra?: { lockWritingTarget?: boolean }) => Promise<any>
         getMeta: (novelId: string) => Promise<any>
         updateMeta: (novelId: string, meta: any) => Promise<any>
+        ensureChapter: (novelId: string, data: { chapterNumber: number }) => Promise<any>
+        updateChapter: (novelId: string, chapterNumber: number, patch: { title?: string }) => Promise<any>
+        updateChapterNumber: (novelId: string, fromChapter: number, toChapter: number) => Promise<{ success: boolean; chapter: number }>
 
         // ===== 数据持久化 =====
         // 保存规划数据

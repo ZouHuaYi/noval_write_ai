@@ -101,6 +101,8 @@ ${rangeLabel}
 3. 角色发展事件与情节事件交织
 4. 每个章节有 2-3 个主要事件
 
+重要：必须为每个事件填写 chapter，且 chapter 必须在 ${startChapter} 到 ${endChapter ?? (startChapter + chaptersCount - 1)} 的范围内。不能全部是第 1 章。
+
 返回 JSON 格式的事件图谱。`
 
 
@@ -129,9 +131,66 @@ ${rangeLabel}
       throw new Error('生成的内容不包含有效的事件数据')
     }
 
+    const normalizedEvents = Array.isArray(result.events) ? result.events.map((event, index) => {
+      const chapterNum = Number(event.chapter)
+      return {
+        id: event.id || `event_${index + 1}`,
+        label: event.label || `事件 ${index + 1}`,
+        eventType: event.eventType || 'plot',
+        description: event.description || '',
+        chapter: Number.isFinite(chapterNum) ? chapterNum : null,
+        characters: Array.isArray(event.characters) ? event.characters : [],
+        preconditions: Array.isArray(event.preconditions) ? event.preconditions : [],
+        postconditions: Array.isArray(event.postconditions) ? event.postconditions : [],
+        dependencies: Array.isArray(event.dependencies) ? event.dependencies : []
+      }
+    }) : []
+
+    const rangeStart = startChapter
+    const rangeEnd = endChapter != null ? endChapter : Math.max(rangeStart, rangeStart + targetChapters - 1)
+    const rangeSize = Math.max(rangeEnd - rangeStart + 1, 1)
+
+    const withinRange = normalizedEvents.filter(event => typeof event.chapter === 'number' && event.chapter >= rangeStart && event.chapter <= rangeEnd)
+    const missingChapter = normalizedEvents.filter(event => event.chapter == null || event.chapter < rangeStart || event.chapter > rangeEnd)
+
+    if (withinRange.length === 0 && normalizedEvents.length > 0) {
+      normalizedEvents.forEach((event, idx) => {
+        event.chapter = rangeStart + (idx % rangeSize)
+      })
+    } else if (missingChapter.length > 0) {
+      missingChapter.forEach((event, idx) => {
+        event.chapter = rangeStart + (idx % rangeSize)
+      })
+    }
+
+    // 确保每个章节至少有 1 个事件
+    const chaptersWithEvents = new Set()
+    normalizedEvents.forEach(event => {
+      if (typeof event.chapter === 'number') {
+        chaptersWithEvents.add(event.chapter)
+      }
+    })
+
+    for (let chapter = rangeStart; chapter <= rangeEnd; chapter += 1) {
+      if (!chaptersWithEvents.has(chapter)) {
+        normalizedEvents.push({
+          id: `event_${normalizedEvents.length + 1}`,
+          label: `第 ${chapter} 章事件补充`,
+          eventType: 'plot',
+          description: '',
+          chapter,
+          characters: [],
+          preconditions: [],
+          postconditions: [],
+          dependencies: []
+        })
+      }
+    }
+
     return {
       ...result,
-      range: { startChapter, endChapter }
+      events: normalizedEvents,
+      range: { startChapter: rangeStart, endChapter: rangeEnd }
     }
 
   } catch (error) {

@@ -64,6 +64,13 @@ function getChaptersByNovelAndStatus(novelId, status) {
   `).all(novelId, status)
 }
 
+function getChapterByNovelAndNumber(novelId, chapterNumber) {
+  const db = getDatabase()
+  return db.prepare(`
+    SELECT * FROM chapter WHERE novelId = ? AND chapterNumber = ?
+  `).get(novelId, chapterNumber)
+}
+
 
 /**
  * 更新章节内容
@@ -169,6 +176,7 @@ module.exports = {
   updateChapterContent,
   updateChapter,
   deleteChapter,
-  deleteAllChaptersByNovel
+  deleteAllChaptersByNovel,
+  getChapterByNovelAndNumber
 }
 

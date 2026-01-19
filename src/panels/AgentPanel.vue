@@ -179,18 +179,19 @@
                 {{ currentPlan.summary || currentPlan.description || '暂无详细规划' }}
               </div>
               
-              <div v-if="currentPlan.events?.length" class="flex flex-wrap gap-1">
-                <el-tag 
-                  v-for="evt in currentPlan.events" 
-                  :key="evt" 
-                  size="small" 
-                  type="warning" 
-                  effect="plain"
-                  class="text-xs"
-                >
-                  {{ evt }}
-                </el-tag>
-              </div>
+                <div v-if="currentPlanEvents.length" class="flex flex-wrap gap-1">
+                  <el-tag 
+                    v-for="evt in currentPlanEvents" 
+                    :key="evt.id" 
+                    size="small" 
+                    type="warning" 
+                    effect="plain"
+                    class="text-xs"
+                  >
+                    {{ evt.label || evt.id }}
+                  </el-tag>
+                </div>
+
               
               <div v-if="currentPlan.focus?.length" class="flex flex-wrap gap-1 mt-1">
                  <span class="text-xs text-blue-600 mr-1">重点:</span>

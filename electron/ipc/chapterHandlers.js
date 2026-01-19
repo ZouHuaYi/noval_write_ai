@@ -10,6 +10,15 @@ function registerChapterHandlers(ipcMain) {
     }
   })
 
+  ipcMain.handle('chapter:getByNumber', (_, novelId, chapterNumber) => {
+    try {
+      return chapterService.getChapterByNovelAndNumber(novelId, chapterNumber)
+    } catch (error) {
+      console.error('获取章节失败:', error)
+      throw error
+    }
+  })
+
   ipcMain.handle('chapter:get', (_, id) => {
     try {
       return chapterService.getChapter(id)

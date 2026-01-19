@@ -13,6 +13,10 @@ function createChapter(novelId, data) {
   return { id, ...chapterDAO.getChapterById(id) }
 }
 
+function getChapterByNovelAndNumber(novelId, chapterNumber) {
+  return chapterDAO.getChapterByNovelAndNumber(novelId, chapterNumber)
+}
+
 function updateChapter(id, data) {
   return chapterDAO.updateChapter(id, data)
 }
@@ -59,5 +63,6 @@ module.exports = {
   updateChapter,
   updateChapterContent,
   deleteChapter,
-  deleteAllChapters
+  deleteAllChapters,
+  getChapterByNovelAndNumber
 }

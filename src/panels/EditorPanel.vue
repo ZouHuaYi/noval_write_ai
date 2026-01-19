@@ -63,6 +63,7 @@
                   :min="1"
                   :precision="0"
                   class="w-full"
+                  disabled
                 />
               </div>
               <div class="flex-1">
@@ -72,6 +73,7 @@
                   placeholder="请输入章节标题"
                   size="default"
                   clearable
+                  @change="handleTitleUpdate"
                 />
               </div>
             </div>
@@ -155,12 +157,15 @@ const richContent = ref('')
 const wordCount = ref(0)
 const mentionCount = ref(0)
 const status = ref<'draft' | 'writing' | 'completed'>('draft')
+const statusTextOverride = ref('')
+const statusTypeOverride = ref('')
 const saving = ref(false)
 
 // 知识库条目（用于 @提及）
 const knowledgeItems = ref<KnowledgeItem[]>([])
 
 const statusType = computed(() => {
+  if (statusTypeOverride.value) return statusTypeOverride.value
   const map = {
     draft: 'info',
     writing: 'warning',
@@ -170,6 +175,7 @@ const statusType = computed(() => {
 })
 
 const statusText = computed(() => {
+  if (statusTextOverride.value) return statusTextOverride.value
   const map = {
     draft: '草稿',
     writing: '写作中',
@@ -244,17 +250,33 @@ async function loadChapter(chapterId: string) {
   try {
     if (window.electronAPI?.chapter) {
       const chapter = await window.electronAPI.chapter.get(chapterId)
-      if (chapter) {
-        chapterTitle.value = chapter.title || ''
-        chapterNumber.value = chapter.chapterNumber || null
-        content.value = chapter.content || ''
-        // 初始化富文本内容
-        richContent.value = chapter.content 
-          ? `<p>${chapter.content.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`
-          : ''
-        status.value = (chapter.status as any) || 'draft'
-        updateWordCount()
-      }
+        if (chapter) {
+          chapterTitle.value = chapter.title || ''
+          chapterNumber.value = chapter.chapterNumber || null
+          content.value = chapter.content || ''
+          // 初始化富文本内容
+          richContent.value = chapter.content 
+            ? `<p>${chapter.content.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`
+            : ''
+          status.value = (chapter.status as any) || 'draft'
+          statusTextOverride.value = ''
+          statusTypeOverride.value = ''
+          if (props.novelId && chapter.chapterNumber != null && window.electronAPI?.planning?.getChapterPlan) {
+            const plan = await window.electronAPI.planning.getChapterPlan(props.novelId, chapter.chapterNumber)
+            if (plan?.status === 'completed') {
+              statusTextOverride.value = '已完成'
+              statusTypeOverride.value = 'success'
+            } else if (plan?.status === 'in_progress') {
+              statusTextOverride.value = '写作中'
+              statusTypeOverride.value = 'warning'
+            } else if (plan?.status === 'pending') {
+              statusTextOverride.value = '待开始'
+              statusTypeOverride.value = 'info'
+            }
+          }
+          updateWordCount()
+        }
+
     }
   } catch (error: any) {
     console.error('加载章节失败:', error)
@@ -316,12 +338,7 @@ async function autoSave() {
   try {
     if (window.electronAPI?.chapter) {
       const updateData: any = {
-        title: chapterTitle.value,
-        content: content.value,
-        status: 'draft' // 草稿状态
-      }
-      if (chapterNumber.value !== null) {
-        updateData.chapterNumber = chapterNumber.value
+        content: content.value
       }
       await window.electronAPI.chapter.update(props.chapterId, updateData)
       // 静默保存，不显示消息
@@ -334,6 +351,17 @@ async function autoSave() {
     }
   } catch (error: any) {
     ElMessage.error('保存失败: ' + (error.message || '未知错误'))
+  }
+}
+
+async function handleTitleUpdate() {
+  if (!props.novelId || !chapterNumber.value) return
+  try {
+    await window.electronAPI?.planning?.updateChapter(props.novelId, chapterNumber.value, {
+      title: chapterTitle.value
+    })
+  } catch (error: any) {
+    console.error('更新章节标题失败:', error)
   }
 }
 
@@ -436,18 +464,15 @@ async function markComplete() {
     ElMessage.warning('请先选择章节')
     return
   }
+  if (!props.novelId || !chapterNumber.value) {
+    ElMessage.warning('章节信息不完整')
+    return
+  }
   saving.value = true
   try {
-    if (window.electronAPI?.chapter) {
-      const updateData: any = {
-        title: chapterTitle.value,
-        content: content.value,
-        status: 'writing'
-      }
-      if (chapterNumber.value !== null) {
-        updateData.chapterNumber = chapterNumber.value
-      }
-      const chapter = await window.electronAPI.chapter.update(props.chapterId, updateData)
+    if (window.electronAPI?.planning?.updateChapterStatus) {
+      await window.electronAPI.planning.updateChapterStatus(props.novelId, chapterNumber.value, 'in_progress')
+      const chapter = await window.electronAPI.chapter.get(props.chapterId)
       status.value = 'writing'
       emit('chapter-updated', chapter)
       ElMessage.success('章节已标记为写作中')

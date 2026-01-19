@@ -128,7 +128,21 @@ function registerPlanningHandlers(ipcMain) {
       })
 
       if (options.mergeEvents) {
-        const existingEvents = options.existingEvents || []
+        let existingEvents = options.existingEvents || []
+        if (options.overrideRange && options.startChapter != null && options.endChapter != null) {
+          const start = Number(options.startChapter)
+          const end = Number(options.endChapter)
+          existingEvents = existingEvents.filter(event => {
+            const chapter = Number(event.chapter)
+            if (!Number.isFinite(chapter)) return true
+            return chapter < start || chapter > end
+          })
+
+          return {
+            ...result,
+            events: existingEvents.concat(result.events || [])
+          }
+        }
         const merged = mergeEvents(existingEvents, result.events || [])
         return {
           ...result,
@@ -215,9 +229,93 @@ function registerPlanningHandlers(ipcMain) {
         ...extra
       }
       planningDAO.upsertPlanningChapters(novelId, [updated])
+
+      const dbStatus = status === 'completed' ? 'completed' : status === 'in_progress' ? 'writing' : 'draft'
+      const existing = chapterDAO.getChapterByNovelAndNumber(novelId, chapterNumber)
+      if (existing) {
+        chapterDAO.updateChapter(existing.id, { status: dbStatus })
+      }
+
       return updated
     } catch (error) {
       console.error('更新章节规划状态失败:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('planning:updateChapter', async (_, novelId, chapterNumber, patch = {}) => {
+    try {
+      const chapters = planningDAO.listPlanningChapters(novelId)
+      const chapter = chapters.find(ch => ch.chapterNumber === chapterNumber)
+      if (!chapter) return null
+
+      const updated = {
+        ...chapter,
+        ...patch,
+        chapterNumber: chapter.chapterNumber
+      }
+      planningDAO.upsertPlanningChapters(novelId, [updated])
+
+      const existing = chapterDAO.getChapterByNovelAndNumber(novelId, chapterNumber)
+      if (existing && patch.title != null) {
+        chapterDAO.updateChapter(existing.id, { title: patch.title })
+      }
+
+      return updated
+    } catch (error) {
+      console.error('更新章节规划失败:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('planning:updateChapterNumber', async (_, novelId, fromChapter, toChapter) => {
+    try {
+      const fromNumber = Number(fromChapter)
+      const toNumber = Number(toChapter)
+      if (!Number.isFinite(fromNumber) || !Number.isFinite(toNumber)) {
+        throw new Error('无效章节号')
+      }
+
+      if (fromNumber === toNumber) {
+        return { success: true, chapter: fromNumber }
+      }
+
+      const chapters = planningDAO.listPlanningChapters(novelId)
+      const target = chapters.find(ch => ch.chapterNumber === fromNumber)
+      if (!target) {
+        throw new Error('章节规划不存在')
+      }
+
+      const conflict = chapters.find(ch => ch.chapterNumber === toNumber)
+      if (conflict) {
+        throw new Error('目标章节号已存在')
+      }
+
+      const updated = {
+        ...target,
+        chapterNumber: toNumber
+      }
+      planningDAO.upsertPlanningChapters(novelId, [updated])
+
+      const events = planningDAO.listPlanningEvents(novelId)
+      const updatedEvents = events
+        .filter(event => event.chapter === fromNumber)
+        .map(event => ({
+          ...event,
+          chapter: toNumber
+        }))
+      if (updatedEvents.length) {
+        planningDAO.upsertPlanningEvents(novelId, updatedEvents)
+      }
+
+      const existing = chapterDAO.getChapterByNovelAndNumber(novelId, fromNumber)
+      if (existing) {
+        chapterDAO.updateChapter(existing.id, { chapterNumber: toNumber })
+      }
+
+      return { success: true, chapter: toNumber }
+    } catch (error) {
+      console.error('更新章节号失败:', error)
       throw error
     }
   })
@@ -260,6 +358,48 @@ function registerPlanningHandlers(ipcMain) {
       }
     } catch (error) {
       console.error('生成章节计划失败:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('planning:ensureChapter', async (_, novelId, payload) => {
+    try {
+      const chapterNumber = Number(payload?.chapterNumber)
+      if (!Number.isFinite(chapterNumber)) {
+        throw new Error('无效章节号')
+      }
+
+      const chapterPlan = planningDAO.listPlanningChapters(novelId)
+        .find(ch => ch.chapterNumber === chapterNumber)
+      if (!chapterPlan) {
+        throw new Error('章节规划不存在')
+      }
+
+      let chapter = chapterDAO.getChapterByNovelAndNumber(novelId, chapterNumber)
+      if (!chapter) {
+        const createdId = chapterDAO.createChapter(novelId, {
+          title: chapterPlan.title || `第 ${chapterNumber} 章`,
+          chapterNumber,
+          status: 'writing',
+          content: ''
+        })
+        chapter = chapterDAO.getChapterById(createdId)
+      } else {
+        chapter = chapterDAO.updateChapter(chapter.id, {
+          status: 'writing'
+        })
+      }
+
+      if (chapterPlan.status !== 'in_progress') {
+        planningDAO.upsertPlanningChapters(novelId, [{
+          ...chapterPlan,
+          status: 'in_progress'
+        }])
+      }
+
+      return chapter
+    } catch (error) {
+      console.error('确保章节失败:', error)
       throw error
     }
   })
@@ -331,9 +471,46 @@ function registerPlanningHandlers(ipcMain) {
         throw new Error(`规划元数据校验失败: ${metaResult.error.issues.map(i => i.message).join('; ')}`)
       }
 
+      const chapterNumbers = chaptersResult.data.map(ch => Number(ch.chapterNumber)).filter(Number.isFinite)
+      const numberSet = new Set(chapterNumbers)
+      if (numberSet.size !== chapterNumbers.length) {
+        throw new Error('章节数据校验失败: 章节号重复')
+      }
+
+      const invalidEventChapters = (eventsResult.data || []).filter(event => {
+        if (event.chapter == null) return false
+        return !numberSet.has(Number(event.chapter))
+      })
+      if (invalidEventChapters.length) {
+        throw new Error(`事件数据校验失败: 存在未关联章节的事件 (${invalidEventChapters.length})`)
+      }
+
+      planningDAO.deletePlanningEventsByNovel(novelId)
+      planningDAO.deletePlanningChaptersByNovel(novelId)
       planningDAO.upsertPlanningEvents(novelId, eventsResult.data)
       planningDAO.upsertPlanningChapters(novelId, chaptersResult.data)
       planningDAO.upsertPlanningMeta(novelId, metaResult.data)
+
+      const dbChapters = chapterDAO.getChaptersByNovel(novelId)
+      const dbByNumber = new Map(dbChapters.map(ch => [ch.chapterNumber, ch]))
+      const plannedNumbers = new Set()
+
+      chaptersResult.data.forEach(plan => {
+        const chapterNumber = plan.chapterNumber
+        plannedNumbers.add(chapterNumber)
+        const status = plan.status || 'pending'
+        const dbStatus = status === 'completed' ? 'completed' : status === 'in_progress' ? 'writing' : 'draft'
+        const existing = dbByNumber.get(chapterNumber)
+        if (existing) {
+          const updates = {
+            status: dbStatus
+          }
+          if (plan.title) {
+            updates.title = plan.title
+          }
+          chapterDAO.updateChapter(existing.id, updates)
+        }
+      })
 
       return { success: true }
     } catch (error) {

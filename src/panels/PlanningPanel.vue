@@ -1,8 +1,8 @@
 <template>
   <div class="h-full flex flex-col bg-[var(--app-bg)]">
     <!-- 工具栏 -->
-    <div class="flex justify-between items-center px-4 py-3 border-b border-[var(--app-border)] bg-[var(--app-surface-muted)] shrink-0">
-      <div class="flex items-center gap-2">
+    <div class="flex justify-between flex-wrap gap-2 items-center px-4 py-3 border-b border-[var(--app-border)] bg-[var(--app-surface-muted)] shrink-0">
+      <div class="flex items-center gap-2 w-300px">
         <el-radio-group v-model="viewMode" size="small">
           <el-radio-button value="graph">
             <el-icon><Share /></el-icon>
@@ -35,6 +35,10 @@
         <el-button size="small" type="primary" plain @click="handleAddEvent">
           <el-icon><Plus /></el-icon>
           新增事件
+        </el-button>
+        <el-button size="small" @click="runConsistencyCheck">
+          <el-icon><Check /></el-icon>
+          一致性检查
         </el-button>
         <el-button size="small" @click="handleExport" :disabled="!chapters.length">
           <el-icon><Download /></el-icon>
@@ -71,28 +75,33 @@
       <!-- 事件图谱视图 -->
       <EventGraph
         v-if="viewMode === 'graph'"
+        :key="graphRefreshKey"
         :events="events"
         :layout-direction="graphLayout === 'vertical' ? 'TB' : 'LR'"
         @node-select="handleEventSelect"
       />
 
+
       <!-- 看板视图 -->
 
-        <KanbanBoard
-          v-else-if="viewMode === 'kanban'"
-          :board="kanbanBoard"
-          :recommendation="recommendation"
-          @task-select="handleTaskSelect"
-          @task-move="handleTaskMove"
-          @start-writing="handleStartWriting"
-          @refresh="loadData"
-          @request-recommendation="getRecommendation"
-          @add-chapter="handleManualAddChapter"
-          @delete-chapter="handleDeleteChapter"
-          @toggle-lock="handleKanbanToggleLock"
-        />
+      <KanbanBoard
+        v-if="viewMode === 'kanban'"
+        :key="planRefreshKey"
+        :board="kanbanBoard"
+        :recommendation="recommendation"
+        @task-select="handleTaskSelect"
+        @task-move="handleTaskMove"
+        @start-writing="handleStartWriting"
+        @refresh="loadData"
+        @request-recommendation="getRecommendation"
+        @add-chapter="handleManualAddChapter"
+        @delete-chapter="handleDeleteChapter"
+        @toggle-lock="handleToggleLock"
+      />
+
       <!-- 列表视图 (大纲模式) -->
-      <div v-else class="h-full overflow-y-auto p-4 max-w-4xl mx-auto">
+      <div v-else :key="planRefreshKey" class="h-full overflow-y-auto p-4 max-w-4xl mx-auto">
+
         <div v-if="chapters.length === 0" class="flex flex-col items-center justify-center h-full text-[var(--app-text-muted)]">
           <el-empty description="暂无章节计划，请点击上方“生成计划”" />
         </div>
@@ -352,7 +361,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Aim, Calendar, List, MagicStick, Share, Document, Edit, Delete, Download, Plus, Lock, Unlock } from '@element-plus/icons-vue'
+import { Aim, Calendar, List, MagicStick, Share, Document, Edit, Delete, Download, Plus, Lock, Unlock, Check } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import EventGraph from '@/components/EventGraph.vue'
 import KanbanBoard from '@/components/KanbanBoard.vue'
@@ -375,6 +384,9 @@ const events = ref<any[]>([])
 const chapters = ref<any[]>([])
 const kanbanBoard = ref<any>(null)
 const recommendation = ref<any>(null)
+const graphRefreshKey = ref(0)
+const planRefreshKey = ref(0)
+
 
 // 选中状态
 const selectedEvent = ref<any>(null)
@@ -426,6 +438,60 @@ watch(
   { deep: true }
 )
 
+// 监听生成参数变化，保持逻辑一致性
+watch(
+  [() => eventRangeStart.value, () => eventRangeEnd.value, () => eventGenerationMode.value],
+  ([start, end, mode]) => {
+    if (mode === 'override') {
+      // 验证结束章节不能小于起始章节
+      if (end < start) {
+        eventRangeEnd.value = start
+        return
+      }
+      // 自动计算目标章节数
+      const count = end - start + 1
+      if (generateOptions.value.targetChapters !== count) {
+        generateOptions.value.targetChapters = count
+      }
+    } else if (mode === 'append') {
+      // 在追加模式下，目标章节数应与追加数量一致
+      if (generateOptions.value.targetChapters !== eventAppendCount.value) {
+        generateOptions.value.targetChapters = eventAppendCount.value
+      }
+    }
+  }
+)
+
+watch(
+  () => eventAppendCount.value,
+  (val) => {
+    if (eventGenerationMode.value === 'append') {
+      if (generateOptions.value.targetChapters !== val) {
+        generateOptions.value.targetChapters = val
+      }
+    }
+  }
+)
+
+watch(
+  () => generateOptions.value.targetChapters,
+  (val) => {
+    const count = Math.max(val || 1, 1)
+    if (eventGenerationMode.value === 'override') {
+      // 根据目标章节数更新结束章节
+      const newEnd = eventRangeStart.value + count - 1
+      if (eventRangeEnd.value !== newEnd) {
+        eventRangeEnd.value = newEnd
+      }
+    } else if (eventGenerationMode.value === 'append') {
+      // 同步追加数量
+      if (eventAppendCount.value !== count) {
+        eventAppendCount.value = count
+      }
+    }
+  }
+)
+
 
 // 计算属性
 const completedCount = computed(() => {
@@ -464,6 +530,28 @@ function getEventTypeTag(type: string): string {
   return eventTypeTags[type] || 'info'
 }
 
+async function syncPlanWithEvents() {
+  const eventIds = new Set(events.value.map(event => event.id))
+  chapters.value = chapters.value.map(chapter => {
+    const chapterEvents = Array.isArray(chapter.events)
+      ? chapter.events.filter((id: string) => eventIds.has(id))
+      : []
+    return {
+      ...chapter,
+      events: chapterEvents
+    }
+  })
+
+  if (kanbanBoard.value) {
+    const serializedChapters = JSON.parse(JSON.stringify(chapters.value))
+    const board = await window.electronAPI?.planning?.createKanban(serializedChapters)
+    if (board) {
+      kanbanBoard.value = board
+      planRefreshKey.value += 1
+    }
+  }
+}
+
 function handleAddEvent() {
   showAddEventDialog.value = true
   eventForm.value = {
@@ -474,7 +562,8 @@ function handleAddEvent() {
   }
 }
 
-function handleSaveNewEvent() {
+
+async function handleSaveNewEvent() {
   const label = eventForm.value.label.trim()
   if (!label) {
     ElMessage.warning('请填写事件名称')
@@ -490,14 +579,20 @@ function handleSaveNewEvent() {
   }
 
   events.value = [...events.value, newEvent]
+  graphRefreshKey.value += 1
+  planRefreshKey.value += 1
   showAddEventDialog.value = false
+  await syncPlanWithEvents()
   saveData()
   ElMessage.success('事件已添加')
 }
 
-function handleDeleteEvent(eventId: string) {
+async function handleDeleteEvent(eventId: string) {
   events.value = events.value.filter(e => e.id !== eventId)
+  graphRefreshKey.value += 1
+  planRefreshKey.value += 1
   showEventDetail.value = false
+  await syncPlanWithEvents()
   saveData()
   ElMessage.success('事件已删除')
 }
@@ -551,10 +646,14 @@ async function saveData() {
     
     await window.electronAPI?.planning?.saveData(props.novelId, dataToSave)
     console.log('规划数据已保存')
-  } catch (error) {
+  } catch (error: any) {
+    const message = error?.message || '保存数据失败'
     console.error('保存数据失败:', error)
+    ElMessage.error(message)
+    await loadData()
   }
 }
+
 
 // 清空数据
 async function handleClearData() {
@@ -581,6 +680,55 @@ async function handleClearData() {
       console.error('清空数据失败:', error)
       ElMessage.error('清空数据失败')
     }
+  }
+}
+
+// 一致性检查
+async function runConsistencyCheck() {
+  if (!props.novelId) return
+  const errors: string[] = []
+
+  const chapterNumbers = chapters.value
+    .map(ch => Number(ch.chapterNumber))
+    .filter(Number.isFinite)
+
+  const numberSet = new Set(chapterNumbers)
+  if (numberSet.size !== chapterNumbers.length) {
+    errors.push('章节号存在重复')
+  }
+
+  const invalidEvents = events.value.filter(event => {
+    if (event.chapter == null) return false
+    return !numberSet.has(Number(event.chapter))
+  })
+
+  if (invalidEvents.length) {
+    const labels = invalidEvents
+      .slice(0, 6)
+      .map(event => event.label || event.id)
+      .join('、')
+    errors.push(`事件未关联有效章节：${labels}${invalidEvents.length > 6 ? '…' : ''}`)
+  }
+
+  if (errors.length) {
+    ElMessage.error(errors.join('；'))
+    return
+  }
+
+  if (!props.novelId) return
+  try {
+    const dataToSave = JSON.parse(JSON.stringify({
+      events: events.value,
+      chapters: chapters.value,
+      kanbanBoard: kanbanBoard.value,
+      generateOptions: generateOptions.value
+    }))
+    await window.electronAPI?.planning?.saveData(props.novelId, dataToSave)
+    ElMessage.success('一致性检查通过')
+  } catch (error: any) {
+    const message = error?.message || '一致性检查失败'
+    ElMessage.error(message)
+    await loadData()
   }
 }
 
@@ -635,18 +783,26 @@ async function handleExport() {
 
 
 // 生成事件图谱
+function getMaxChapterNumber() {
+  const eventMax = events.value.reduce((max, event) => {
+    const chapter = Number(event.chapter)
+    return Number.isFinite(chapter) ? Math.max(max, chapter) : max
+  }, 0)
+  const planMax = chapters.value.reduce((max, chapter) => {
+    const chapterNumber = Number(chapter.chapterNumber)
+    return Number.isFinite(chapterNumber) ? Math.max(max, chapterNumber) : max
+  }, 0)
+  return Math.max(eventMax, planMax)
+}
+
 function generateEventGraph() {
-  if (chapters.value.length > 0) {
-    eventGenerationMode.value = 'append'
-    eventAppendCount.value = 6
-    eventRangeStart.value = 1
-    eventRangeEnd.value = chapters.value.length
-  } else {
-    eventGenerationMode.value = 'append'
-    eventAppendCount.value = 6
-    eventRangeStart.value = 1
-    eventRangeEnd.value = Math.max(generateOptions.value.targetChapters || 1, 1)
-  }
+  const maxChapterNumber = getMaxChapterNumber()
+
+  eventGenerationMode.value = 'append'
+  eventAppendCount.value = 6
+  eventRangeStart.value = 1
+  eventRangeEnd.value = maxChapterNumber || Math.max(generateOptions.value.targetChapters || 1, 1)
+
   showGenerateDialog.value = true
 }
 
@@ -659,18 +815,22 @@ async function doGenerateGraph() {
 
   generating.value = true
   try {
-    const existingChapterNumbers = chapters.value.map(ch => ch.chapterNumber)
-    const lastChapterNumber = existingChapterNumbers.length
-      ? Math.max(...existingChapterNumbers)
-      : 0
+    const maxChapterNumber = getMaxChapterNumber()
+
+    const appendBatch = Math.max(eventAppendCount.value || 1, 1)
+    const targetChapters = Math.max(generateOptions.value.targetChapters || 1, 1)
 
     const startChapter = eventGenerationMode.value === 'append'
-      ? lastChapterNumber + 1
+      ? maxChapterNumber + 1
       : eventRangeStart.value
+    
+    // 在 append 模式下，targetChapters 已经通过 watcher 同步为追加数量
+    // 所以结束章节应该是 start + targetChapters - 1
     const endChapter = eventGenerationMode.value === 'append'
-      ? startChapter + (eventAppendCount.value || 1) - 1
+      ? startChapter + targetChapters - 1
       : eventRangeEnd.value
 
+    const existingEvents = JSON.parse(JSON.stringify(events.value))
     const result = await window.electronAPI?.planning?.generateEventGraph({
       novelTitle: props.novelTitle || '未命名小说',
       synopsis: generateOptions.value.synopsis,
@@ -679,11 +839,15 @@ async function doGenerateGraph() {
       startChapter,
       endChapter,
       mergeEvents: true,
-      existingEvents: JSON.parse(JSON.stringify(events.value))
+      existingEvents,
+      overrideRange: eventGenerationMode.value === 'override'
     })
 
     if (result?.events) {
       events.value = result.events
+      graphRefreshKey.value += 1
+      planRefreshKey.value += 1
+      await syncPlanWithEvents()
       ElMessage.success(`成功生成 ${result.events.length} 个事件节点`)
       showGenerateDialog.value = false
       // 自动保存
@@ -787,11 +951,13 @@ async function generatePlan() {
       const board = await window.electronAPI?.planning?.createKanban(serializedChapters)
       if (board) {
         kanbanBoard.value = board
+        planRefreshKey.value += 1
         viewMode.value = 'kanban'
         ElMessage.success('章节计划生成完成')
         // 自动保存
         await saveData()
       }
+
     }
   } catch (error: any) {
     console.error('生成计划失败:', error)
@@ -860,27 +1026,12 @@ async function handleTaskMove(taskId: string, targetStatus: string) {
       targetCol.tasks.push(movedTask)
     }
     
-    // 深度绑定：同步状态到数据库章节
+    // 深度绑定：同步状态到规划（主进程投影到章节）
     try {
-      if (props.novelId && window.electronAPI?.chapter) {
-        // 查找对应的章节
-        const dbChapters = await window.electronAPI.chapter.list(props.novelId)
-        const matchedChapter = dbChapters.find((c: any) => c.chapterNumber === movedTask.chapterNumber)
-        
-       if (matchedChapter) {
-          // 映射状态: pending/in_progress -> writing, completed -> completed
-          const dbStatus = targetStatus === 'completed' ? 'completed' : 'writing'
-          await window.electronAPI.chapter.update(matchedChapter.id, {
-            status: dbStatus
-          })
-
-          if (window.electronAPI?.planning?.updateChapterStatus) {
-            await window.electronAPI.planning.updateChapterStatus(props.novelId, movedTask.chapterNumber, targetStatus)
-          }
-
-          console.log(`已同步章节 ${movedTask.chapterNumber} 状态至 ${dbStatus}`)
-          ElMessage.success(`已同步章节 ${movedTask.chapterNumber} 状态: ${dbStatus === 'completed' ? '已完成' : '写作中'}`)
-        }
+      if (props.novelId && window.electronAPI?.planning?.updateChapterStatus) {
+        await window.electronAPI.planning.updateChapterStatus(props.novelId, movedTask.chapterNumber, targetStatus)
+        console.log(`已同步章节 ${movedTask.chapterNumber} 状态至规划: ${targetStatus}`)
+        ElMessage.success(`已同步章节 ${movedTask.chapterNumber} 状态: ${targetStatus === 'completed' ? '已完成' : '写作中'}`)
       }
     } catch (error) {
       console.error('状态同步失败:', error)
@@ -897,6 +1048,7 @@ async function handleTaskMove(taskId: string, targetStatus: string) {
     saveData()
   }
 }
+
 
 // 锁定/解锁章节目标
 async function handleToggleLock(chapter: any) {
@@ -1032,6 +1184,17 @@ async function handleUpdateChapter() {
   const oldNum = chapters.value[chIdx].chapterNumber
   const newNum = editChapterForm.value.chapterNumber
 
+    if (props.novelId && oldNum !== newNum && window.electronAPI?.planning?.updateChapterNumber) {
+      try {
+        await window.electronAPI.planning.updateChapterNumber(props.novelId, oldNum, newNum)
+      } catch (error: any) {
+        ElMessage.error(error.message || '章节号更新失败')
+        await loadData()
+        return
+      }
+    }
+
+
   // 更新局部数据
   chapters.value[chIdx] = {
     ...chapters.value[chIdx],
@@ -1042,23 +1205,15 @@ async function handleUpdateChapter() {
   
   // 重新排序
   chapters.value.sort((a, b) => a.chapterNumber - b.chapterNumber)
-  
-  // 同步到数据库章节（如果存在）
-  if (oldNum !== newNum && props.novelId && window.electronAPI?.chapter) {
-    try {
-      const dbChapters = await window.electronAPI.chapter.list(props.novelId)
-      const matched = dbChapters.find((c: any) => c.chapterNumber === oldNum)
-      if (matched) {
-        await window.electronAPI.chapter.update(matched.id, {
-          chapterNumber: newNum,
-          title: editChapterForm.value.title // 同时更新标题？
-        })
-        ElMessage.success(`已同步更新数据库中的第 ${newNum} 章`)
-      }
-    } catch (error) {
-      console.error('数据库同步失败:', error)
-    }
+
+  if (props.novelId && window.electronAPI?.planning?.updateChapter) {
+    await window.electronAPI.planning.updateChapter(props.novelId, newNum, {
+      title: editChapterForm.value.title,
+      targetWords: editChapterForm.value.targetWords
+    })
   }
+
+  await syncPlanWithEvents()
 
   // 重构看板（因为章节号变了，看板需要重新生成以保证逻辑正确，或者手动更新任务）
   // 简单起见，如果看板存在，直接重新生成或刷新
@@ -1066,10 +1221,11 @@ async function handleUpdateChapter() {
     kanbanBoard.value = await window.electronAPI?.planning?.createKanban(chapters.value)
   }
 
-  saveData()
+  await saveData()
   showEditChapterDialog.value = false
   ElMessage.success('章节计划已更新')
 }
+
 
 // 开始写作
 async function handleStartWriting(chapterNumber: number) {
@@ -1079,50 +1235,19 @@ async function handleStartWriting(chapterNumber: number) {
   if (!plan) return
 
   try {
-    // 检查章节是否存在
-    const existingChapters = await window.electronAPI?.chapter?.list(props.novelId)
-    let realChapter = existingChapters?.find((c: any) => c.chapterNumber === chapterNumber)
+    if (!window.electronAPI?.planning?.ensureChapter) return
+    const chapter = await window.electronAPI.planning.ensureChapter(props.novelId, {
+      chapterNumber
+    })
 
-    if (!realChapter) {
-      // 不存在则创建
-      try {
-        realChapter = await window.electronAPI?.chapter?.create(props.novelId, {
-          title: plan.title || `第 ${chapterNumber} 章`,
-          chapterNumber: chapterNumber,
-          status: 'writing',
-          content: ''
-        })
-
-        // 触发更新事件，通知侧边栏刷新
-        window.dispatchEvent(new CustomEvent('chapter-created', {
-          detail: { chapterId: realChapter.id }
-        }))
-        
-        ElMessage.success(`已自动创建章节：${plan.title}`)
-      } catch (err) {
-        console.error('自动创建章节失败:', err)
-        ElMessage.error('无法自动创建章节')
-        return
-      }
-    } else {
-      // 如果存在，可以选择同步标题
-      // 这里仅更新状态为写作中
-      if (window.electronAPI?.chapter?.update) {
-         await window.electronAPI.chapter.update(realChapter.id, {
-           status: 'writing'
-         })
-      }
-    }
-
-    if (realChapter?.id) {
+    if (chapter?.id) {
       emit('start-writing', `chapter_${chapterNumber}`)
     }
   } catch (error: any) {
     console.error('开始写作操作失败:', error)
-    ElMessage.error('操作失败: ' + error.message)
+    ElMessage.error('操作失败: ' + (error.message || '未知错误'))
   }
 }
-
 
 // 监听 novelId 变化
 watch(() => props.novelId, () => {

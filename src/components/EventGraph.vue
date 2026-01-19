@@ -112,60 +112,6 @@
         :zoomable="true"
       />
     </VueFlow>
-
-    <!-- 事件详情侧边栏 -->
-    <transition name="slide">
-      <div v-if="selectedNode" class="event-detail-panel">
-        <div class="event-detail-header">
-          <span class="event-detail-title">事件详情</span>
-          <el-button :icon="Close" size="small" text @click="selectedNode = null" />
-        </div>
-        <div class="event-detail-content">
-          <div class="detail-item">
-            <span class="detail-label">事件名称</span>
-            <span class="detail-value">{{ selectedNode.data.label }}</span>
-          </div>
-          <div class="detail-item">
-            <span class="detail-label">事件类型</span>
-            <el-tag :type="getEventTypeTagType(selectedNode.data.eventType)">
-              {{ getEventTypeLabel(selectedNode.data.eventType) }}
-            </el-tag>
-          </div>
-          <div v-if="selectedNode.data.chapter" class="detail-item">
-            <span class="detail-label">所属章节</span>
-            <span class="detail-value">第 {{ selectedNode.data.chapter }} 章</span>
-          </div>
-          <div v-if="selectedNode.data.description" class="detail-item">
-            <span class="detail-label">事件描述</span>
-            <p class="detail-desc">{{ selectedNode.data.description }}</p>
-          </div>
-          <div v-if="selectedNode.data.characters?.length" class="detail-item">
-            <span class="detail-label">相关角色</span>
-            <div class="detail-tags">
-              <el-tag 
-                v-for="char in selectedNode.data.characters" 
-                :key="char" 
-                size="small"
-              >
-                {{ char }}
-              </el-tag>
-            </div>
-          </div>
-          <div v-if="selectedNode.data.preconditions?.length" class="detail-item">
-            <span class="detail-label">前置条件</span>
-            <ul class="detail-list">
-              <li v-for="(cond, i) in selectedNode.data.preconditions" :key="i">{{ cond }}</li>
-            </ul>
-          </div>
-          <div v-if="selectedNode.data.postconditions?.length" class="detail-item">
-            <span class="detail-label">后置影响</span>
-            <ul class="detail-list">
-              <li v-for="(cond, i) in selectedNode.data.postconditions" :key="i">{{ cond }}</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </transition>
   </div>
 </template>
 
@@ -212,7 +158,6 @@ const { fitView } = useVueFlow()
 // 节点和边
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
-const selectedNode = ref<Node | null>(null)
 const layoutDirection = ref<'LR' | 'TB'>(props.layoutDirection || 'LR')
 
 // 事件类型标签
@@ -345,8 +290,6 @@ function onNodeClick({ node }: { node: Node }) {
   
   // 选中当前节点
   node.data.selected = true
-  selectedNode.value = node
-  
   emit('node-select', node.data as EventNodeData)
 }
 

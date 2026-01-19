@@ -49,7 +49,7 @@ const PlanningChapterSchema = z.object({
 const PlanningChapterListSchema = z.array(PlanningChapterSchema)
 
 const PlanningMetaSchema = z.object({
-  synopsis: z.string().optional(),
+  synopsis: z.string().nullable().optional(),
   targetChapters: z.number().nullable().optional(),
   wordsPerChapter: z.number().nullable().optional(),
   lockWritingTarget: z.boolean().optional()
