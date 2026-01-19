@@ -62,15 +62,25 @@ async function generateChapterPlan({
     const eventsInChapter = chapterEvents.get(i) || []
     const mainEvent = eventsInChapter.find(e => e.eventType === 'plot' || e.eventType === 'conflict')
 
+    // 构建章节摘要
+    const eventLabels = eventsInChapter.map(e => e.label).slice(0, 3)
+    const summary = eventLabels.length > 0
+      ? `主要事件：${eventLabels.join('、')}${eventsInChapter.length > 3 ? '...' : ''}`
+      : ''
+
     chapters.push({
+      id: `ch_plan_${Date.now()}_${i}`,
       chapterNumber: i,
       title: mainEvent ? mainEvent.label : `第 ${i} 章`,
+      summary,
       events: eventsInChapter.map(e => e.id),
       targetWords: wordsPerChapter,
       status: eventsInChapter.length > 0 ? TASK_STATUS.PENDING : TASK_STATUS.BLOCKED,
       priority: determinePriority(i, totalChapters, eventsInChapter),
       focus: determineFocus(eventsInChapter),
-      writingHints: []
+      writingHints: [],
+      lockWritingTarget: false,
+      progress: 0
     })
   }
 

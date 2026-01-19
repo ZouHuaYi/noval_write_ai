@@ -129,10 +129,27 @@ ${rangeLabel}
       throw new Error('生成的内容不包含有效的事件数据')
     }
 
+    // 使用时间戳确保事件 ID 唯一
+    const timestamp = Date.now()
+
+    // 第一步：创建 ID 映射表（LLM 生成的简单 ID -> 实际唯一 ID）
+    const idMapping = new Map()
+
     const normalizedEvents = Array.isArray(result.events) ? result.events.map((event, index) => {
       const chapterNum = Number(event.chapter)
+      // 如果事件已有 ID 且不是简单的 event_N 格式，保留原 ID
+      // 否则生成新的唯一 ID
+      const hasCustomId = event.id && !event.id.match(/^event_\d+$/)
+      const oldId = event.id || `event_${index + 1}`
+      const newId = hasCustomId ? event.id : `event_${timestamp}_${index + 1}`
+
+      // 记录 ID 映射关系
+      if (oldId !== newId) {
+        idMapping.set(oldId, newId)
+      }
+
       return {
-        id: event.id || `event_${index + 1}`,
+        id: newId,
         label: event.label || `事件 ${index + 1}`,
         eventType: event.eventType || 'plot',
         description: event.description || '',
@@ -143,6 +160,16 @@ ${rangeLabel}
         dependencies: Array.isArray(event.dependencies) ? event.dependencies : []
       }
     }) : []
+
+    // 第二步：更新所有事件的依赖关系，将旧 ID 映射到新 ID
+    normalizedEvents.forEach(event => {
+      if (event.dependencies && event.dependencies.length > 0) {
+        event.dependencies = event.dependencies.map(depId => {
+          // 如果依赖 ID 在映射表中，使用新 ID；否则保持原样
+          return idMapping.get(depId) || depId
+        })
+      }
+    })
 
     const rangeStart = startChapter
     const rangeEnd = endChapter != null ? endChapter : Math.max(rangeStart, rangeStart + targetChapters - 1)

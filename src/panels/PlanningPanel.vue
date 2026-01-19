@@ -31,6 +31,10 @@
           <el-icon><Aim /></el-icon>
           智能推荐
         </el-button>
+        <el-button size="small" type="primary" plain @click="openAddEventDialog">
+          <el-icon><Plus /></el-icon>
+          新增事件
+        </el-button>
         <el-divider direction="vertical" />
         <el-button size="small" @click="runConsistencyCheck">
           <el-icon><Check /></el-icon>
@@ -167,33 +171,11 @@
     <!-- 生成图谱对话框 -->
     <el-dialog v-model="showGenerateDialog" title="生成事件图谱" width="500px">
       <el-form label-width="100px">
-        <el-form-item label="生成模式">
-          <el-radio-group v-model="eventGenerationMode">
-            <el-radio value="append">追加事件</el-radio>
-            <el-radio value="override">覆盖范围</el-radio>
-          </el-radio-group>
-        </el-form-item>
-
-        <template v-if="eventGenerationMode === 'append'">
-          <el-form-item label="追加章节">
-            <el-input-number v-model="eventAppendCount" :min="1" :max="1000" />
-            <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
-              在当前章节范围之后追加 {{ eventAppendCount }} 章事件
-            </div>
-          </el-form-item>
-        </template>
-
-        <template v-else>
-          <el-form-item label="起始章节">
-            <el-input-number v-model="eventRangeStart" :min="1" :max="Math.max(chapters.length, 1)" />
-          </el-form-item>
-          <el-form-item label="结束章节">
-            <el-input-number v-model="eventRangeEnd" :min="eventRangeStart" :max="Math.max(chapters.length, 1)" />
-          </el-form-item>
-        </template>
-
-        <el-form-item label="目标章节数">
-          <el-input-number disabled v-model="generateOptions.targetChapters" :min="1" :max="30" />
+        <el-form-item label="追加章节数">
+          <el-input-number v-model="eventAppendCount" :min="1" :max="1000" />
+          <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
+            在当前章节范围之后追加 {{ eventAppendCount }} 章事件
+          </div>
         </el-form-item>
         <el-form-item label="故事梗概">
           <el-input 
@@ -202,14 +184,6 @@
             :rows="4" 
             placeholder="输入故事梗概，帮助 AI 更好地理解情节..."
           />
-        </el-form-item>
-        <el-form-item label="锁定写作目标">
-          <div class="flex items-center gap-2">
-            <el-switch v-model="generateOptions.lockWritingTarget" />
-            <span class="text-xs text-[var(--el-text-color-secondary)]">
-              {{ generateOptions.lockWritingTarget ? '生成时将保持当前目标设定' : '允许 AI 根据进展调整目标' }}
-            </span>
-          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -221,36 +195,24 @@
     </el-dialog>
 
 
-    <!-- 生成章节计划对话框 (新增) -->
+    <!-- 生成章节计划对话框 -->
     <el-dialog v-model="showGeneratePlanDialog" title="生成章节计划" width="500px">
-      <el-form label-width="100px">
-        <el-form-item label="生成模式">
-          <el-radio-group v-model="planGenerationMode">
-            <el-radio value="append">追加新章节</el-radio>
-            <el-radio value="override">覆盖/重写</el-radio>
-          </el-radio-group>
-        </el-form-item>
-
-        <template v-if="planGenerationMode === 'append'">
-          <el-form-item label="追加数量">
-            <el-input-number v-model="planAppendCount" :min="1" :max="20" />
-            <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
-              在现有 {{ chapters.length }} 章之后追加 {{ planAppendCount }} 章
-            </div>
-          </el-form-item>
-        </template>
-
-        <template v-else>
-          <el-form-item label="起始章节">
-            <el-input-number v-model="planOverrideStart" :min="1" :max="chapters.length || 1" />
-          </el-form-item>
-          <el-form-item label="结束章节">
-            <el-input-number v-model="planOverrideEnd" :min="planOverrideStart" />
-          </el-form-item>
-          <div class="ml-[100px] text-xs text-red-500">
-            警告：选定范围内的章节规划将被重写，但已存在的正文内容不会丢失。
+      <el-form label-width="90px">
+        <el-form-item label="起始章节">
+          <el-input-number v-model="planStartChapter" :min="1" />
+          <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
+            从第 {{ planStartChapter }} 章开始生成
           </div>
-        </template>
+        </el-form-item>
+        <el-form-item label="结束章节">
+          <el-input-number v-model="planEndChapter" :min="planStartChapter" />
+          <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
+            生成到第 {{ planEndChapter }} 章，共 {{ planEndChapter - planStartChapter + 1 }} 章
+          </div>
+        </el-form-item>
+        <div class="ml-[90px] text-xs text-[var(--el-text-color-secondary)]">
+          提示：只会为该范围内有事件的章节生成写作提示
+        </div>
       </el-form>
       <template #footer>
         <el-button @click="showGeneratePlanDialog = false">取消</el-button>
@@ -281,6 +243,20 @@
           </div>
         </div>
 
+        <div v-if="selectedEvent.dependencies?.length" class="mb-4">
+          <div class="text-xs text-[var(--el-text-color-secondary)] mb-2">依赖事件</div>
+          <div class="flex flex-col gap-2">
+            <div 
+              v-for="depId in selectedEvent.dependencies" 
+              :key="depId"
+              class="text-sm px-2 py-1.5 bg-[var(--el-fill-color-lighter)] rounded cursor-pointer hover:bg-[var(--el-fill-color-light)]"
+              @click="selectEventById(depId)"
+            >
+              {{ getEventLabelById(depId) }}
+            </div>
+          </div>
+        </div>
+
         <div v-if="selectedEvent.preconditions?.length" class="mb-4">
           <div class="text-xs text-[var(--el-text-color-secondary)] mb-2">前置条件</div>
           <ul class="m-0 pl-[18px] text-[13px] leading-relaxed text-[var(--el-text-color-regular)]">
@@ -295,13 +271,90 @@
           </ul>
         </div>
 
-        <div class="mt-6 pt-4 border-t border-[var(--el-border-color-lighter)] flex justify-end">
+        <div class="mt-6 pt-4 border-t border-[var(--el-border-color-lighter)] flex justify-between">
+          <el-button type="primary" plain size="small" :icon="Edit" @click="openEditEventDialog(selectedEvent)">
+            编辑事件
+          </el-button>
           <el-button type="danger" plain size="small" :icon="Delete" @click="handleDeleteEvent(selectedEvent.id)">
-            删除此事件
+            删除事件
           </el-button>
         </div>
       </div>
     </el-drawer>
+
+    <!-- 事件编辑/新增对话框 -->
+    <el-dialog v-model="showEventDialog" :title="isEditingEvent ? '编辑事件' : '新增事件'" width="550px">
+      <el-form :model="eventForm" label-width="90px">
+        <el-form-item label="事件名称" required>
+          <el-input v-model="eventForm.label" placeholder="事件标题" />
+        </el-form-item>
+        <el-form-item label="事件类型">
+          <el-select v-model="eventForm.eventType" placeholder="选择事件类型">
+            <el-option label="情节推进" value="plot" />
+            <el-option label="角色发展" value="character" />
+            <el-option label="冲突事件" value="conflict" />
+            <el-option label="解决事件" value="resolution" />
+            <el-option label="过渡事件" value="transition" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="所属章节">
+          <el-input-number v-model="eventForm.chapter" :min="1" />
+        </el-form-item>
+        <el-form-item label="事件描述">
+          <el-input v-model="eventForm.description" type="textarea" :rows="3" placeholder="详细描述事件内容" />
+        </el-form-item>
+        <el-form-item label="相关角色">
+          <el-input v-model="eventForm.charactersText" placeholder="多个角色用逗号分隔" />
+        </el-form-item>
+        <el-form-item label="前置条件">
+          <el-input 
+            v-model="eventForm.preconditionsText" 
+            type="textarea" 
+            :rows="2" 
+            placeholder="每行一个前置条件"
+          />
+          <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
+            事件发生前需要满足的条件
+          </div>
+        </el-form-item>
+        <el-form-item label="后置影响">
+          <el-input 
+            v-model="eventForm.postconditionsText" 
+            type="textarea" 
+            :rows="2" 
+            placeholder="每行一个后置影响"
+          />
+          <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
+            事件发生后产生的影响
+          </div>
+        </el-form-item>
+        <el-form-item label="依赖事件">
+          <el-select 
+            v-model="eventForm.dependencies" 
+            multiple 
+            filterable
+            placeholder="选择此事件依赖的前置事件"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="event in availableDependencyEvents"
+              :key="event.id"
+              :label="`${event.label} (第${event.chapter}章)`"
+              :value="event.id"
+              :disabled="event.id === editingEventId"
+            />
+          </el-select>
+          <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
+            依赖关系将在事件图谱中显示为连接线
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showEventDialog = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveEvent">保存</el-button>
+      </template>
+    </el-dialog>
+
 
     <!-- 编辑章节对话框 -->
     <el-dialog v-model="showEditChapterDialog" title="编辑章节计划" width="450px">
@@ -371,12 +424,153 @@ const eventAppendCount = ref(6)
 const eventRangeStart = ref(1)
 const eventRangeEnd = ref(6)
 
+// 事件编辑相关
+const showEventDialog = ref(false)
+const isEditingEvent = ref(false)
+const editingEventId = ref<string | null>(null)
 const eventForm = ref({
   label: '',
   description: '',
   eventType: 'plot',
-  chapter: 1
+  chapter: 1,
+  charactersText: '',
+  preconditionsText: '',
+  postconditionsText: '',
+  dependencies: [] as string[]
 })
+
+// 可用的依赖事件列表（排除当前编辑的事件）
+const availableDependencyEvents = computed(() => {
+  return events.value.filter(e => e.id !== editingEventId.value)
+})
+
+// 打开新增事件对话框
+function openAddEventDialog() {
+  isEditingEvent.value = false
+  editingEventId.value = null
+  eventForm.value = {
+    label: '',
+    description: '',
+    eventType: 'plot',
+    chapter: 1,
+    charactersText: '',
+    preconditionsText: '',
+    postconditionsText: '',
+    dependencies: []
+  }
+  showEventDialog.value = true
+}
+
+// 打开编辑事件对话框
+function openEditEventDialog(event: any) {
+  isEditingEvent.value = true
+  editingEventId.value = event.id
+  eventForm.value = {
+    label: event.label || '',
+    description: event.description || '',
+    eventType: event.eventType || 'plot',
+    chapter: event.chapter || 1,
+    charactersText: (event.characters || []).join('、'),
+    preconditionsText: (event.preconditions || []).join('\n'),
+    postconditionsText: (event.postconditions || []).join('\n'),
+    dependencies: event.dependencies || []
+  }
+  showEventDetail.value = false
+  showEventDialog.value = true
+}
+
+// 保存事件（新增或更新）
+async function handleSaveEvent() {
+  if (!eventForm.value.label.trim()) {
+    ElMessage.warning('请输入事件名称')
+    return
+  }
+  
+  const characters = eventForm.value.charactersText
+    .split(/[,，、]/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0)
+  
+  const preconditions = eventForm.value.preconditionsText
+    .split('\n')
+    .map(s => s.trim())
+    .filter(s => s.length > 0)
+  
+  const postconditions = eventForm.value.postconditionsText
+    .split('\n')
+    .map(s => s.trim())
+    .filter(s => s.length > 0)
+  
+  let eventId: string
+  let eventChapter: number
+  
+  if (isEditingEvent.value && editingEventId.value) {
+    // 更新现有事件
+    const idx = events.value.findIndex(e => e.id === editingEventId.value)
+    if (idx !== -1) {
+      const oldChapter = events.value[idx].chapter
+      events.value[idx] = {
+        ...events.value[idx],
+        label: eventForm.value.label,
+        description: eventForm.value.description,
+        eventType: eventForm.value.eventType,
+        chapter: eventForm.value.chapter,
+        characters,
+        preconditions,
+        postconditions,
+        dependencies: eventForm.value.dependencies
+      }
+      eventId = editingEventId.value
+      eventChapter = eventForm.value.chapter
+      
+      // 如果章节号改变了，需要从旧章节中移除，添加到新章节
+      if (oldChapter !== eventChapter) {
+        // 从旧章节移除
+        const oldChapterObj = chapters.value.find(ch => Number(ch.chapterNumber) === oldChapter)
+        if (oldChapterObj && oldChapterObj.events) {
+          oldChapterObj.events = oldChapterObj.events.filter((id: string) => id !== eventId)
+        }
+      }
+      
+      ElMessage.success('事件已更新')
+    } else {
+      return
+    }
+  } else {
+    // 新增事件
+    const newEvent = {
+      id: `event_manual_${Date.now()}`,
+      label: eventForm.value.label,
+      description: eventForm.value.description,
+      eventType: eventForm.value.eventType,
+      chapter: eventForm.value.chapter,
+      characters,
+      preconditions,
+      postconditions,
+      dependencies: eventForm.value.dependencies
+    }
+    events.value.push(newEvent)
+    eventId = newEvent.id
+    eventChapter = newEvent.chapter
+    ElMessage.success('事件已添加')
+  }
+  
+  // 同步事件到对应章节的 events 列表
+  const targetChapter = chapters.value.find(ch => Number(ch.chapterNumber) === eventChapter)
+  if (targetChapter) {
+    if (!targetChapter.events) {
+      targetChapter.events = []
+    }
+    if (!targetChapter.events.includes(eventId)) {
+      targetChapter.events.push(eventId)
+    }
+  }
+  
+  graphRefreshKey.value += 1
+  planRefreshKey.value += 1
+  showEventDialog.value = false
+  await saveData()
+}
 
 watch(
   () => props.novelId,
@@ -739,58 +933,34 @@ async function doGenerateGraph() {
   generating.value = true
   try {
     const maxChapterNumber = getMaxChapterNumber()
-    const targetChapters = Math.max(generateOptions.value.targetChapters || 1, 1)
+    const targetChapters = eventAppendCount.value
 
-    const startChapter = eventGenerationMode.value === 'append'
-      ? maxChapterNumber + 1
-      : eventRangeStart.value
-    
-    const endChapter = eventGenerationMode.value === 'append'
-      ? startChapter + targetChapters - 1
-      : eventRangeEnd.value
+    // 追加模式：从当前最大章节号后开始
+    const startChapter = maxChapterNumber + 1
+    const endChapter = startChapter + targetChapters - 1
 
     const existingEvents = JSON.parse(JSON.stringify(events.value))
     const result = await window.electronAPI?.planning?.generateEventGraph({
       novelTitle: props.novelTitle || '未命名小说',
       synopsis: generateOptions.value.synopsis,
-      targetChapters: generateOptions.value.targetChapters,
-      lockWritingTarget: generateOptions.value.lockWritingTarget,
+      targetChapters,
       startChapter,
       endChapter,
       mergeEvents: true,
       existingEvents,
-      overrideRange: eventGenerationMode.value === 'override'
+      overrideRange: false
     })
 
     if (result?.events) {
+      console.log('[doGenerateGraph] 生成前事件数量:', events.value.length)
+      console.log('[doGenerateGraph] 后端返回事件数量:', result.events.length)
+      
       events.value = result.events
-
-      // 1. 自动补充缺失的章节计划
-      const existingChapters = new Set(chapters.value.map(c => Number(c.chapterNumber)))
-      const neededChapters = new Set(events.value.map(e => Number(e.chapter)).filter(n => Number.isFinite(n)))
       
-      const newChapters = []
-      for (const chNum of neededChapters) {
-        if (!existingChapters.has(chNum)) {
-          newChapters.push({
-            id: `ch_gen_${Date.now()}_${chNum}`,
-            chapterNumber: chNum,
-            title: `第 ${chNum} 章`,
-            targetWords: 3000,
-            priority: 'medium',
-            status: 'pending',
-            events: [],
-            focus: [],
-            writingHints: []
-          })
-        }
-      }
-      
-      if (newChapters.length > 0) {
-        chapters.value = [...chapters.value, ...newChapters].sort((a, b) => a.chapterNumber - b.chapterNumber)
-      }
+      console.log('[doGenerateGraph] 更新后事件数量:', events.value.length)
+      console.log('[doGenerateGraph] 事件列表:', events.value.map(e => ({ id: e.id, label: e.label, chapter: e.chapter })))
 
-      // 2. 将事件 ID 同步到章节的 events 列表
+      // 将事件 ID 同步到已有章节的 events 列表（不自动创建新章节）
       const evtMap = new Map<number, string[]>()
       events.value.forEach((e: any) => {
         const c = Number(e.chapter)
@@ -800,23 +970,33 @@ async function doGenerateGraph() {
         }
       })
       
-      chapters.value = chapters.value.map(ch => {
-        const chNum = Number(ch.chapterNumber)
-        if (evtMap.has(chNum)) {
-            const newIds = evtMap.get(chNum) || []
-            const existing = ch.events || []
-            return {
-                ...ch,
-                events: Array.from(new Set([...existing, ...newIds]))
-            }
-        }
-        return ch
-      })
+      // 只更新已存在章节的事件列表
+      if (chapters.value.length > 0) {
+        chapters.value = chapters.value.map(ch => {
+          const chNum = Number(ch.chapterNumber)
+          if (evtMap.has(chNum)) {
+              const newIds = evtMap.get(chNum) || []
+              const existing = ch.events || []
+              return {
+                  ...ch,
+                  events: Array.from(new Set([...existing, ...newIds]))
+              }
+          }
+          return ch
+        })
+        await syncPlanWithEvents()
+      }
 
       graphRefreshKey.value += 1
       planRefreshKey.value += 1
-      await syncPlanWithEvents()
-      ElMessage.success(`成功生成 ${result.events.length} 个事件节点`)
+      
+      // 提示用户下一步操作
+      const hasChapters = chapters.value.length > 0
+      const message = hasChapters 
+        ? `成功生成 ${result.events.length} 个事件节点，已同步到现有章节`
+        : `成功生成 ${result.events.length} 个事件节点，请点击"生成计划"创建章节`
+      ElMessage.success(message)
+      
       showGenerateDialog.value = false
       // 自动保存
       await saveData()
@@ -830,26 +1010,30 @@ async function doGenerateGraph() {
 
 // 生成计划配置
 const showGeneratePlanDialog = ref(false)
-const planGenerationMode = ref<'append' | 'override'>('append')
-const planAppendCount = ref(5)
-const planOverrideStart = ref(1)
-const planOverrideEnd = ref(10)
+const planStartChapter = ref(1)
+const planEndChapter = ref(10)
 
 function openGeneratePlanDialog() {
   if (events.value.length === 0) {
     ElMessage.warning('请先生成事件图谱')
     return
   }
-  // Initialize defaults
-  planGenerationMode.value = 'append'
-  planAppendCount.value = 5
-  if (chapters.value.length > 0) {
-    planOverrideStart.value = 1
-    planOverrideEnd.value = chapters.value.length
-  } else {
-    planOverrideStart.value = 1
-    planOverrideEnd.value = 10
-  }
+  
+  // 从事件中提取章节号范围
+  const eventChapters = events.value
+    .map(e => Number(e.chapter))
+    .filter(n => Number.isFinite(n))
+  const minEventChapter = eventChapters.length > 0 ? Math.min(...eventChapters) : 1
+  const maxEventChapter = eventChapters.length > 0 ? Math.max(...eventChapters) : 10
+  
+  // 获取当前已有章节的最大章节号
+  const existingChapterNumbers = chapters.value.map(ch => Number(ch.chapterNumber)).filter(Number.isFinite)
+  const maxExistingChapter = existingChapterNumbers.length > 0 ? Math.max(...existingChapterNumbers) : 0
+  
+  // 设置默认值：起始章节为当前最大章节+1，结束章节为事件的最大章节号
+  planStartChapter.value = maxExistingChapter + 1
+  planEndChapter.value = Math.max(maxEventChapter, maxExistingChapter + 5)
+  
   showGeneratePlanDialog.value = true
 }
 
@@ -870,29 +1054,18 @@ async function generatePlan() {
     // 序列化事件数据
     const serializedEvents = JSON.parse(JSON.stringify(events.value))
     
+    // 使用起始章节和结束章节
+    const startChapter = planStartChapter.value
+    const endChapter = planEndChapter.value
+    const targetChapters = endChapter - startChapter + 1
+    
     // 构建请求参数
     const params: any = {
       events: serializedEvents,
       wordsPerChapter: 3000,
-      mode: planGenerationMode.value,
-      // 保留原有参数以兼容后端（如果后端需要）
-      targetChapters: generateOptions.value.targetChapters
-    }
-
-    const existingChapterNumbers = chapters.value.map(ch => ch.chapterNumber)
-    const lastChapterNumber = existingChapterNumbers.length
-      ? Math.max(...existingChapterNumbers)
-      : 0
-
-    if (planGenerationMode.value === 'append') {
-      params.appendCount = planAppendCount.value
-      params.startChapter = lastChapterNumber + 1
-      params.endChapter = lastChapterNumber + planAppendCount.value
-    } else {
-      params.rangeStart = planOverrideStart.value
-      params.rangeEnd = planOverrideEnd.value
-      params.startChapter = planOverrideStart.value
-      params.endChapter = planOverrideEnd.value
+      startChapter,
+      endChapter,
+      targetChapters
     }
     
     const result = await window.electronAPI?.planning?.generatePlan(params)
@@ -900,17 +1073,36 @@ async function generatePlan() {
     if (result?.chapters) {
       const nextChapters = result.chapters.map((chapter: any) => ({
         ...chapter,
+        id: chapter.id || `ch_plan_${Date.now()}_${chapter.chapterNumber}`,
         lockWritingTarget: generateOptions.value.lockWritingTarget
       }))
 
-      if (planGenerationMode.value === 'append') {
-        chapters.value = [...chapters.value, ...nextChapters].sort((a, b) => a.chapterNumber - b.chapterNumber)
-      } else {
-        chapters.value = chapters.value
-          .filter(ch => ch.chapterNumber < planOverrideStart.value || ch.chapterNumber > planOverrideEnd.value)
-          .concat(nextChapters)
-          .sort((a, b) => a.chapterNumber - b.chapterNumber)
-      }
+      // 移除范围内的旧章节，添加新章节
+      chapters.value = chapters.value
+        .filter(ch => ch.chapterNumber < startChapter || ch.chapterNumber > endChapter)
+        .concat(nextChapters)
+        .sort((a, b) => a.chapterNumber - b.chapterNumber)
+      
+      // 同步事件ID到章节（确保章节的events列表正确）
+      const evtMap = new Map<number, string[]>()
+      events.value.forEach((e: any) => {
+        const c = Number(e.chapter)
+        if (Number.isFinite(c)) {
+          if (!evtMap.has(c)) evtMap.set(c, [])
+          evtMap.get(c)?.push(e.id)
+        }
+      })
+      
+      chapters.value = chapters.value.map(ch => {
+        const chNum = Number(ch.chapterNumber)
+        if (evtMap.has(chNum)) {
+          return {
+            ...ch,
+            events: evtMap.get(chNum) || []
+          }
+        }
+        return ch
+      })
       
       // 创建看板
       const serializedChapters = JSON.parse(JSON.stringify(chapters.value))
@@ -919,7 +1111,7 @@ async function generatePlan() {
         kanbanBoard.value = board
         planRefreshKey.value += 1
         viewMode.value = 'kanban'
-        ElMessage.success('章节计划生成完成')
+        ElMessage.success(`章节计划生成完成，共 ${nextChapters.length} 章`)
         // 自动保存
         await saveData()
       }
@@ -1088,6 +1280,22 @@ async function handleManualAddChapter(chapterData: any) {
   
   saveData()
 }
+
+// 根据事件ID获取事件标签
+function getEventLabelById(eventId: string): string {
+  const event = events.value.find(e => e.id === eventId)
+  return event ? `${event.label} (第${event.chapter}章)` : '未知事件'
+}
+
+// 根据ID选中事件
+function selectEventById(eventId: string) {
+  const event = events.value.find(e => e.id === eventId)
+  if (event) {
+    selectedEvent.value = event
+    showEventDetail.value = true
+  }
+}
+
 
 
 // 删除章节

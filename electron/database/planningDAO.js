@@ -300,12 +300,63 @@ function clearPlanningMeta(novelId) {
   return db.prepare('DELETE FROM planning_meta WHERE novelId = ?').run(novelId)
 }
 
+/**
+ * 按章节范围删除规划章节
+ * @param {string} novelId - 小说ID
+ * @param {number} startChapter - 起始章节号
+ * @param {number} endChapter - 结束章节号
+ */
+function deletePlanningChaptersByRange(novelId, startChapter, endChapter) {
+  const db = getDatabase()
+  return db.prepare(
+    'DELETE FROM planning_chapter WHERE novelId = ? AND chapterNumber >= ? AND chapterNumber <= ?'
+  ).run(novelId, startChapter, endChapter)
+}
+
+/**
+ * 获取单个规划章节
+ * @param {string} novelId - 小说ID
+ * @param {number} chapterNumber - 章节号
+ */
+function getPlanningChapter(novelId, chapterNumber) {
+  const db = getDatabase()
+  const row = db.prepare(
+    'SELECT * FROM planning_chapter WHERE novelId = ? AND chapterNumber = ?'
+  ).get(novelId, chapterNumber)
+
+  if (!row) return null
+
+  return {
+    ...row,
+    focus: parseJson(row.focus, []),
+    writingHints: parseJson(row.writingHints, []),
+    events: parseJson(row.events, []),
+    lockWritingTarget: Boolean(row.lockWritingTarget)
+  }
+}
+
+/**
+ * 按章节范围删除规划事件
+ * @param {string} novelId - 小说ID
+ * @param {number} startChapter - 起始章节号
+ * @param {number} endChapter - 结束章节号
+ */
+function deletePlanningEventsByRange(novelId, startChapter, endChapter) {
+  const db = getDatabase()
+  return db.prepare(
+    'DELETE FROM planning_event WHERE novelId = ? AND chapter >= ? AND chapter <= ?'
+  ).run(novelId, startChapter, endChapter)
+}
+
 module.exports = {
   upsertPlanningEvents,
   deletePlanningEventsByNovel,
+  deletePlanningEventsByRange,
   listPlanningEvents,
   upsertPlanningChapters,
   deletePlanningChaptersByNovel,
+  deletePlanningChaptersByRange,
+  getPlanningChapter,
   listPlanningChapters,
   upsertPlanningMeta,
   getPlanningMeta,

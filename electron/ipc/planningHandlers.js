@@ -13,15 +13,20 @@ const { buildKnowledgeSummary } = require('../llm/knowledgeContext')
 const { buildPlanningSummary } = require('../llm/planningContext')
 
 function mergeEvents(existingEvents = [], newEvents = []) {
+  console.log('[mergeEvents] 现有事件数量:', existingEvents.length)
+  console.log('[mergeEvents] 新事件数量:', newEvents.length)
+  console.log('[mergeEvents] 现有事件 IDs:', existingEvents.map(e => e.id))
+  console.log('[mergeEvents] 新事件 IDs:', newEvents.map(e => e.id))
+
   const merged = [...existingEvents]
-  const existingMap = new Map(existingEvents.map(event => [String(event.label).trim().toLowerCase(), event]))
+  const existingMap = new Map(existingEvents.map(event => [event.id, event]))
 
   newEvents.forEach(event => {
-    const labelKey = String(event.label || '').trim().toLowerCase()
-    if (!labelKey) return
-
-    const existing = existingMap.get(labelKey)
-    if (existing) {
+    // 如果事件有 ID 且已存在，则更新该事件
+    if (event.id && existingMap.has(event.id)) {
+      const existing = existingMap.get(event.id)
+      console.log('[mergeEvents] 更新现有事件:', event.id)
+      // 更新事件属性
       if (event.description && event.description !== existing.description) {
         existing.description = event.description
       }
@@ -40,10 +45,16 @@ function mergeEvents(existingEvents = [], newEvents = []) {
       return
     }
 
+    // 新事件，直接添加
+    console.log('[mergeEvents] 添加新事件:', event.id)
     merged.push(event)
-    existingMap.set(labelKey, event)
+    if (event.id) {
+      existingMap.set(event.id, event)
+    }
   })
 
+  console.log('[mergeEvents] 合并后事件数量:', merged.length)
+  console.log('[mergeEvents] 合并后事件 IDs:', merged.map(e => e.id))
   return merged
 }
 
@@ -296,15 +307,44 @@ function registerPlanningHandlers(ipcMain) {
   // 生成章节计划
   ipcMain.handle('planning:generatePlan', async (_, options) => {
     try {
+      // 解析前端传递的参数
+      const { mode, startChapter, endChapter, appendCount, targetChapters, wordsPerChapter = 3000 } = options
+
+      // 过滤出有章节关联的事件
       const chapterEvents = (options.events || []).filter(event => event.chapter != null)
+
+      console.log('[planning:generatePlan] 参数:', {
+        mode,
+        startChapter,
+        endChapter,
+        eventsCount: chapterEvents.length,
+        targetChapters
+      })
+
+      // 根据模式计算章节范围
+      let effectiveStart = startChapter || 1
+      let effectiveEnd = endChapter
+
+      if (!effectiveEnd) {
+        // 如果没有指定结束章节，根据事件推断
+        const eventChapters = chapterEvents.map(e => e.chapter).filter(c => c != null)
+        effectiveEnd = eventChapters.length > 0 ? Math.max(...eventChapters) : (effectiveStart + (targetChapters || 10) - 1)
+      }
+
       const result = await planningAgent.generateChapterPlan({
         events: chapterEvents,
-        targetChapters: options.targetChapters,
-        wordsPerChapter: options.wordsPerChapter,
-        pacing: options.pacing,
-        startChapter: options.startChapter,
-        endChapter: options.endChapter
+        targetChapters: targetChapters || (effectiveEnd - effectiveStart + 1),
+        wordsPerChapter,
+        pacing: options.pacing || 'medium',
+        startChapter: effectiveStart,
+        endChapter: effectiveEnd
       })
+
+      console.log('[planning:generatePlan] 生成结果:', {
+        chaptersCount: result.chapters?.length,
+        summary: result.summary
+      })
+
       return {
         ...result,
         unassignedEvents: (options.events || []).filter(event => event.chapter == null)
@@ -408,12 +448,13 @@ function registerPlanningHandlers(ipcMain) {
         throw new Error('章节数据校验失败: 章节号重复')
       }
 
-      const invalidEventChapters = (eventsResult.data || []).filter(event => {
+      // 职责分离后，事件可以关联尚未创建的章节，仅记录警告
+      const unlinkedEvents = (eventsResult.data || []).filter(event => {
         if (event.chapter == null) return false
         return !numberSet.has(Number(event.chapter))
       })
-      if (invalidEventChapters.length) {
-        throw new Error(`事件数据校验失败: 存在未关联章节的事件 (${invalidEventChapters.length})`)
+      if (unlinkedEvents.length > 0) {
+        console.log(`[planning:saveData] 有 ${unlinkedEvents.length} 个事件关联的章节尚未创建，这是正常的（请使用"生成计划"创建章节）`)
       }
 
       planningDAO.deletePlanningEventsByNovel(novelId)
