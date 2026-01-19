@@ -158,53 +158,6 @@ function registerPlanningHandlers(ipcMain) {
   })
 
 
-  // 从章节提取事件
-  ipcMain.handle('outline:extractEvents', async (_, options) => {
-    try {
-      const events = await outlineAgent.extractEventsFromChapters({
-        chapters: options.chapters,
-        novelId: options.novelId
-      })
-      return events
-    } catch (error) {
-      console.error('提取事件失败:', error)
-      throw error
-    }
-  })
-
-  // 分析事件依赖
-  ipcMain.handle('outline:analyzeDependencies', async (_, events) => {
-    try {
-      const result = await outlineAgent.analyzeEventDependencies(events)
-      return result
-    } catch (error) {
-      console.error('分析依赖失败:', error)
-      throw error
-    }
-  })
-
-  // 扩展事件节点
-  ipcMain.handle('outline:expandEvent', async (_, event, context) => {
-    try {
-      const result = await outlineAgent.expandEventNode(event, context)
-      return result
-    } catch (error) {
-      console.error('扩展事件失败:', error)
-      throw error
-    }
-  })
-
-  // 验证事件图谱
-  ipcMain.handle('outline:validateGraph', async (_, events) => {
-    try {
-      const result = await outlineAgent.validateEventGraph(events)
-      return result
-    } catch (error) {
-      console.error('验证图谱失败:', error)
-      throw error
-    }
-  })
-
   // ===== Planning Agent =====
 
   ipcMain.handle('planning:getChapterPlan', async (_, novelId, chapterNumber) => {
@@ -423,28 +376,6 @@ function registerPlanningHandlers(ipcMain) {
       return recommendation
     } catch (error) {
       console.error('推荐任务失败:', error)
-      throw error
-    }
-  })
-
-  // 估算写作时间
-  ipcMain.handle('planning:estimateTime', async (_, chapter, wordsPerHour) => {
-    try {
-      const estimate = planningAgent.estimateWritingTime(chapter, wordsPerHour)
-      return estimate
-    } catch (error) {
-      console.error('估算时间失败:', error)
-      throw error
-    }
-  })
-
-  // 生成写作日程
-  ipcMain.handle('planning:generateSchedule', async (_, chapters, options) => {
-    try {
-      const schedule = planningAgent.generateWritingSchedule(chapters, options)
-      return schedule
-    } catch (error) {
-      console.error('生成日程失败:', error)
       throw error
     }
   })
