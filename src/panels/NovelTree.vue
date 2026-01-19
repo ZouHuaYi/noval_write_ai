@@ -208,6 +208,7 @@ type Chapter = {
 
 const props = defineProps<{
   novelId?: string
+  selectedChapterId?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -293,6 +294,23 @@ watch(() => props.novelId, (novelId) => {
     searchKeyword.value = ''
   }
 })
+
+// 监听外部传入的选中章节ID
+watch(() => props.selectedChapterId, (newId) => {
+  if (newId) {
+    activeChapterId.value = newId
+    console.log('[NovelTree] 外部选中章节:', newId)
+    // 确保选中的章节在当前页面可见
+    const chapterIndex = filteredChapters.value.findIndex(c => c.id === newId)
+    if (chapterIndex !== -1) {
+      const targetPage = Math.floor(chapterIndex / pageSize.value) + 1
+      if (targetPage !== currentPage.value) {
+        console.log('[NovelTree] 切换到页面:', targetPage)
+        currentPage.value = targetPage
+      }
+    }
+  }
+}, { immediate: true })
 
 watch(searchKeyword, () => {
   // 搜索时重置到第一页

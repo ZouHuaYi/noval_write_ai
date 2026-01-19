@@ -111,6 +111,7 @@
             <NovelTree 
               v-if="leftTab === 'chapters'"
               :novel-id="novelId" 
+              :selected-chapter-id="currentChapterId"
               @chapter-selected="handleChapterSelected"
             />
             <div
@@ -253,48 +254,65 @@ async function loadChapter(chapterId: string) {
   if (!chapterId) return
   
   try {
-    if (!window.electronAPI?.chapter || !window.electronAPI?.planning) {
+    if (!window.electronAPI?.chapter) {
       ElMessage.warning('Electron API 未加载')
       return
     }
     const chapter = await window.electronAPI.chapter.get(chapterId)
-    const chapterNum = chapter?.chapterNumber
-    const existingChapter = await window.electronAPI.chapter.getByNumber(novelId.value, chapterNum)
-
-    if (existingChapter) {
-      // 3. 如果存在，直接选中并加载
-      currentChapterId.value = existingChapter.id
-      await loadChapter(existingChapter.id)
-    } else {
-      // 4. 如果不存在，询问是否创建
-      try {
-        await ElMessageBox.confirm(
-          `第 ${chapterNum} 章尚未创建，是否立即创建并开始写作？`,
-          '章节未找到',
-          {
-            confirmButtonText: '立即创建',
-            cancelButtonText: '取消',
-            type: 'info'
-          }
-        )
-
-        const newChapter = await window.electronAPI.planning.ensureChapter(novelId.value, {
-          chapterNumber: chapterNum
-        })
-
-        if (newChapter?.id) {
-          currentChapterId.value = newChapter.id
-          await loadChapter(newChapter.id)
-          ElMessage.success(`已创建第 ${chapterNum} 章`)
-        }
-      } catch {
-        // 用户取消
-      }
+    if (chapter) {
+      currentChapter.value = chapter
+      currentChapterContent.value = chapter.content || ''
     }
   } catch (error) {
-    console.error('跳转写作失败:', error)
-    ElMessage.error('无法跳转到写作界面')
+    console.error('加载章节失败:', error)
+    ElMessage.error('加载章节失败')
   }
+}
+
+// 处理从规划工作台点击"开始写作"
+async function handleStartWriting(chapterId: string) {
+  console.log('[Workbench] handleStartWriting 被调用，章节ID:', chapterId)
+  
+  // 1. 切换到章节标签页
+  leftTab.value = 'chapters'
+  console.log('[Workbench] 已切换到章节标签页')
+  
+  // 2. 选中该章节
+  currentChapterId.value = chapterId
+  console.log('[Workbench] 设置 currentChapterId:', chapterId)
+  
+  await loadChapter(chapterId)
+  
+  console.log('[Workbench] 章节加载完成')
+}
+
+// 处理章节更新
+async function handleChapterUpdated() {
+  if (currentChapterId.value) {
+    await loadChapter(currentChapterId.value)
+  }
+}
+
+// 处理文本选中
+function handleTextSelected(text: string) {
+  selectedText.value = text
+}
+
+// 处理内容变化
+function handleContentChanged(content: string) {
+  currentChapterContent.value = content
+}
+
+// 处理章节生成完成
+async function handleChapterGenerated() {
+  if (currentChapterId.value) {
+    await loadChapter(currentChapterId.value)
+  }
+}
+
+// 处理内容更新
+function handleContentUpdated(content: string) {
+  currentChapterContent.value = content
 }
 
 function goBack() {

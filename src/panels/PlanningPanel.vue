@@ -1563,17 +1563,44 @@ async function handleStartWriting(chapterNumber: number) {
   if (!props.novelId) return
 
   const plan = chapters.value.find(c => c.chapterNumber === chapterNumber)
-  if (!plan) return
+  if (!plan) {
+    ElMessage.warning('章节计划不存在')
+    return
+  }
 
   try {
-    if (!window.electronAPI?.planning?.ensureChapter) return
-    const chapter = await window.electronAPI.planning.ensureChapter(props.novelId, {
-      chapterNumber
-    })
-
-    if (chapter?.id) {
-      emit('start-writing', `chapter_${chapterNumber}`)
+    // 1. 检查章节是否已存在
+    const existingChapter = await window.electronAPI?.chapter?.getByNumber(props.novelId, chapterNumber)
+    
+    let chapterId: string
+    
+    if (existingChapter) {
+      // 2. 章节已存在，直接使用
+      chapterId = existingChapter.id
+      console.log(`章节 ${chapterNumber} 已存在，ID: ${chapterId}`)
+    } else {
+      // 3. 章节不存在，创建新章节
+      if (!window.electronAPI?.planning?.ensureChapter) {
+        ElMessage.error('无法创建章节')
+        return
+      }
+      
+      const newChapter = await window.electronAPI.planning.ensureChapter(props.novelId, {
+        chapterNumber
+      })
+      
+      if (!newChapter?.id) {
+        ElMessage.error('创建章节失败')
+        return
+      }
+      
+      chapterId = newChapter.id
+      console.log(`已创建章节 ${chapterNumber}，ID: ${chapterId}`)
+      ElMessage.success(`已创建第 ${chapterNumber} 章`)
     }
+    
+    // 4. 发送事件到父组件，让父组件切换标签页并选中章节
+    emit('start-writing', chapterId)
   } catch (error: any) {
     console.error('开始写作操作失败:', error)
     ElMessage.error('操作失败: ' + (error.message || '未知错误'))
