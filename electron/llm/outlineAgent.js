@@ -104,8 +104,6 @@ ${rangeLabel}
 重要：必须为每个事件填写 chapter，且 chapter 必须在 ${startChapter} 到 ${endChapter ?? (startChapter + chaptersCount - 1)} 的范围内。不能全部是第 1 章。
 
 返回 JSON 格式的事件图谱。`
-
-
   try {
     const response = await llmService.callChatModel({
       messages: [

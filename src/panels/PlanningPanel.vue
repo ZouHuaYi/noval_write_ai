@@ -183,7 +183,7 @@
 
         <template v-if="eventGenerationMode === 'append'">
           <el-form-item label="追加章节">
-            <el-input-number v-model="eventAppendCount" :min="1" :max="50" />
+            <el-input-number v-model="eventAppendCount" :min="1" :max="1000" />
             <div class="text-xs text-[var(--el-text-color-secondary)] mt-1">
               在当前章节范围之后追加 {{ eventAppendCount }} 章事件
             </div>
@@ -195,12 +195,12 @@
             <el-input-number v-model="eventRangeStart" :min="1" :max="Math.max(chapters.length, 1)" />
           </el-form-item>
           <el-form-item label="结束章节">
-            <el-input-number v-model="eventRangeEnd" :min="eventRangeStart" />
+            <el-input-number v-model="eventRangeEnd" :min="eventRangeStart" :max="Math.max(chapters.length, 1)" />
           </el-form-item>
         </template>
 
         <el-form-item label="目标章节数">
-          <el-input-number v-model="generateOptions.targetChapters" :min="1" :max="1000" />
+          <el-input-number disabled v-model="generateOptions.targetChapters" :min="1" :max="30" />
         </el-form-item>
         <el-form-item label="故事梗概">
           <el-input 
@@ -799,7 +799,7 @@ function generateEventGraph() {
   const maxChapterNumber = getMaxChapterNumber()
 
   eventGenerationMode.value = 'append'
-  eventAppendCount.value = 6
+  eventAppendCount.value = 5
   eventRangeStart.value = 1
   eventRangeEnd.value = maxChapterNumber || Math.max(generateOptions.value.targetChapters || 1, 1)
 
@@ -816,16 +816,12 @@ async function doGenerateGraph() {
   generating.value = true
   try {
     const maxChapterNumber = getMaxChapterNumber()
-
-    const appendBatch = Math.max(eventAppendCount.value || 1, 1)
     const targetChapters = Math.max(generateOptions.value.targetChapters || 1, 1)
 
     const startChapter = eventGenerationMode.value === 'append'
       ? maxChapterNumber + 1
       : eventRangeStart.value
     
-    // 在 append 模式下，targetChapters 已经通过 watcher 同步为追加数量
-    // 所以结束章节应该是 start + targetChapters - 1
     const endChapter = eventGenerationMode.value === 'append'
       ? startChapter + targetChapters - 1
       : eventRangeEnd.value
@@ -853,7 +849,6 @@ async function doGenerateGraph() {
       // 自动保存
       await saveData()
     }
-
   } catch (error: any) {
     console.error('生成图谱失败:', error)
     ElMessage.error('生成图谱失败: ' + (error.message || '未知错误'))
