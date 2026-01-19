@@ -337,7 +337,7 @@ async function loadChapters() {
         activeChapterId.value = chapters.value[0].id
         emit('chapter-selected', chapters.value[0].id)
       }
-      // 如果当前选中的章节被删除了，重新选择第一章节
+      // 如果当前选中的章节被删除了,重新选择第一章节
       if (chapters.value.length > 0 && activeChapterId.value) {
         const exists = chapters.value.find(c => c.id === activeChapterId.value)
         if (!exists) {
@@ -345,7 +345,7 @@ async function loadChapters() {
           emit('chapter-selected', chapters.value[0].id)
         }
       }
-      // 如果没有章节了，清空选中
+      // 如果没有章节了,清空选中
       if (chapters.value.length === 0) {
         activeChapterId.value = null
       }
@@ -353,7 +353,7 @@ async function loadChapters() {
       ElMessage.warning('Electron API 未加载')
     }
   } catch (error: any) {
-    console.error('加载章节列表失败:', error)
+    console.error('[NovelTree] 加载章节列表失败:', error)
     ElMessage.error('加载章节列表失败')
   } finally {
     loading.value = false
@@ -556,6 +556,11 @@ const handleClearAllChapters = async () => {
     // 用户取消操作
   }
 }
+
+// 暴露方法供父组件调用
+defineExpose({
+  loadChapters
+})
 </script>
 
 <style scoped>

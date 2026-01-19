@@ -109,6 +109,7 @@
           <!-- 内容区域 -->
           <div class="flex-1 overflow-hidden">
             <NovelTree 
+              ref="novelTreeRef"
               v-if="leftTab === 'chapters'"
               :novel-id="novelId" 
               :selected-chapter-id="currentChapterId"
@@ -200,6 +201,7 @@ const currentChapterId = ref<string | null>(null)
 const currentChapter = ref<any>(null)
 const currentChapterContent = ref<string>('')
 const selectedText = ref<string>('')
+const novelTreeRef = ref<InstanceType<typeof NovelTree> | null>(null)
 
 const activeTabLabel = computed(() => {
   const labelMap: Record<string, string> = {
@@ -290,6 +292,14 @@ async function handleStartWriting(chapterId: string) {
 async function handleChapterUpdated() {
   if (currentChapterId.value) {
     await loadChapter(currentChapterId.value)
+  }
+  // 刷新章节列表以更新字数和标题
+  if (novelTreeRef.value && typeof (novelTreeRef.value as any).loadChapters === 'function') {
+    try {
+      await (novelTreeRef.value as any).loadChapters()
+    } catch (error) {
+      console.error('[Workbench] 刷新章节列表失败:', error)
+    }
   }
 }
 

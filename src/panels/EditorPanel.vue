@@ -124,6 +124,15 @@ import { computed, ref, watch } from 'vue'
 import RichEditor from '@/components/RichEditor.vue'
 import { extractMentionIds, htmlToPlainText } from '@/utils/mentionParser'
 
+// 防抖函数
+function debounce<T extends (...args: any[]) => any>(fn: T, delay: number) {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+  return function(this: any, ...args: Parameters<T>) {
+    if (timeoutId) clearTimeout(timeoutId)
+    timeoutId = setTimeout(() => fn.apply(this, args), delay)
+  }
+}
+
 interface KnowledgeItem {
   id: string
   type: 'character' | 'location' | 'event' | 'item' | 'rule' | 'other'
@@ -300,13 +309,17 @@ const updateWordCount = () => {
 const handleContentInput = () => {
   updateWordCount()
   emit('content-changed', content.value)
+  // 防抖自动保存
+  debouncedAutoSave()
 }
 
 const handleRichContentChange = (html: string) => {
-  // 同步到纯文本内容（用于保存）
+  // 同步到纯文本内容(用于保存)
   content.value = htmlToPlainText(html)
   updateWordCount()
   emit('content-changed', content.value)
+  // 防抖自动保存
+  debouncedAutoSave()
 }
 
 const handleMentionInsert = (item: KnowledgeItem) => {
@@ -335,24 +348,34 @@ const handleTextSelect = (event: Event) => {
  */
 async function autoSave() {
   if (!props.chapterId || saving.value) return
+  saving.value = true
   try {
     if (window.electronAPI?.chapter) {
       const updateData: any = {
         content: content.value
       }
       await window.electronAPI.chapter.update(props.chapterId, updateData)
-      // 静默保存，不显示消息
+      // 静默保存,不显示消息
       status.value = 'draft'
       
-      // 自动触发知识图谱分析（仅当内容足够长时）
-      if (props.novelId && content.value.length > 200 && chapterNumber.value) {
-        triggerGraphAnalysis()
-      }
+      // 触发章节更新事件,刷新章节列表
+      emit('chapter-updated', {})
+      
+      // 暂时禁用图谱分析以避免错误
+      // if (props.novelId && content.value.length > 200 && chapterNumber.value) {
+      //   triggerGraphAnalysis()
+      // }
     }
   } catch (error: any) {
+    console.error('[EditorPanel] 保存失败:', error)
     ElMessage.error('保存失败: ' + (error.message || '未知错误'))
+  } finally {
+    saving.value = false
   }
 }
+
+// 创建防抖的自动保存函数
+const debouncedAutoSave = debounce(autoSave, 1000)
 
 async function handleTitleUpdate() {
   if (!props.novelId || !chapterNumber.value) return
@@ -360,6 +383,15 @@ async function handleTitleUpdate() {
     await window.electronAPI?.planning?.updateChapter(props.novelId, chapterNumber.value, {
       title: chapterTitle.value
     })
+    
+    // 同时更新章节表的标题
+    if (props.chapterId) {
+      await window.electronAPI?.chapter?.update(props.chapterId, {
+        title: chapterTitle.value
+      })
+      // 触发章节更新事件,刷新章节列表
+      emit('chapter-updated', {})
+    }
   } catch (error: any) {
     console.error('更新章节标题失败:', error)
   }

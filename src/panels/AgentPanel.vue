@@ -27,6 +27,7 @@
             <!-- 润色文本 -->
             <div 
               class="group bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] shadow-sm hover:shadow-md cursor-pointer overflow-hidden"
+              :class="{ 'pointer-events-none opacity-60': processing }"
               @click="handlePolish"
             >
               <div class="p-4 space-y-2">
@@ -49,6 +50,7 @@
             <!-- 生成内容 -->
             <div 
               class="group bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] border-2 border-emerald-300 shadow-md hover:shadow-lg cursor-pointer overflow-hidden bg-emerald-50/60"
+              :class="{ 'pointer-events-none opacity-60': processing }"
               @click="handleGenerateNextChapter"
             >
               <div class="p-4 space-y-2">
@@ -70,6 +72,7 @@
 
             <div 
               class="group bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] shadow-sm hover:shadow-md cursor-pointer overflow-hidden"
+              :class="{ 'pointer-events-none opacity-60': processing }"
               @click="handleRegenerateChapter"
             >
               <div class="p-4 space-y-2">
@@ -93,6 +96,7 @@
             <!-- 一致性检查 -->
             <div 
               class="group bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] shadow-sm hover:shadow-md cursor-pointer overflow-hidden"
+              :class="{ 'pointer-events-none opacity-60': processing }"
               @click="handleConsistency"
             >
               <div class="p-4 space-y-2">
