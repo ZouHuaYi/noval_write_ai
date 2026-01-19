@@ -62,9 +62,8 @@ class KnowledgeGraph {
       return false
     }
 
-    const existing = this.graph.getNodeAttributes(id)
-    this.graph.setNodeAttributes(id, {
-      ...existing,
+    // 使用 mergeNodeAttributes 合并属性
+    this.graph.mergeNodeAttributes(id, {
       ...attributes,
       updatedAt: Date.now()
     })
@@ -237,9 +236,8 @@ class KnowledgeGraph {
       return false
     }
 
-    const existing = this.graph.getEdgeAttributes(edgeId)
-    this.graph.setEdgeAttributes(edgeId, {
-      ...existing,
+    // 使用 mergeEdgeAttributes 合并属性
+    this.graph.mergeEdgeAttributes(edgeId, {
       ...attributes,
       updatedAt: Date.now()
     })

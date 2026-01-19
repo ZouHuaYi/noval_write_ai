@@ -69,6 +69,16 @@ function registerGraphHandlers(ipcMain) {
     }
   })
 
+  // 清空图谱(保留图谱实例,只清空所有节点和边)
+  ipcMain.handle('graph:clear', async (_, novelId) => {
+    try {
+      return manager.clearGraph(novelId)
+    } catch (error) {
+      console.error('清空图谱失败:', error)
+      throw error
+    }
+  })
+
   // 删除章节相关图谱数据
   ipcMain.handle('graph:cleanupChapter', async (_, novelId, chapterNumber) => {
     try {

@@ -251,9 +251,13 @@ const filteredChapters = computed(() => {
     return chapters.value
   }
   const keyword = searchKeyword.value.toLowerCase()
-  return chapters.value.filter(chapter => 
-    chapter.title.toLowerCase().includes(keyword)
-  )
+  return chapters.value.filter(chapter => {
+    // 支持按标题搜索
+    const titleMatch = chapter.title.toLowerCase().includes(keyword)
+    // 支持按章节编号搜索
+    const numberMatch = chapter.chapterNumber.toString().includes(keyword)
+    return titleMatch || numberMatch
+  })
 })
 
 // 分页后的章节列表

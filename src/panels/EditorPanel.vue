@@ -361,10 +361,10 @@ async function autoSave() {
       // 触发章节更新事件,刷新章节列表
       emit('chapter-updated', {})
       
-      // 暂时禁用图谱分析以避免错误
-      // if (props.novelId && content.value.length > 200 && chapterNumber.value) {
-      //   triggerGraphAnalysis()
-      // }
+      // 自动触发知识图谱分析(仅当内容足够长时)
+      if (props.novelId && content.value.length > 200 && chapterNumber.value) {
+        triggerGraphAnalysis()
+      }
     }
   } catch (error: any) {
     console.error('[EditorPanel] 保存失败:', error)

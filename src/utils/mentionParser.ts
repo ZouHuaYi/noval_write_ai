@@ -97,14 +97,21 @@ function getTypeLabel(type: string): string {
  * 将 HTML 内容转换为纯文本（用于字数统计）
  */
 export function htmlToPlainText(html: string): string {
-  // 移除 HTML 标签
-  let text = html.replace(/<[^>]+>/g, '')
-  // 解码 HTML 实体
+  // 1. 将 </p> 标签替换为双换行(段落分隔)
+  let text = html.replace(/<\/p>/gi, '\n\n')
+  // 2. 将 <br> 标签替换为单换行
+  text = text.replace(/<br\s*\/?>/gi, '\n')
+  // 3. 移除其他所有 HTML 标签
+  text = text.replace(/<[^>]+>/g, '')
+  // 4. 解码 HTML 实体
   text = text.replace(/&nbsp;/g, ' ')
   text = text.replace(/&lt;/g, '<')
   text = text.replace(/&gt;/g, '>')
   text = text.replace(/&amp;/g, '&')
   text = text.replace(/&quot;/g, '"')
+  // 5. 去除多余的空白行(连续3个以上换行变为2个)
+  text = text.replace(/\n{3,}/g, '\n\n')
+  // 6. 去除首尾空白
   return text.trim()
 }
 

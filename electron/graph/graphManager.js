@@ -76,6 +76,24 @@ class GraphManager {
     return result
   }
 
+  /**
+   * 清空图谱(保留图谱实例,只清空所有节点和边)
+   */
+  clearGraph(novelId) {
+    try {
+      // 创建新的空图谱替换现有图谱
+      const newGraph = new KnowledgeGraph(novelId)
+      this.graphs.set(novelId, newGraph)
+
+      // 保存空图谱到文件
+      this.saveGraph(novelId)
+      return true
+    } catch (error) {
+      console.error(`清空图谱失败 [${novelId}]:`, error)
+      return false
+    }
+  }
+
 
   /**
    * 删除图谱

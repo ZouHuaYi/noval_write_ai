@@ -41,6 +41,10 @@
           <el-icon><Refresh /></el-icon>
           刷新
         </el-button>
+        <el-button size="small" type="danger" plain @click="handleClearGraph">
+          <el-icon><Delete /></el-icon>
+          清空图谱
+        </el-button>
         <el-button size="small" type="primary" @click="handleSave" :loading="saving">
           <el-icon><Checked /></el-icon>
           保存图谱
@@ -216,9 +220,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
-  CircleCheckFilled, CircleClose, Connection, InfoFilled, 
+  CircleCheckFilled, CircleClose, Connection, Delete, InfoFilled, 
   Location, MagicStick, Plus, Present, Refresh, Checked,
   Search, Setting, User, Warning, WarnTriangleFilled 
 } from '@element-plus/icons-vue'
@@ -534,6 +538,36 @@ async function saveWorldSettings() {
     ElMessage.error('保存失败')
   } finally {
     savingSettings.value = false
+  }
+}
+
+// 清空图谱
+async function handleClearGraph() {
+  if (!props.novelId) return
+  
+  try {
+    await ElMessageBox.confirm(
+      '确定要清空整个知识图谱吗?此操作不可恢复!',
+      '警告',
+      {
+        confirmButtonText: '确定清空',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
+    
+    // 调用API清空图谱
+    await window.electronAPI?.graph?.clear(props.novelId)
+    
+    ElMessage.success('图谱已清空')
+    refreshGraph()
+    consistencyResult.value = null
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      console.error('清空图谱失败:', error)
+      ElMessage.error('清空图谱失败')
+    }
   }
 }
 

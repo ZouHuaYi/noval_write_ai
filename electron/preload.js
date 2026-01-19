@@ -138,6 +138,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     save: (novelId) => ipcRenderer.invoke('graph:save', novelId),
     load: (novelId) => ipcRenderer.invoke('graph:load', novelId),
     delete: (novelId) => ipcRenderer.invoke('graph:delete', novelId),
+    clear: (novelId) => ipcRenderer.invoke('graph:clear', novelId),
     exportJSON: (novelId) => ipcRenderer.invoke('graph:exportJSON', novelId),
 
     // 节点操作

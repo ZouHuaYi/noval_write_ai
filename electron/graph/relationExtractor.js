@@ -288,25 +288,45 @@ function updateGraphWithExtraction(graph, extraction, chapter) {
 
   // 2. 添加关系边
   relations.forEach(relation => {
+    // 检查 source 和 target 是否存在
+    if (!relation.source || !relation.target) {
+      console.warn('跳过无效关系:', relation)
+      return
+    }
+
     const sourceId = nodeMapping.get(relation.source) || normalizeEntityId(relation.source)
     const targetId = nodeMapping.get(relation.target) || normalizeEntityId(relation.target)
 
     // 只有当两个节点都存在时才添加边
     if (graph.getNode(sourceId) && graph.getNode(targetId)) {
-      // 验证关系是否冲突
-      const validation = graph.validateNewRelation(sourceId, targetId, relation.type, chapter)
+      // 检查是否已存在相同类型的关系
+      const existingEdges = graph.getEdgesBetween(sourceId, targetId)
+      const sameTypeEdge = existingEdges.find(e => e.type === relation.type)
 
-      if (validation.valid) {
-        graph.addEdge(sourceId, targetId, {
-          type: relation.type,
+      if (sameTypeEdge) {
+        // 如果已存在相同类型的关系,更新它而不是重复添加
+        graph.updateEdge(sameTypeEdge.id, {
           label: relation.label,
           description: relation.description,
           chapter: chapter,
-          confidence: relation.confidence || 0.8,
-          bidirectional: relation.bidirectional || false
+          confidence: Math.max(sameTypeEdge.confidence || 0, relation.confidence || 0.8)
         })
       } else {
-        console.warn(`跳过冲突关系: ${relation.source} -> ${relation.target}`, validation.issues)
+        // 验证关系是否冲突
+        const validation = graph.validateNewRelation(sourceId, targetId, relation.type, chapter)
+
+        if (validation.valid) {
+          graph.addEdge(sourceId, targetId, {
+            type: relation.type,
+            label: relation.label,
+            description: relation.description,
+            chapter: chapter,
+            confidence: relation.confidence || 0.8,
+            bidirectional: relation.bidirectional || false
+          })
+        } else {
+          console.warn(`跳过冲突关系: ${relation.source} -> ${relation.target}`, validation.issues)
+        }
       }
     }
   })
@@ -355,6 +375,10 @@ function updateGraphWithExtraction(graph, extraction, chapter) {
  * 规范化实体 ID
  */
 function normalizeEntityId(name) {
+  if (!name || typeof name !== 'string') {
+    console.warn('无效的实体名称:', name)
+    return 'unknown_' + Date.now()
+  }
   return name
     .toLowerCase()
     .replace(/\s+/g, '_')
