@@ -135,7 +135,8 @@ function registerPlanningHandlers(ipcMain) {
         existingOutline: options.existingOutline,
         targetChapters: options.targetChapters || 10,
         startChapter: options.startChapter || 1,
-        endChapter: options.endChapter ?? null
+        endChapter: options.endChapter ?? null,
+        existingEvents: options.existingEvents || [] // 传递已有事件
       })
 
       if (options.mergeEvents) {

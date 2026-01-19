@@ -1059,6 +1059,21 @@ async function generatePlan() {
     const endChapter = planEndChapter.value
     const targetChapters = endChapter - startChapter + 1
     
+    // 在生成前，先移除范围内已有的章节计划
+    // 这样可以让 LLM 重新审视整个范围，生成更连贯的计划
+    const chaptersToRemove = chapters.value.filter(ch => {
+      const chNum = Number(ch.chapterNumber)
+      return chNum >= startChapter && chNum <= endChapter
+    })
+    
+    if (chaptersToRemove.length > 0) {
+      console.log(`[generatePlan] 将移除 ${chaptersToRemove.length} 个已有章节计划，重新生成`)
+      chapters.value = chapters.value.filter(ch => {
+        const chNum = Number(ch.chapterNumber)
+        return chNum < startChapter || chNum > endChapter
+      })
+    }
+    
     // 构建请求参数
     const params: any = {
       events: serializedEvents,
@@ -1077,11 +1092,8 @@ async function generatePlan() {
         lockWritingTarget: generateOptions.value.lockWritingTarget
       }))
 
-      // 移除范围内的旧章节，添加新章节
-      chapters.value = chapters.value
-        .filter(ch => ch.chapterNumber < startChapter || ch.chapterNumber > endChapter)
-        .concat(nextChapters)
-        .sort((a, b) => a.chapterNumber - b.chapterNumber)
+      // 添加新生成的章节并排序
+      chapters.value = [...chapters.value, ...nextChapters].sort((a, b) => a.chapterNumber - b.chapterNumber)
       
       // 同步事件ID到章节（确保章节的events列表正确）
       const evtMap = new Map<number, string[]>()

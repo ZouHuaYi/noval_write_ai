@@ -33,7 +33,8 @@ async function generateEventGraph({
   existingOutline,
   targetChapters = 10,
   startChapter = 1,
-  endChapter = null
+  endChapter = null,
+  existingEvents = [] // 新增：已有的事件列表
 }) {
   const systemPrompt = `你是一个专业的小说故事架构师，擅长将故事大纲分解为结构化的事件图谱。
 
@@ -46,7 +47,7 @@ async function generateEventGraph({
 - characters: 相关角色列表
 - preconditions: 前置条件（需要先发生什么）
 - postconditions: 后置影响（会导致什么）
-- dependencies: 依赖的事件 ID 列表
+- dependencies: 依赖的事件 ID 列表（如果新事件依赖已有事件，使用已有事件的实际 ID）
 
 事件类型说明：
 - plot: 情节推进事件（故事核心进展）
@@ -78,6 +79,43 @@ async function generateEventGraph({
   const rangeLabel = endChapter != null ? `第 ${startChapter} 章 - 第 ${endChapter} 章` : `第 ${startChapter} 章起`
   const chaptersCount = endChapter != null ? Math.max(endChapter - startChapter + 1, 1) : targetChapters
 
+  // 构建已有事件的摘要信息
+  let existingEventsContext = ''
+  if (existingEvents && existingEvents.length > 0) {
+    // 只选择早于起始章节的事件
+    const eventsBeforeRange = existingEvents.filter(e => e.chapter < startChapter)
+
+    if (eventsBeforeRange.length > 0) {
+      // 找出这些事件所在的章节号，并排序
+      const chapterNumbers = [...new Set(eventsBeforeRange.map(e => e.chapter))].sort((a, b) => b - a)
+
+      // 只取最接近起始章节的5个章节
+      const relevantChapters = chapterNumbers.slice(0, 5)
+      const relevantEvents = eventsBeforeRange.filter(e => relevantChapters.includes(e.chapter))
+
+      if (relevantEvents.length > 0) {
+        existingEventsContext = `\n【已有事件】（可以在 dependencies 中引用这些事件的 ID）\n`
+        existingEventsContext += `以下是第 ${Math.min(...relevantChapters)} - ${Math.max(...relevantChapters)} 章的事件：\n\n`
+
+        // 按章节分组显示
+        relevantChapters.forEach(chapterNum => {
+          const chapterEvents = relevantEvents.filter(e => e.chapter === chapterNum)
+          if (chapterEvents.length > 0) {
+            existingEventsContext += `第${chapterNum}章：\n`
+            chapterEvents.forEach(event => {
+              existingEventsContext += `  - ID: ${event.id}, 标题: ${event.label}\n`
+              if (event.description) {
+                existingEventsContext += `    描述: ${event.description.substring(0, 50)}${event.description.length > 50 ? '...' : ''}\n`
+              }
+            })
+          }
+        })
+
+        existingEventsContext += `\n提示：如果新生成的事件需要依赖这些已有事件，请在 dependencies 数组中使用它们的实际 ID。\n`
+      }
+    }
+  }
+
   const userPrompt = `请为以下小说生成事件图谱：
 
 【小说标题】
@@ -91,7 +129,7 @@ ${synopsis || '无'}
 
 【现有大纲】
 ${existingOutline || '无'}
-
+${existingEventsContext}
 【目标章节范围】
 ${rangeLabel}
 
@@ -100,6 +138,7 @@ ${rangeLabel}
 2. 覆盖该章节范围的开端、发展与阶段性收束
 3. 角色发展事件与情节事件交织
 4. 每个章节有 2-3 个主要事件
+5. 如果新事件需要依赖【已有事件】，请使用它们的实际 ID
 
 重要：必须为每个事件填写 chapter，且 chapter 必须在 ${startChapter} 到 ${endChapter ?? (startChapter + chaptersCount - 1)} 的范围内。不能全部是第 1 章。
 
