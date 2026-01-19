@@ -40,10 +40,19 @@
           <el-icon><Check /></el-icon>
           一致性检查
         </el-button>
-        <el-button size="small" @click="handleExport" :disabled="!chapters.length">
-          <el-icon><Download /></el-icon>
-          导出计划
-        </el-button>
+        <el-dropdown @command="handleExportCommand" :disabled="!chapters.length">
+          <el-button size="small">
+            <el-icon><Download /></el-icon>
+            导出
+            <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="markdown">导出 Markdown (文档)</el-dropdown-item>
+              <el-dropdown-item command="json">导出 JSON (备份)</el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
         <el-button size="small" type="danger" plain @click="handleClearData">
           <el-icon><Delete /></el-icon>
           清空
@@ -376,8 +385,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Aim, Calendar, List, MagicStick, Share, Document, Edit, Delete, Download, Plus, Lock, Unlock, Check } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { Aim, Calendar, List, MagicStick, Share, Document, Edit, Delete, Download, Plus, Lock, Unlock, Check, ArrowDown } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import EventGraph from '@/components/EventGraph.vue'
 import KanbanBoard from '@/components/KanbanBoard.vue'
 
@@ -712,6 +721,7 @@ async function handleDeleteEvent(eventId: string) {
   planRefreshKey.value += 1
   await syncPlanWithEvents()
   saveData()
+  showEventDetail.value = false
   ElMessage.success('事件已删除')
 }
 
@@ -801,20 +811,89 @@ async function handleClearData() {
   }
 }
 
+
+// 智能推荐
+async function getRecommendation() {
+  if (!props.novelId || chapters.value.length === 0) {
+    ElMessage.warning('请先生成章节于事件数据')
+    return
+  }
+  
+  try {
+    const serializedEvents = JSON.parse(JSON.stringify(events.value))
+    const serializedChapters = JSON.parse(JSON.stringify(chapters.value))
+    
+    // 显示加载中
+    const loadingInstance = ElLoading.service({
+      target: '.planning-panel',
+      text: '正在智能分析剧情走向...'
+    })
+
+    const result = await window.electronAPI?.planning?.recommendTask({
+      novelId: props.novelId,
+      events: serializedEvents,
+      chapters: serializedChapters
+    })
+    
+    loadingInstance.close()
+    
+    if (!result) {
+      ElMessage.info('暂时没有推荐的任务，请先完成现有章节或添加更多事件')
+      return
+    }
+    
+    const { chapter, reason, blockedBy } = result
+    
+    // 构建提示内容
+    const title = `推荐任务：第 ${chapter.chapterNumber} 章 ${chapter.title || '未命名'}`
+    let message = `<div style="text-align: left;">`
+    
+    if (reason && reason.length > 0) {
+      message += `<p><strong>推荐理由：</strong></p><ul>`
+      reason.forEach((r: string) => message += `<li>${r}</li>`)
+      message += `</ul>`
+    }
+    
+    if (blockedBy && blockedBy.length > 0) {
+      message += `<p style="color: var(--el-color-warning); margin-top: 10px;"><strong>阻碍因素：</strong></p>`
+      message += `<p>以下依赖事件尚未完成，建议先处理：</p><ul>`
+      blockedBy.forEach((dep: any) => {
+        message += `<li>${dep.label || dep.id} (第 ${dep.chapter} 章)</li>`
+      })
+      message += `</ul>`
+    }
+    
+    message += `</div>`
+    
+    ElMessageBox.alert(message, title, {
+      dangerouslyUseHTMLString: true,
+      confirmButtonText: '收到',
+      customClass: 'recommendation-dialog'
+    })
+    
+  } catch (error) {
+    console.error('获取推荐失败:', error)
+    ElMessage.error('获取智能推荐失败')
+  }
+}
+
 // 一致性检查
 async function runConsistencyCheck() {
   if (!props.novelId) return
   const errors: string[] = []
+  const warnings: string[] = []
 
+  // 1. 章节号检查
   const chapterNumbers = chapters.value
     .map(ch => Number(ch.chapterNumber))
     .filter(Number.isFinite)
 
   const numberSet = new Set(chapterNumbers)
   if (numberSet.size !== chapterNumbers.length) {
-    errors.push('章节号存在重复')
+    errors.push('存在重复的章节号，请检查章节列表')
   }
 
+  // 2. 事件关联章节检查
   const invalidEvents = events.value.filter(event => {
     if (event.chapter == null) return false
     return !numberSet.has(Number(event.chapter))
@@ -822,17 +901,94 @@ async function runConsistencyCheck() {
 
   if (invalidEvents.length) {
     const labels = invalidEvents
-      .slice(0, 6)
+      .slice(0, 3)
       .map(event => event.label || event.id)
       .join('、')
-    errors.push(`事件未关联有效章节：${labels}${invalidEvents.length > 6 ? '…' : ''}`)
+    errors.push(`${invalidEvents.length} 个事件关联了不存在的章节: ${labels}...`)
   }
 
-  if (errors.length) {
-    ElMessage.error(errors.join('；'))
+  // 构建事件映射以便后续检查
+  const eventMap = new Map(events.value.map(e => [e.id, e]))
+
+  // 3. 依赖关系检查
+  events.value.forEach(event => {
+    if (event.dependencies && event.dependencies.length) {
+      event.dependencies.forEach(depId => {
+        const depEvent = eventMap.get(depId)
+        
+        // 3.1 无效依赖
+        if (!depEvent) {
+          warnings.push(`事件 "${event.label}" 依赖了不存在的事件 (${depId})`)
+          return
+        }
+
+        // 3.2 时序倒置 (依赖了未来的事件)
+        if (event.chapter && depEvent.chapter && event.chapter < depEvent.chapter) {
+          warnings.push(`时序异常: 第${event.chapter}章的 "${event.label}" 依赖了第${depEvent.chapter}章的 "${depEvent.label}"`)
+        }
+      })
+    }
+  })
+
+  // 4. 循环依赖检查 (DFS)
+  const visited = new Set()
+  const recursionStack = new Set()
+  let hasCycle = false
+
+  function checkCycle(eventId: string) {
+    if (recursionStack.has(eventId)) return true // 发现循环
+    if (visited.has(eventId)) return false
+    
+    visited.add(eventId)
+    recursionStack.add(eventId)
+    
+    const event = eventMap.get(eventId)
+    if (event && event.dependencies) {
+      for (const depId of event.dependencies) {
+        if (checkCycle(depId)) {
+          // 仅报告一次循环
+          if (!hasCycle) {
+            errors.push(`检测到循环依赖: 相关事件包含 "${event.label || eventId}"`)
+            hasCycle = true
+          }
+          return true
+        }
+      }
+    }
+    
+    recursionStack.delete(eventId)
+    return false
+  }
+
+  for (const event of events.value) {
+    if (checkCycle(event.id)) break
+  }
+
+  // 结果汇报
+  if (errors.length > 0) {
+    // 严重错误
+    ElMessageBox.alert(
+      `<div style="color: var(--el-color-danger)">${errors.map(e => `<p>• ${e}</p>`).join('')}</div>` +
+      (warnings.length ? `<hr><div style="color: var(--el-color-warning)">${warnings.slice(0, 5).map(e => `<p>• ${e}</p>`).join('')}</div>` : ''),
+      '一致性检查未通过',
+      { dangerouslyUseHTMLString: true, title: '发现严重问题' }
+    )
     return
   }
 
+  if (warnings.length > 0) {
+    // 仅有警告
+    ElMessageBox.alert(
+      `<div style="color: var(--el-color-warning)">${warnings.slice(0, 8).map(e => `<p>• ${e}</p>`).join('')}${warnings.length > 8 ? '<p>...</p>' : ''}</div>`,
+      '发现潜在问题',
+      { dangerouslyUseHTMLString: true, title: '一致性检查建议' }
+    )
+    // 即使有警告，也保存数据
+  } else {
+    ElMessage.success('一致性检查通过，数据结构正常')
+  }
+
+  // 无论是否有警告，只要没有严重错误，都尝试保存一次以确保元数据一致
   if (!props.novelId) return
   try {
     const dataToSave = JSON.parse(JSON.stringify({
@@ -842,56 +998,79 @@ async function runConsistencyCheck() {
       generateOptions: generateOptions.value
     }))
     await window.electronAPI?.planning?.saveData(props.novelId, dataToSave)
-    ElMessage.success('一致性检查通过')
   } catch (error: any) {
-    const message = error?.message || '一致性检查失败'
-    ElMessage.error(message)
-    await loadData()
+    console.error('保存失败:', error)
   }
 }
 
 // 导出计划
-async function handleExport() {
-  if (!chapters.value.length) return
+async function handleExportCommand(command: string | undefined) {
+  if (!chapters.value.length && !events.value.length) return
+  const type = command || 'markdown'
   
   try {
-    let mdContent = `# ${props.novelTitle || '未命名小说'} - 章节计划\n\n`
+    let content = ''
+    let title = `${props.novelTitle || 'novel'}_plan`
     
-    chapters.value.forEach(ch => {
-      mdContent += `## 第 ${ch.chapterNumber} 章: ${ch.title}\n`
-      mdContent += `**重点**: ${ch.focus?.join(', ') || '无'}\n\n`
+    if (type === 'json') {
+      content = JSON.stringify({
+        meta: generateOptions.value,
+        events: events.value,
+        chapters: chapters.value,
+        kanbanBoard: kanbanBoard.value,
+        exportedAt: new Date().toISOString()
+      }, null, 2)
+      title = `${props.novelTitle || 'novel'}_backup`
+    } else {
+      // Markdown generation
+      content = `# ${props.novelTitle || '未命名小说'} - 章节计划\n\n`
+      chapters.value.forEach(ch => {
+        content += `## 第 ${ch.chapterNumber} 章: ${ch.title}\n`
+        content += `**重点**: ${ch.focus?.join(', ') || '无'}\n\n`
+        
+        if (ch.writingHints?.length) {
+          content += `### 写作建议\n`
+          ch.writingHints.forEach((hint: string) => {
+            content += `- ${hint}\n`
+          })
+          content += '\n'
+        }
+        
+        const chapterEvents = events.value.filter(e => ch.events?.includes(e.id))
+        if (chapterEvents.length) {
+          content += `### 包含事件\n`
+          chapterEvents.forEach(e => {
+            content += `- **${e.label}**: ${e.description || '无描述'}\n`
+          })
+          content += '\n'
+        }
+        
+        content += '---\n\n'
+      })
+    }
+    
+    // 既然是 Electron 应用，调用主进程保存文件对话框
+    if (window.electronAPI?.planning?.export) {
+      const result = await window.electronAPI.planning.export({
+        title,
+        content,
+        type
+      })
       
-      if (ch.writingHints?.length) {
-        mdContent += `### 写作建议\n`
-        ch.writingHints.forEach((hint: string) => {
-          mdContent += `- ${hint}\n`
-        })
-        mdContent += '\n'
+      if (result?.success) {
+        ElMessage.success(`导出成功: ${result.filePath}`)
       }
-      
-      const chapterEvents = events.value.filter(e => ch.events?.includes(e.id))
-      if (chapterEvents.length) {
-        mdContent += `### 包含事件\n`
-        chapterEvents.forEach(e => {
-          mdContent += `- **${e.label}**: ${e.description || '无描述'}\n`
-        })
-        mdContent += '\n'
-      }
-      
-      mdContent += '---\n\n'
-    })
-    
-    // 这里简单通过 Blob 导出，或者调用原生对话框
-    // 既然是 Electron 应用，最好调用主进程保存文件对话框，但这里先实现简单的展示或下载
-    const blob = new Blob([mdContent], { type: 'text/markdown' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${props.novelTitle || 'novel'}_plan.md`
-    a.click()
-    URL.revokeObjectURL(url)
-    
-    ElMessage.success('章节计划已导出为 Markdown')
+    } else {
+       // 降级回退：浏览器下载
+      const blob = new Blob([content], { type: type === 'json' ? 'application/json' : 'text/markdown' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${title}.${type === 'json' ? 'json' : 'md'}`
+      a.click()
+      URL.revokeObjectURL(url)
+      ElMessage.success(`已导出为 ${type === 'json' ? 'JSON' : 'Markdown'}`)
+    }
   } catch (error) {
     console.error('导出失败:', error)
     ElMessage.error('导出失败')
@@ -1137,28 +1316,7 @@ async function generatePlan() {
 }
 
 
-// 获取推荐
-async function getRecommendation() {
-  if (chapters.value.length === 0) return
 
-  try {
-    // 序列化数据
-    const serializedEvents = JSON.parse(JSON.stringify(events.value))
-    const serializedChapters = JSON.parse(JSON.stringify(chapters.value))
-
-    const result = await window.electronAPI?.planning?.recommendTask(
-      serializedEvents,
-      serializedChapters,
-      {} // 当前进度
-    )
-    
-    if (result) {
-      recommendation.value = result
-    }
-  } catch (error) {
-    console.error('获取推荐失败:', error)
-  }
-}
 
 // 事件处理
 function handleEventSelect(event: any) {

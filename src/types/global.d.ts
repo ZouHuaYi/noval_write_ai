@@ -268,8 +268,7 @@ declare global {
         generatePlan: (options) => Promise<any>
         // 创建看板
         createKanban: (chapters) => Promise<any>
-        // 推荐下一个任务
-        recommendTask: (events, chapters, progress) => Promise<any>
+        recommendTask: (options: { novelId: string; events?: any[]; chapters?: any[]; progress?: any }) => Promise<any>
         // 估算写作时间
         estimateTime: (chapter, wordsPerHour) => Promise<any>
         // 生成写作日程
@@ -291,6 +290,8 @@ declare global {
         loadData: (novelId: string) => Promise<any>
         // 清除规划数据
         clearData: (novelId: string) => Promise<any>
+        // 导出数据
+        export: (options: { title: string; content: string; type: string }) => Promise<{ success: boolean; filePath?: string }>
       }
 
 

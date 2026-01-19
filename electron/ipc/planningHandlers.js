@@ -2,6 +2,8 @@
  * Planning IPC Handlers
  * 处理规划相关的 IPC 请求
  */
+const { dialog, BrowserWindow } = require('electron')
+const fs = require('fs').promises
 const outlineAgent = require('../llm/outlineAgent')
 const planningAgent = require('../llm/planningAgent')
 
@@ -411,17 +413,32 @@ function registerPlanningHandlers(ipcMain) {
   })
 
   // 推荐下一个任务
-  ipcMain.handle('planning:recommendTask', async (_, events, chapters, progress) => {
+  ipcMain.handle('planning:recommendTask', async (_, { novelId, events, chapters }) => {
     try {
-      const recommendation = planningAgent.recommendNextTask(events, chapters, progress)
+      // 如果前端没有传数据，尝试从数据库加载
+      let currentEvents = events
+      let currentChapters = chapters
+
+      if (!currentEvents || !currentChapters) {
+        currentEvents = planningDAO.listPlanningEvents(novelId) || []
+        currentChapters = planningDAO.listPlanningChapters(novelId) || []
+      }
+
+      // 构建进度映射 (章节号 -> 状态)
+      const currentProgress = {}
+      currentChapters.forEach(ch => {
+        if (ch.status === 'completed') {
+          currentProgress[ch.chapterNumber] = 'completed'
+        }
+      })
+
+      const recommendation = planningAgent.recommendNextTask(currentEvents, currentChapters, currentProgress)
       return recommendation
     } catch (error) {
-      console.error('推荐任务失败:', error)
+      console.error('获取推荐任务失败:', error)
       throw error
     }
   })
-
-  // ===== 规划数据持久化 =====
 
   // 保存规划数据 (事件图谱 + 章节计划 + 看板状态)
   ipcMain.handle('planning:saveData', async (_, novelId, data) => {
@@ -524,6 +541,32 @@ function registerPlanningHandlers(ipcMain) {
       return { success: true }
     } catch (error) {
       console.error('清除规划数据失败:', error)
+      throw error
+    }
+  })
+
+  // 导出数据到文件
+  ipcMain.handle('planning:export', async (_, { title, content, type = 'markdown' }) => {
+    try {
+      const win = BrowserWindow.getFocusedWindow()
+      const filters = type === 'json'
+        ? [{ name: 'JSON Data', extensions: ['json'] }]
+        : [{ name: 'Markdown', extensions: ['md'] }]
+
+      const { canceled, filePath } = await dialog.showSaveDialog(win, {
+        title: '导出计划',
+        defaultPath: `${title || 'plan'}.${type === 'json' ? 'json' : 'md'}`,
+        filters
+      })
+
+      if (canceled || !filePath) {
+        return { success: false, canceled: true }
+      }
+
+      await fs.writeFile(filePath, content, 'utf8')
+      return { success: true, filePath }
+    } catch (error) {
+      console.error('导出文件失败:', error)
       throw error
     }
   })

@@ -103,7 +103,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 创建看板
     createKanban: (chapters) => ipcRenderer.invoke('planning:createKanban', chapters),
     // 推荐下一个任务
-    recommendTask: (events, chapters, progress) => ipcRenderer.invoke('planning:recommendTask', events, chapters, progress),
+    recommendTask: (options) => ipcRenderer.invoke('planning:recommendTask', options),
     // 估算写作时间
     estimateTime: (chapter, wordsPerHour) => ipcRenderer.invoke('planning:estimateTime', chapter, wordsPerHour),
     // 生成写作日程
@@ -124,7 +124,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 加载规划数据
     loadData: (novelId) => ipcRenderer.invoke('planning:loadData', novelId),
     // 清除规划数据
-    clearData: (novelId) => ipcRenderer.invoke('planning:clearData', novelId)
+    clearData: (novelId) => ipcRenderer.invoke('planning:clearData', novelId),
+    // 导出数据
+    export: (options) => ipcRenderer.invoke('planning:export', options)
   },
 
   // 知识图谱 API
