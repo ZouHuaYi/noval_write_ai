@@ -163,8 +163,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     validateContent: (novelId, content, chapter) => ipcRenderer.invoke('graph:validateContent', novelId, content, chapter),
 
     // 自动关系提取
-    analyzeChapter: (novelId, chapter, content, previousContent) =>
-      ipcRenderer.invoke('graph:analyzeChapter', novelId, chapter, content, previousContent),
+    analyzeChapter: (novelId, chapter, content, previousContent, contentHash) =>
+      ipcRenderer.invoke('graph:analyzeChapter', novelId, chapter, content, previousContent, contentHash),
 
     // 删除章节相关图谱数据
     cleanupChapter: (novelId, chapterNumber) => ipcRenderer.invoke('graph:cleanupChapter', novelId, chapterNumber),

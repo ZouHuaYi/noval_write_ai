@@ -29,6 +29,13 @@ function initDatabase() {
         db.exec(`ALTER TABLE chapter ADD COLUMN chapterNumber INTEGER`)
       }
 
+      // 添加 content_hash 字段
+      const hasContentHash = chapterTableInfo.some(col => col.name === 'contentHash')
+      if (!hasContentHash) {
+        console.log('执行数据库迁移：添加contentHash字段')
+        db.exec(`ALTER TABLE chapter ADD COLUMN contentHash TEXT`)
+      }
+
       const novels = db.prepare('SELECT id FROM novel').all()
       const updateStmt = db.prepare('UPDATE chapter SET chapterNumber = ? WHERE id = ?')
       const updateChapterNumbers = db.transaction(() => {

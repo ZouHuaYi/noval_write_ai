@@ -361,10 +361,8 @@ async function autoSave() {
       // 触发章节更新事件,刷新章节列表
       emit('chapter-updated', {})
       
-      // 自动触发知识图谱分析(仅当内容足够长时)
-      if (props.novelId && content.value.length > 200 && chapterNumber.value) {
-        triggerGraphAnalysis()
-      }
+      // 注意:不再自动触发图谱分析,避免频繁清理和重复分析
+      // 用户应该手动点击"分析"按钮来更新知识图谱
     }
   } catch (error: any) {
     console.error('[EditorPanel] 保存失败:', error)
@@ -398,18 +396,24 @@ async function handleTitleUpdate() {
 }
 
 /**
- * 触发知识图谱分析，显示提取结果
+ * 触发知识图谱分析,显示提取结果
  */
 async function triggerGraphAnalysis() {
   if (!props.novelId || !chapterNumber.value) return
   
   try {
-    // 后台执行分析
+    // 后台执行分析(后端会自动进行哈希校验)
     const result = await window.electronAPI?.graph?.analyzeChapter(
       props.novelId,
       chapterNumber.value,
       content.value
     )
+
+    // 如果因为内容未变化而跳过分析
+    if (result?.skipped) {
+      ElMessage.info('内容未变化,无需重新分析')
+      return
+    }
 
     if (result) {
       const entityCount = result.entities?.length || 0
@@ -440,21 +444,21 @@ async function triggerGraphAnalysis() {
             <div style="line-height: 1.6;">
               <div style="font-weight: 600; margin-bottom: 4px;">📊 图谱分析完成</div>
               <div style="font-size: 12px; color: #606266;">
-                ${entityCount > 0 ? `<div>🔹 识别 ${entityCount} 个实体${entityNames ? `：${entityNames}${entityCount > 5 ? '...' : ''}` : ''}</div>` : ''}
-                ${relationCount > 0 ? `<div>🔸 发现 ${relationCount} 个关系${relationDescs ? `：${relationDescs}${relationCount > 3 ? '...' : ''}` : ''}</div>` : ''}
+                ${entityCount > 0 ? `<div>🔹 识别 ${entityCount} 个实体${entityNames ? `:${entityNames}${entityCount > 5 ? '...' : ''}` : ''}</div>` : ''}
+                ${relationCount > 0 ? `<div>🔸 发现 ${relationCount} 个关系${relationDescs ? `:${relationDescs}${relationCount > 3 ? '...' : ''}` : ''}</div>` : ''}
                 ${stateChangeCount > 0 ? `<div>⚡ 检测到 ${stateChangeCount} 个状态变化</div>` : ''}
               </div>
             </div>
           `
         })
 
-        // 如果有冲突，额外提示
+        // 如果有冲突,额外提示
         if (result.conflicts?.length > 0) {
           setTimeout(() => {
             ElMessage.warning({
               duration: 5000,
               showClose: true,
-              message: `⚠️ 发现 ${result.conflicts.length} 个一致性问题，请在知识图谱面板查看详情`
+              message: `⚠️ 发现 ${result.conflicts.length} 个一致性问题,请在知识图谱面板查看详情`
             })
           }, 1000)
         }
@@ -463,7 +467,7 @@ async function triggerGraphAnalysis() {
       console.log(`[图谱] 第 ${chapterNumber.value} 章: ${entityCount} 实体, ${relationCount} 关系, ${stateChangeCount} 状态变化`)
     }
   } catch (error: any) {
-    // 分析失败时静默处理，不打扰用户
+    // 分析失败时静默处理,不打扰用户
     console.warn('图谱分析失败:', error)
   }
 }

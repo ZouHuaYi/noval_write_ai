@@ -45,6 +45,7 @@ class KnowledgeGraph {
       properties: attributes.properties || {},
       firstMention: attributes.firstMention || null, // 首次出现章节
       lastMention: attributes.lastMention || null,   // 最后出现章节
+      mentionedInChapters: attributes.mentionedInChapters || [], // 所有出现的章节列表
       createdAt: Date.now(),
       updatedAt: Date.now(),
       ...attributes
@@ -112,14 +113,16 @@ class KnowledgeGraph {
 
   /**
    * 清理指定章节关联的节点和关系
+   * 改进版:更完整地清理章节数据,更新节点的章节引用列表
    */
   cleanupChapter(chapterNumber) {
-    if (chapterNumber == null) return { nodesRemoved: 0, edgesRemoved: 0 }
+    if (chapterNumber == null) return { nodesRemoved: 0, edgesRemoved: 0, nodesUpdated: 0 }
 
     let nodesRemoved = 0
     let edgesRemoved = 0
+    let nodesUpdated = 0
 
-    // 删除该章节产生的边
+    // 1. 删除该章节产生的所有边
     const edgeKeys = this.graph.edges()
     edgeKeys.forEach(edgeKey => {
       const attrs = this.graph.getEdgeAttributes(edgeKey)
@@ -129,24 +132,60 @@ class KnowledgeGraph {
       }
     })
 
-    // 删除首次出现或最后出现为该章节的节点
+    // 2. 处理节点:删除或更新章节引用
     const nodesToRemove = []
+    const nodesToUpdate = []
+
     this.graph.forEachNode((id, attrs) => {
-      if (attrs?.firstMention === chapterNumber || attrs?.lastMention === chapterNumber) {
+      const mentionedChapters = attrs?.mentionedInChapters || []
+
+      // 如果节点只在这个章节出现,删除节点
+      if (mentionedChapters.length === 1 && mentionedChapters[0] === chapterNumber) {
+        nodesToRemove.push(id)
+      }
+      // 如果节点在多个章节出现,只移除该章节引用
+      else if (mentionedChapters.includes(chapterNumber)) {
+        nodesToUpdate.push({ id, attrs, mentionedChapters })
+      }
+      // 兼容旧数据:没有 mentionedInChapters 的节点
+      else if (!mentionedChapters.length &&
+        (attrs?.firstMention === chapterNumber || attrs?.lastMention === chapterNumber)) {
         nodesToRemove.push(id)
       }
     })
 
+    // 删除节点
     nodesToRemove.forEach(id => {
       this.graph.dropNode(id)
       nodesRemoved += 1
     })
 
-    if (nodesRemoved > 0 || edgesRemoved > 0) {
+    // 更新节点的章节引用
+    nodesToUpdate.forEach(({ id, attrs, mentionedChapters }) => {
+      const updatedChapters = mentionedChapters.filter(ch => ch !== chapterNumber)
+      const updateData = {
+        mentionedInChapters: updatedChapters,
+        updatedAt: Date.now()
+      }
+
+      // 更新首次和最后出现章节
+      if (updatedChapters.length > 0) {
+        updateData.firstMention = Math.min(...updatedChapters)
+        updateData.lastMention = Math.max(...updatedChapters)
+      } else {
+        updateData.firstMention = null
+        updateData.lastMention = null
+      }
+
+      this.graph.mergeNodeAttributes(id, updateData)
+      nodesUpdated += 1
+    })
+
+    if (nodesRemoved > 0 || edgesRemoved > 0 || nodesUpdated > 0) {
       this.metadata.updatedAt = Date.now()
     }
 
-    return { nodesRemoved, edgesRemoved }
+    return { nodesRemoved, edgesRemoved, nodesUpdated }
   }
 
 
@@ -154,6 +193,7 @@ class KnowledgeGraph {
 
   /**
    * 添加关系边
+   * 改进版:添加去重机制,避免重复添加相同关系
    * @param {string} source - 源节点 ID
    * @param {string} target - 目标节点 ID
    * @param {Object} attributes - 边属性
@@ -164,32 +204,57 @@ class KnowledgeGraph {
       return null
     }
 
-    const edgeId = `${source}->${target}:${attributes.type || 'relation'}:${Date.now()}`
+    const relationType = attributes.type || 'relation'
+    const chapter = attributes.chapter || null
+
+    // 检查是否已存在相同的关系(相同的source, target, type, chapter)
+    const existingEdges = this.getEdgesBetween(source, target)
+    const duplicateEdge = existingEdges.find(edge =>
+      edge.type === relationType && edge.chapter === chapter
+    )
+
+    if (duplicateEdge) {
+      // 已存在相同关系,更新而不是重复添加
+      this.updateEdge(duplicateEdge.id, {
+        label: attributes.label || duplicateEdge.label,
+        description: attributes.description || duplicateEdge.description,
+        weight: attributes.weight || duplicateEdge.weight,
+        ...attributes
+      })
+      return duplicateEdge.id
+    }
+
+    // 生成稳定的边ID(不使用时间戳,使用内容哈希)
+    const edgeId = `${source}->${target}:${relationType}:${chapter || 'global'}`
 
     this.graph.addEdgeWithKey(edgeId, source, target, {
-      type: attributes.type || 'relation',
+      type: relationType,
       label: attributes.label || '',
       description: attributes.description || '',
       weight: attributes.weight || 1,
-      chapter: attributes.chapter || null, // 关系出现的章节
-      temporal: attributes.temporal || false, // 是否是临时关系
+      chapter: chapter,
+      temporal: attributes.temporal || false,
       bidirectional: attributes.bidirectional || false,
       createdAt: Date.now(),
       ...attributes
     })
 
-    // 如果是双向关系，添加反向边
+    // 如果是双向关系,添加反向边
     if (attributes.bidirectional) {
-      const reverseId = `${target}->${source}:${attributes.type || 'relation'}:${Date.now()}`
-      this.graph.addEdgeWithKey(reverseId, target, source, {
-        type: attributes.type || 'relation',
-        label: attributes.reverseLabel || attributes.label || '',
-        description: attributes.description || '',
-        weight: attributes.weight || 1,
-        chapter: attributes.chapter || null,
-        isReverse: true,
-        createdAt: Date.now()
-      })
+      const reverseId = `${target}->${source}:${relationType}:${chapter || 'global'}`
+
+      // 检查反向边是否已存在
+      if (!this.graph.hasEdge(reverseId)) {
+        this.graph.addEdgeWithKey(reverseId, target, source, {
+          type: relationType,
+          label: attributes.reverseLabel || attributes.label || '',
+          description: attributes.description || '',
+          weight: attributes.weight || 1,
+          chapter: chapter,
+          isReverse: true,
+          createdAt: Date.now()
+        })
+      }
     }
 
     this.metadata.updatedAt = Date.now()

@@ -1,5 +1,15 @@
 const { getDatabase } = require('./index')
 const { randomUUID } = require('crypto')
+const crypto = require('crypto')
+
+/**
+ * 计算内容哈希
+ */
+function calculateContentHash(content) {
+  if (!content) return null
+  return crypto.createHash('md5').update(content).digest('hex')
+}
+
 
 /**
  * 创建章节
@@ -9,23 +19,27 @@ function createChapter(novelId, data = {}) {
   const id = randomUUID()
   const now = Date.now()
   let chapterNumber = data.chapterNumber
+  const content = data.content || ''
 
   if (chapterNumber == null) {
     const row = db.prepare('SELECT MAX(chapterNumber) AS maxNumber FROM chapter WHERE novelId = ?').get(novelId)
     chapterNumber = (row?.maxNumber || 0) + 1
   }
 
+  const contentHash = calculateContentHash(content)
+
   db.prepare(`
-    INSERT INTO chapter (id, novelId, chapterNumber, title, content, status, wordCount, createdAt, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO chapter (id, novelId, chapterNumber, title, content, status, wordCount, contentHash, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     novelId,
     chapterNumber,
     data.title || `第${chapterNumber}章`,
-    data.content || '',
+    content,
     data.status || 'draft',
     0,
+    contentHash,
     now,
     now
   )
@@ -79,21 +93,22 @@ function updateChapterContent(chapterId, content, chapterNumber) {
   const db = getDatabase()
   const now = Date.now()
   const wordCount = content.replace(/[\s\p{P}]/gu, '').length
+  const contentHash = calculateContentHash(content)
 
   if (chapterNumber === undefined) {
     db.prepare(`
       UPDATE chapter
-      SET content = ?, wordCount = ?, updatedAt = ?
+      SET content = ?, wordCount = ?, contentHash = ?, updatedAt = ?
       WHERE id = ?
-    `).run(content, wordCount, now, chapterId)
+    `).run(content, wordCount, contentHash, now, chapterId)
     return getChapterById(chapterId)
   }
 
   db.prepare(`
     UPDATE chapter
-    SET content = ?, wordCount = ?, updatedAt = ?, chapterNumber = ?
+    SET content = ?, wordCount = ?, contentHash = ?, updatedAt = ?, chapterNumber = ?
     WHERE id = ?
-  `).run(content, wordCount, now, chapterNumber, chapterId)
+  `).run(content, wordCount, contentHash, now, chapterNumber, chapterId)
 
   return getChapterById(chapterId)
 }
@@ -105,10 +120,10 @@ function updateChapterContent(chapterId, content, chapterNumber) {
 function updateChapter(chapterId, data) {
   const db = getDatabase()
   const now = Date.now()
-  
+
   const updates = []
   const values = []
-  
+
   if (data.title !== undefined) {
     updates.push('title = ?')
     values.push(data.title)
@@ -120,6 +135,10 @@ function updateChapter(chapterId, data) {
     const wordCount = data.content.replace(/[\s\p{P}]/gu, '').length
     updates.push('wordCount = ?')
     values.push(wordCount)
+    // 更新内容哈希
+    const contentHash = calculateContentHash(data.content)
+    updates.push('contentHash = ?')
+    values.push(contentHash)
   }
   if (data.status !== undefined) {
     updates.push('status = ?')
@@ -133,17 +152,17 @@ function updateChapter(chapterId, data) {
     updates.push('chapterNumber = ?')
     values.push(data.chapterNumber)
   }
-  
+
   updates.push('updatedAt = ?')
   values.push(now)
   values.push(chapterId)
-  
+
   if (updates.length > 1) {
     db.prepare(`
       UPDATE chapter SET ${updates.join(', ')} WHERE id = ?
     `).run(...values)
   }
-  
+
   return getChapterById(chapterId)
 }
 
@@ -177,6 +196,6 @@ module.exports = {
   updateChapter,
   deleteChapter,
   deleteAllChaptersByNovel,
-  getChapterByNovelAndNumber
+  getChapterByNovelAndNumber,
+  calculateContentHash
 }
-

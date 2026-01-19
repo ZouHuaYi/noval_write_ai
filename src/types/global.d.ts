@@ -316,6 +316,7 @@ declare global {
         save: (novelId: string) => Promise<boolean>;
         load: (novelId: string) => Promise<{ success: boolean }>;
         delete: (novelId: string) => Promise<boolean>;
+        clear: (novelId: string) => Promise<boolean>;
         exportJSON: (novelId: string) => Promise<any>;
 
         // 节点操作
@@ -359,12 +360,14 @@ declare global {
         }>
 
         // 自动关系提取
-        analyzeChapter: (novelId: string, chapter: number, content: string, previousContent?: string) => Promise<{
+        analyzeChapter: (novelId: string, chapter: number, content: string, previousContent?: string | null, contentHash?: string | null) => Promise<{
           entities: any[]
           relations: any[]
           stateChanges: any[]
           graphUpdates: any
           conflicts: any[]
+          skipped?: boolean
+          reason?: string
         }>
 
         // 删除章节相关图谱数据

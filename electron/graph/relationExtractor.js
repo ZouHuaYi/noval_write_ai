@@ -264,8 +264,14 @@ function updateGraphWithExtraction(graph, extraction, chapter) {
     const existingNode = graph.getNode(id)
     if (existingNode) {
       // 更新现有节点
+      const mentionedChapters = existingNode.mentionedInChapters || []
+      if (!mentionedChapters.includes(chapter)) {
+        mentionedChapters.push(chapter)
+      }
+
       graph.updateNode(id, {
         lastMention: chapter,
+        mentionedInChapters: mentionedChapters,
         aliases: [...new Set([...(existingNode.aliases || []), ...(entity.aliases || [])])],
         properties: {
           ...existingNode.properties,
@@ -281,10 +287,12 @@ function updateGraphWithExtraction(graph, extraction, chapter) {
         aliases: entity.aliases || [],
         properties: entity.properties || {},
         firstMention: chapter,
-        lastMention: chapter
+        lastMention: chapter,
+        mentionedInChapters: [chapter]
       })
     }
   })
+
 
   // 2. 添加关系边
   relations.forEach(relation => {

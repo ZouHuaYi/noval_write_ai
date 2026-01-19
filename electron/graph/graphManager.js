@@ -122,21 +122,45 @@ class GraphManager {
 
   /**
    * 章节更新后自动更新图谱
+   * 改进版:添加内容哈希校验,全量分析前清理旧数据
    */
   async onChapterUpdate(novelId, chapter, content, previousContent = '') {
     const graph = this.getGraph(novelId)
+
+    // 计算当前内容的哈希
+    const crypto = require('crypto')
+    const currentHash = crypto.createHash('md5').update(content || '').digest('hex')
+
+    // 检查是否需要重新分析(与上次分析的内容比较)
+    if (!this.chapterHashes) {
+      this.chapterHashes = new Map()
+    }
+
+    const lastAnalyzedHash = this.chapterHashes.get(`${novelId}-${chapter}`)
+    if (lastAnalyzedHash === currentHash) {
+      console.log(`[图谱] 第 ${chapter} 章内容未变化,跳过分析`)
+      return { skipped: true, reason: 'content_unchanged' }
+    }
 
     let result
     if (previousContent && content.startsWith(previousContent)) {
       // 增量更新
       result = await incrementalUpdate(content, previousContent, graph, chapter)
     } else {
+      // 全量分析前,先清理该章节的旧数据
+      const cleanupResult = graph.cleanupChapter(chapter)
+      console.log(`[图谱] 清理第 ${chapter} 章旧数据:`, cleanupResult)
+
       // 全量分析
       result = await analyzeChapter(content, graph, chapter)
     }
 
     // 保存更新后的图谱
     this.saveGraph(novelId)
+
+    // 保存本次分析的内容哈希
+    this.chapterHashes.set(`${novelId}-${chapter}`, currentHash)
+
     return result
   }
 

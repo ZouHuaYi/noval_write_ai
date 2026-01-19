@@ -250,9 +250,9 @@ function registerGraphHandlers(ipcMain) {
   // ===== 自动提取 =====
 
   // 分析章节，自动更新图谱
-  ipcMain.handle('graph:analyzeChapter', async (_, novelId, chapter, content, previousContent) => {
+  ipcMain.handle('graph:analyzeChapter', async (_, novelId, chapter, content, previousContent, contentHash) => {
     try {
-      return manager.onChapterUpdate(novelId, chapter, content, previousContent)
+      return manager.onChapterUpdate(novelId, chapter, content, previousContent, contentHash)
     } catch (error) {
       console.error('章节分析失败:', error)
       throw error
