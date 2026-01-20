@@ -162,6 +162,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 批量操作
     importEntities: (novelId, entities) => ipcRenderer.invoke('graph:importEntities', novelId, entities),
     addRelations: (novelId, relations) => ipcRenderer.invoke('graph:addRelations', novelId, relations)
+  },
+
+  // 窗口控制 API
+  window: {
+    minimize: () => ipcRenderer.send('window:minimize'),
+    maximize: () => ipcRenderer.send('window:maximize'),
+    close: () => ipcRenderer.send('window:close')
   }
 
 })

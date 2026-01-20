@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, Menu } = require('electron')
 const { join } = require('path')
 const { initDatabase } = require('./database/index.js')
 const { registerIpcHandlers } = require('./ipcHandlers.js')
@@ -6,18 +6,22 @@ const { registerIpcHandlers } = require('./ipcHandlers.js')
 let mainWindow = null
 
 function createWindow() {
+  // 移除默认菜单栏
+  Menu.setApplicationMenu(null)
+
   // 获取应用路径
   const appPath = app.getAppPath()
   const isDev = !app.isPackaged || process.env.NODE_ENV === 'development'
-  
+
   // 获取 preload 脚本路径
   const preloadPath = isDev
     ? join(process.cwd(), 'electron/preload.js')
     : join(appPath, 'electron/preload.js')
-  
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    frame: false, // 完全移除原生边框和标题栏
     webPreferences: {
       preload: preloadPath,
       nodeIntegration: false,
@@ -34,13 +38,37 @@ function createWindow() {
   }
 }
 
+// 窗口控制 IPC 处理器
+function registerWindowHandlers() {
+  ipcMain.on('window:minimize', () => {
+    if (mainWindow) mainWindow.minimize()
+  })
+
+  ipcMain.on('window:maximize', () => {
+    if (mainWindow) {
+      if (mainWindow.isMaximized()) {
+        mainWindow.unmaximize()
+      } else {
+        mainWindow.maximize()
+      }
+    }
+  })
+
+  ipcMain.on('window:close', () => {
+    if (mainWindow) mainWindow.close()
+  })
+}
+
 app.whenReady().then(() => {
   // 初始化数据库（同步）
   initDatabase()
-  
+
   // 注册所有数据库相关的 IPC 处理器
   registerIpcHandlers()
-  
+
+  // 注册窗口控制处理器
+  registerWindowHandlers()
+
   createWindow()
 
   app.on('activate', () => {
