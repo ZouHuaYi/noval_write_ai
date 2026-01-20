@@ -29,7 +29,33 @@ function initDatabase() {
     console.warn('警告: schema.sql 文件不存在')
   }
 
+  // 数据库迁移:为 chapter 表添加 contentHash 列
+  try {
+    const tableInfo = db.pragma('table_info(chapter)')
+    const hasContentHash = tableInfo.some(col => col.name === 'contentHash')
 
+    if (!hasContentHash) {
+      console.log('检测到旧版数据库,正在添加 contentHash 列...')
+      db.exec('ALTER TABLE chapter ADD COLUMN contentHash TEXT')
+
+      // 为已有数据计算并填充 contentHash
+      const crypto = require('crypto')
+      const chapters = db.prepare('SELECT id, content FROM chapter').all()
+      const updateStmt = db.prepare('UPDATE chapter SET contentHash = ? WHERE id = ?')
+
+      chapters.forEach(chapter => {
+        if (chapter.content) {
+          const hash = crypto.createHash('md5').update(chapter.content).digest('hex')
+          updateStmt.run(hash, chapter.id)
+        }
+      })
+
+      console.log(`已为 ${chapters.length} 个章节计算并填充 contentHash`)
+    }
+  } catch (error) {
+    console.error('数据库迁移失败:', error)
+    throw error
+  }
 
   console.log('数据库初始化成功:', dbPath)
   return db

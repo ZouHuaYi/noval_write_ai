@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS chapter (
   title TEXT,
   content TEXT,
   status TEXT, -- draft, writing, completed
-
   wordCount INTEGER,
+  contentHash TEXT, -- 内容哈希,用于追踪内容变化
   createdAt INTEGER,
   updatedAt INTEGER,
   FOREIGN KEY (novelId) REFERENCES novel(id) ON DELETE CASCADE
