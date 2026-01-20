@@ -27,7 +27,7 @@
             <!-- 润色文本 -->
             <div 
               class="group bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] shadow-sm hover:shadow-md cursor-pointer overflow-hidden"
-              :class="{ 'pointer-events-none opacity-60': processing }"
+              :class="{ 'pointer-events-none opacity-60': processing || props.editorMode === 'rich' }"
               @click="handlePolish"
             >
               <div class="p-4 space-y-2">
@@ -43,7 +43,9 @@
                   </el-icon>
                 </div>
                 <div class="text-sm font-semibold">润色文本</div>
-                <div class="text-xs text-[var(--app-text-muted)]">优化文字表达</div>
+                <div class="text-xs text-[var(--app-text-muted)]">
+                  {{ props.editorMode === 'rich' ? '请切换到纯文本模式' : '优化文字表达' }}
+                </div>
               </div>
             </div>
 
@@ -407,6 +409,22 @@
         @apply-changes="handleApplyConsistencyChanges"
       />
     </el-dialog>
+
+    <!-- 润色预览对话框 -->
+    <el-dialog
+      v-model="showPolishDiffDialog"
+      title="润色预览"
+      width="900px"
+      :close-on-click-modal="false"
+    >
+      <PolishDiffViewer
+        v-if="polishDiffData"
+        :original-text="polishDiffData.original"
+        :polished-text="polishDiffData.polished"
+        @accept="handleAcceptPolish"
+        @reject="handleRejectPolish"
+      />
+    </el-dialog>
   </div>
 </template>
 
@@ -417,6 +435,7 @@ import { Brush, Calendar, Cpu, Loading, Plus, Refresh, Search, Warning, List, Ch
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { onMounted, ref } from 'vue'
 import ConsistencyDiffViewer from '@/components/ConsistencyDiffViewer.vue'
+import PolishDiffViewer from '@/components/PolishDiffViewer.vue'
 
 
 // ... other imports ...
@@ -438,6 +457,9 @@ const props = defineProps<{
   chapterTitle?: string
   chapterContent?: string
   selectedText?: string
+  selectedFrom?: number
+  selectedTo?: number
+  editorMode?: 'rich' | 'plain'
   novelTitle?: string
 }>()
 
@@ -476,6 +498,10 @@ const contextSummaryData = ref<any>(null)
 // 一致性检查 Diff 显示
 const showConsistencyDiffDialog = ref(false)
 const consistencyDiffResult = ref<any>(null)
+
+// 润色预览显示
+const showPolishDiffDialog = ref(false)
+const polishDiffData = ref<{ original: string; polished: string } | null>(null)
 
 // ReIO 相关状态
 interface ReICheckResult {
@@ -644,6 +670,10 @@ const buildGenerationContext = async () => {
 }
 
 const handlePolish = () => {
+  if (props.editorMode === 'rich') {
+    ElMessage.warning('富文本模式下不支持润色功能,请切换到纯文本模式')
+    return
+  }
   if (!props.chapterId || !props.chapterContent) {
     ElMessage.warning('请先选择章节并输入内容')
     return
@@ -816,19 +846,14 @@ const executePolish = async () => {
     return null
   }
 
-  if (props.selectedText) {
-    const originalContent = props.chapterContent || ''
-    const firstIndex = originalContent.indexOf(props.selectedText)
-    const newContent = firstIndex >= 0
-      ? originalContent.slice(0, firstIndex) + polishedText + originalContent.slice(firstIndex + props.selectedText.length)
-      : originalContent + polishedText
-    emit('content-updated', newContent)
-    ElMessage.success('选中文字润色完成')
-    return '选中文字润色完成'
+  // 显示预览对话框而不是直接应用
+  polishDiffData.value = {
+    original: textToPolish,
+    polished: polishedText
   }
-  emit('content-updated', polishedText)
-  ElMessage.success('润色完成')
-  return '润色完成'
+  showPolishDiffDialog.value = true
+  
+  return '润色预览已生成'
 }
 
 const executeConsistency = async () => {
@@ -869,6 +894,40 @@ const handleApplyConsistencyChanges = (newContent: string) => {
   // 清空结果,确保下次使用最新内容
   consistencyDiffResult.value = null
 }
+
+// 润色预览处理函数
+const handleAcceptPolish = () => {
+  if (!polishDiffData.value) return
+  
+  // 应用润色结果
+  const polishedText = polishDiffData.value.polished
+  
+  // 使用位置索引进行精确替换
+  if (props.selectedText && props.selectedFrom !== undefined && props.selectedTo !== undefined) {
+    const originalContent = props.chapterContent || ''
+    const newContent = 
+      originalContent.slice(0, props.selectedFrom) + 
+      polishedText + 
+      originalContent.slice(props.selectedTo)
+    emit('content-updated', newContent)
+    ElMessage.success('选中文字润色完成')
+  } else {
+    // 全文润色
+    emit('content-updated', polishedText)
+    ElMessage.success('润色完成')
+  }
+  
+  // 关闭对话框
+  showPolishDiffDialog.value = false
+  polishDiffData.value = null
+}
+
+const handleRejectPolish = () => {
+  showPolishDiffDialog.value = false
+  polishDiffData.value = null
+  ElMessage.info('已取消润色')
+}
+
 
 
 

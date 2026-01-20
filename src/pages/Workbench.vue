@@ -135,6 +135,7 @@
           @chapter-updated="handleChapterUpdated"
           @text-selected="handleTextSelected"
           @content-changed="handleContentChanged"
+          @editor-mode-changed="handleEditorModeChanged"
         />
 
         <PlanningPanel
@@ -160,6 +161,9 @@
           :chapter-title="currentChapter?.title"
           :chapter-content="currentChapterContent"
           :selected-text="selectedText"
+          :selected-from="selectedFrom"
+          :selected-to="selectedTo"
+          :editor-mode="editorMode"
           @chapter-generated="handleChapterGenerated"
           @content-updated="handleContentUpdated"
         />
@@ -201,6 +205,9 @@ const currentChapterId = ref<string | null>(null)
 const currentChapter = ref<any>(null)
 const currentChapterContent = ref<string>('')
 const selectedText = ref<string>('')
+const selectedFrom = ref(0)
+const selectedTo = ref(0)
+const editorMode = ref<'rich' | 'plain'>('rich')
 const novelTreeRef = ref<InstanceType<typeof NovelTree> | null>(null)
 
 const activeTabLabel = computed(() => {
@@ -304,9 +311,17 @@ async function handleChapterUpdated() {
 }
 
 // 处理文本选中
-function handleTextSelected(text: string) {
-  selectedText.value = text
+function handleTextSelected(data: { text: string; from: number; to: number }) {
+  selectedText.value = data.text
+  selectedFrom.value = data.from
+  selectedTo.value = data.to
 }
+
+// 处理编辑器模式变化
+function handleEditorModeChanged(mode: 'rich' | 'plain') {
+  editorMode.value = mode
+}
+
 
 // 处理内容变化
 function handleContentChanged(content: string) {

@@ -90,6 +90,7 @@
               :knowledge-items="knowledgeItems"
               @update:model-value="handleRichContentChange"
               @mention-insert="handleMentionInsert"
+              @text-selected="handleRichTextSelect"
             />
             <!-- 纯文本编辑器模式 -->
             <el-input
@@ -150,8 +151,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'chapter-updated', chapter: any): void
-  (e: 'text-selected', text: string): void
+  (e: 'text-selected', data: { text: string; from: number; to: number }): void
   (e: 'content-changed', content: string): void
+  (e: 'editor-mode-changed', mode: 'rich' | 'plain'): void
 }>()
 
 // 编辑器模式
@@ -159,6 +161,8 @@ const editorMode = ref<'rich' | 'plain'>('rich')
 
 const richEditorRef = ref<InstanceType<typeof RichEditor> | null>(null)
 const selectedText = ref('')
+const selectedFrom = ref(0)
+const selectedTo = ref(0)
 const chapterTitle = ref('')
 const chapterNumber = ref<number | null>(null)
 const content = ref('')
@@ -251,7 +255,9 @@ watch(editorMode, (newMode, oldMode) => {
     // 从富文本转纯文本
     content.value = htmlToPlainText(richContent.value)
   }
-})
+  // 通知父组件编辑器模式已改变
+  emit('editor-mode-changed', newMode)
+}, { immediate: true })
 
 async function loadChapter(chapterId: string) {
   if (!chapterId) return
@@ -327,6 +333,13 @@ const handleMentionInsert = (item: KnowledgeItem) => {
   mentionCount.value = extractMentionIds(richContent.value).length
 }
 
+const handleRichTextSelect = (data: { text: string; from: number; to: number }) => {
+  selectedText.value = data.text
+  selectedFrom.value = data.from
+  selectedTo.value = data.to
+  emit('text-selected', data)
+}
+
 const handleTextSelect = (event: Event) => {
   const target = event.target as HTMLTextAreaElement
   if (!target) return
@@ -336,10 +349,14 @@ const handleTextSelect = (event: Event) => {
   
   if (start !== end && start !== null && end !== null) {
     selectedText.value = content.value.substring(start, end)
-    emit('text-selected', selectedText.value)
+    selectedFrom.value = start
+    selectedTo.value = end
+    emit('text-selected', { text: selectedText.value, from: start, to: end })
   } else {
     selectedText.value = ''
-    emit('text-selected', '')
+    selectedFrom.value = 0
+    selectedTo.value = 0
+    emit('text-selected', { text: '', from: 0, to: 0 })
   }
 }
 

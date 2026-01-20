@@ -55,6 +55,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
   (e: 'mention-insert', item: KnowledgeItem): void
+  (e: 'text-selected', data: { text: string; from: number; to: number }): void
   (e: 'focus'): void
   (e: 'blur'): void
 }>()
@@ -158,6 +159,17 @@ const editor = useEditor({
     const html = editor.getHTML()
     emit('update:modelValue', html)
   },
+  onSelectionUpdate: ({ editor }) => {
+    const { from, to } = editor.state.selection
+    if (from !== to) {
+      // 有选中的文本
+      const selectedText = editor.state.doc.textBetween(from, to, '')
+      emit('text-selected', { text: selectedText, from, to })
+    } else {
+      // 没有选中文本
+      emit('text-selected', { text: '', from: 0, to: 0 })
+    }
+  },
   onFocus: () => {
     isFocused.value = true
     emit('focus')
@@ -245,6 +257,13 @@ defineExpose({
   getHTML: () => editor.value?.getHTML() || '',
   getText: () => editor.value?.getText() || '',
   insertText: (text: string) => editor.value?.commands.insertContent(text),
+  // 获取当前选中的文本和位置
+  getSelection: () => {
+    if (!editor.value) return { text: '', from: 0, to: 0 }
+    const { from, to } = editor.value.state.selection
+    const text = editor.value.state.doc.textBetween(from, to, '')
+    return { text, from, to }
+  },
   // 提取所有 @提及的内容
   getMentions: () => {
     const html = editor.value?.getHTML() || ''
