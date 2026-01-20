@@ -3,11 +3,11 @@ import { ElMessage } from 'element-plus'
 
 export const useNovelStore = defineStore('novel', {
   state: () => ({
-    novels: [],
+    novels: [] as any[],
     currentNovel: null,
     loading: false
   }),
-  
+
   actions: {
     // 获取所有小说
     async fetchNovels() {
@@ -27,9 +27,9 @@ export const useNovelStore = defineStore('novel', {
         this.loading = false
       }
     },
-    
+
     // 获取小说详情
-    async fetchNovelById(id) {
+    async fetchNovelById(id: string) {
       try {
         if (window.electronAPI?.novel) {
           this.currentNovel = await window.electronAPI.novel.get(id)
@@ -44,9 +44,9 @@ export const useNovelStore = defineStore('novel', {
         return null
       }
     },
-    
+
     // 添加小说
-    async addNovel(novelData) {
+    async addNovel(novelData: { title: string; genre?: string; author?: string; description?: string }) {
       try {
         if (window.electronAPI?.novel) {
           const novel = await window.electronAPI.novel.create({
@@ -54,7 +54,7 @@ export const useNovelStore = defineStore('novel', {
             genre: novelData.genre || novelData.author || undefined,
             description: novelData.description || undefined
           })
-          
+
           await this.fetchNovels()
           return novel?.id || null
         } else {
@@ -67,9 +67,9 @@ export const useNovelStore = defineStore('novel', {
         return null
       }
     },
-    
+
     // 更新小说
-    async updateNovel(id, novelData) {
+    async updateNovel(id: string, novelData: { title: string; genre?: string; author?: string; description?: string }) {
       try {
         if (window.electronAPI?.novel) {
           await window.electronAPI.novel.update(id, {
@@ -77,7 +77,7 @@ export const useNovelStore = defineStore('novel', {
             genre: novelData.genre || novelData.author || undefined,
             description: novelData.description || undefined
           })
-          
+
           await this.fetchNovels()
           return true
         } else {
@@ -90,9 +90,9 @@ export const useNovelStore = defineStore('novel', {
         return false
       }
     },
-    
+
     // 删除小说
-    async deleteNovel(id) {
+    async deleteNovel(id: string) {
       try {
         if (window.electronAPI?.novel) {
           await window.electronAPI.novel.delete(id)
@@ -108,9 +108,9 @@ export const useNovelStore = defineStore('novel', {
         return false
       }
     },
-    
+
     // 获取章节列表
-    async fetchChapters(novelId) {
+    async fetchChapters(novelId: string) {
       try {
         if (window.electronAPI?.chapter) {
           return await window.electronAPI.chapter.list(novelId)
@@ -123,9 +123,9 @@ export const useNovelStore = defineStore('novel', {
         return []
       }
     },
-    
+
     // 添加章节
-    async addChapter(novelId, chapterData) {
+    async addChapter(novelId: string, chapterData: { title: string; content?: string; status?: string }) {
       try {
         if (window.electronAPI?.chapter) {
           const chapter = await window.electronAPI.chapter.create(novelId, {
@@ -133,7 +133,7 @@ export const useNovelStore = defineStore('novel', {
             content: chapterData.content || '',
             status: chapterData.status || 'draft'
           })
-          
+
           return chapter?.id || null
         } else {
           ElMessage.error('Electron API 未加载')
@@ -145,9 +145,9 @@ export const useNovelStore = defineStore('novel', {
         return null
       }
     },
-    
+
     // 获取章节内容
-    async fetchChapter(chapterId) {
+    async fetchChapter(chapterId: string) {
       try {
         if (window.electronAPI?.chapter) {
           return await window.electronAPI.chapter.get(chapterId)
