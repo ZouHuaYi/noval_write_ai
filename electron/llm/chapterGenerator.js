@@ -2,7 +2,7 @@ const llmService = require('./llmService')
 const chapterSnapshotDAO = require('../database/chapterSnapshotDAO')
 const chapterGenerationDAO = require('../database/chapterGenerationDAO')
 const chapterDAO = require('../database/chapterDAO')
-const outlineDAO = require('../database/outlineDAO')
+const worldviewDAO = require('../database/worldviewDAO')
 const { buildKnowledgeSummary } = require('./knowledgeContext')
 const { buildPlanningSummary } = require('./planningContext')
 const reioChecker = require('./reioChecker')
@@ -14,8 +14,6 @@ function buildContinuePrompt({
   chapterTitle,
   chapterNumber,
   content,
-  outlineContext,
-  memoryContext,
   knowledgeContext,
   extraPrompt,
   chunkSize
@@ -24,29 +22,11 @@ function buildContinuePrompt({
   return [
     formatSection('小说信息', `标题：${novelTitle || '未命名'}\n章节：第 ${chapterNumber ?? '?'} 章 · ${chapterTitle || '未命名'}`),
     formatSection('章节已写内容', content || '无'),
-    formatSection('关联大纲', outlineContext || '无匹配大纲'),
-    formatSection('记忆上下文', memoryContext || '无可用记忆'),
     formatSection('知识与设定', knowledgeContext || '无设定数据'),
     formatSection('作者补充要求', extraPrompt || '无'),
     formatSection('输出要求', `请基于以上上下文（特别是章节计划中的目标与事件），生成本章后续内容。${targetHint}，保证情节生动、连贯，符合世界观设定。只输出正文内容。`)
   ].join('\n')
 }
-
-function buildOutlineContext(outlines = []) {
-  if (!outlines.length) return ''
-  return outlines.map(outline => {
-    const start = outline.startChapter
-    const end = outline.endChapter
-    let range = '未设置范围'
-    if (start && end) range = `第 ${start} 章 - 第 ${end} 章`
-    else if (start) range = `第 ${start} 章起`
-    else if (end) range = `至第 ${end} 章`
-    const content = outline.content?.trim() || '（该大纲暂无内容）'
-    return `【${outline.title}】(${range})\n${content}`
-  }).join('\n\n')
-}
-
-// ... unchanged code ...
 
 async function buildGenerationContext({ novelId, chapterId }) {
   const chapter = await chapterDAO.getChapterById(chapterId)
@@ -54,34 +34,28 @@ async function buildGenerationContext({ novelId, chapterId }) {
     throw new Error('章节不存在')
   }
   const chapterNumber = chapter.chapterNumber ?? null
-  const outlines = await outlineDAO.getOutlinesByNovel(novelId)
-  const matched = outlines.filter(outline => {
-    if (outline.startChapter == null || outline.endChapter == null) return false
-    return chapterNumber && chapterNumber >= outline.startChapter && chapterNumber <= outline.endChapter
-  })
-
-  // 暂时移除基于 StoryEngine 的记忆上下文获取
-  let memoryContext = ''
-  /*
-  if (chapterNumber) {
-    try {
-      memoryContext = await storyEngine.processCompressOutput(chapterNumber, novelId)
-    } catch (error) {
-      console.error('获取记忆上下文失败:', error)
-    }
-  }
-  */
 
   const planningContext = chapterNumber != null
     ? buildPlanningSummary({ novelId, chapterNumber })
     : ''
 
+  // 获取世界观设定，规则设置
+  const worldview = worldviewDAO.getWorldviewByNovel(novelId)
+  const worldRules = `
+    世界观：${worldview?.worldview || '无世界观数据'}
+    规则：${worldview?.rules || '无规则数据'}
+  `
+  // 这里应该取上一章节内容最后结束的 500 字符
+  const lastChapter = chapterNumber > 1 ? await chapterDAO.getChapterByNovelAndNumber(novelId, chapterNumber - 1) : null
+  const lastChapterContent = lastChapter?.content || ''
+  const lastChapterContentEnd = lastChapterContent?.slice(-500) || ''
+
   return {
     chapter,
     chapterNumber,
-    outlineContext: buildOutlineContext(matched),
-    memoryContext: [memoryContext, planningContext].filter(Boolean).join('\n\n'),
-    planningContext
+    planningContext,
+    worldRules,
+    lastChapterContentEnd: `上一章节内容最后结束的 500 字：${lastChapterContentEnd}`
   }
 }
 
@@ -111,8 +85,6 @@ async function generateChunk({
   novelTitle,
   chapter,
   chapterNumber,
-  outlineContext,
-  memoryContext,
   knowledgeContext,
   planningContext,
   extraPrompt,
@@ -126,8 +98,6 @@ async function generateChunk({
     chapterTitle: chapter.title,
     chapterNumber,
     content: chapter.content,
-    outlineContext,
-    memoryContext,
     knowledgeContext,
     extraPrompt,
     chunkSize
@@ -151,7 +121,6 @@ async function generateChunk({
         generate,
         context: {
           eventGoal: `${planningContext ? planningContext + '\n' : ''}第 ${chapterNumber} 章续写，章节标题：${chapter.title}`,
-          memoryContext,
           activeCharacters: [], // 可从 memoryContext 中提取
           worldRules: [],
           systemPrompt
@@ -170,7 +139,6 @@ async function generateChunk({
       return await generate()
     }
   }
-
   // 不启用 ReIO 时直接生成
   return await generate()
 }
@@ -189,7 +157,7 @@ async function generateChapterChunks({
   }
 
   const generation = ensureGeneration(novelId, chapterId, { chunkSize, maxChunks })
-  const { chapter, chapterNumber, outlineContext, memoryContext, planningContext } = await buildGenerationContext({ novelId, chapterId })
+  const { chapter, chapterNumber, planningContext, worldRules, lastChapterContentEnd } = await buildGenerationContext({ novelId, chapterId })
   const knowledgeContext = buildKnowledgeSummary({
     novelId,
     types: ['character', 'location', 'timeline', 'plot'],
@@ -204,19 +172,18 @@ async function generateChapterChunks({
   const currentLength = currentContent.replace(/[\s\p{P}]/gu, '').length
 
   if (generation.status === 'completed') {
-      return {
-        chapter,
-        status: 'completed',
-        currentChunk: generation.currentChunk,
-        totalChunks: generation.maxChunks,
-        contextSummary: {
-          outlineContext,
-          memoryContext,
-          knowledgeContext,
-          planningContext
-        }
+    return {
+      chapter,
+      status: 'completed',
+      currentChunk: generation.currentChunk,
+      totalChunks: generation.maxChunks,
+      contextSummary: {
+        knowledgeContext,
+        planningContext,
+        worldRules,
+        lastChapterContentEnd
       }
-
+    }
   }
 
   for (let i = generation.currentChunk; i < maxChunks; i += 1) {
@@ -224,8 +191,6 @@ async function generateChapterChunks({
       novelTitle,
       chapter,
       chapterNumber,
-      outlineContext,
-      memoryContext,
       knowledgeContext,
       planningContext,
       extraPrompt,
