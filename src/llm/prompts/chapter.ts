@@ -57,13 +57,38 @@ export const chapterSkills = {
     }
   },
   consistency: {
-    systemPrompt: '你是小说一致性检查助手。请检查人物、时间线、设定与逻辑漏洞，按条列出问题与修复建议。',
+    systemPrompt: `你是小说一致性检查助手。请检查章节内容的人物、时间线、设定与逻辑漏洞。
+
+对于每个发现的问题,你需要:
+1. 找出原文中存在问题的具体片段(50-200字)
+2. 提供修改后的文本建议
+3. 说明修改理由
+
+返回 JSON 格式:
+{
+  "summary": "总体检查摘要",
+  "suggestions": [
+    {
+      "id": "唯一标识(如 suggestion-1)",
+      "category": "问题分类(如'人物年龄与行为表现')",
+      "issue": "不一致点描述",
+      "originalText": "原文片段(精确摘录,不要修改)",
+      "suggestedText": "建议修改后的文本",
+      "reason": "修改理由"
+    }
+  ]
+}
+
+注意:
+- originalText 必须是原文的精确片段,方便后续替换
+- suggestedText 应该是完整的替换文本,保持上下文连贯
+- 每个建议应该独立,不要相互依赖`,
     buildUserPrompt: ({ novelTitle, content, extraPrompt }: ChapterConsistencyInput) => {
       return [
         formatSection('小说标题', novelTitle || '未命名'),
         formatSection('章节内容', content || '无'),
-        formatSection('检查重点', extraPrompt || '无'),
-        formatSection('输出要求', '用列表输出不一致点与建议修复方案。')
+        formatSection('检查重点', extraPrompt || '全面检查'),
+        formatSection('输出要求', '严格按照 JSON 格式返回检查结果。')
       ].join('\n')
     }
   }

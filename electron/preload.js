@@ -25,7 +25,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     snapshotRestore: (snapshotId) => ipcRenderer.invoke('chapter:snapshot:restore', snapshotId),
     generateChunks: (payload) => ipcRenderer.invoke('chapter:generateChunks', payload),
     generateStatus: (chapterId) => ipcRenderer.invoke('chapter:generateStatus', chapterId),
-    generateReset: (chapterId) => ipcRenderer.invoke('chapter:generateReset', chapterId)
+    generateReset: (chapterId) => ipcRenderer.invoke('chapter:generateReset', chapterId),
+    checkConsistencyDiff: (novelId, chapterId, content, extraPrompt) =>
+      ipcRenderer.invoke('chapter:checkConsistencyDiff', novelId, chapterId, content, extraPrompt)
   },
 
 

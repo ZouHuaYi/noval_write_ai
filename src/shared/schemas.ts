@@ -121,6 +121,27 @@ export const ConsistencyCheckResultSchema = z.object({
 
 export type ConsistencyCheckResult = z.infer<typeof ConsistencyCheckResultSchema>
 
+// 一致性检查 Diff 格式结果
+export const ConsistencyDiffItemSchema = z.object({
+  id: z.string().describe('建议唯一ID'),
+  category: z.string().describe('问题分类,如"人物年龄与行为表现"'),
+  issue: z.string().describe('不一致点描述'),
+  originalText: z.string().describe('原文片段'),
+  suggestedText: z.string().describe('建议修改后的文本'),
+  reason: z.string().describe('修改理由'),
+  startIndex: z.number().optional().describe('原文在章节中的起始位置'),
+  endIndex: z.number().optional().describe('原文在章节中的结束位置')
+})
+
+export type ConsistencyDiffItem = z.infer<typeof ConsistencyDiffItemSchema>
+
+export const ConsistencyDiffResultSchema = z.object({
+  summary: z.string().describe('总体检查摘要'),
+  suggestions: z.array(ConsistencyDiffItemSchema).describe('具体建议列表')
+})
+
+export type ConsistencyDiffResult = z.infer<typeof ConsistencyDiffResultSchema>
+
 // ReIO 输出重写检查结果
 export const ReIOCheckResultSchema = z.object({
   passed: z.boolean().describe('是否通过检查'),

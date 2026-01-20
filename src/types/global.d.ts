@@ -47,6 +47,22 @@ declare global {
         }>
         generateStatus: (chapterId: string) => Promise<any>
         generateReset: (chapterId: string) => Promise<{ success: boolean }>
+        checkConsistencyDiff: (
+          novelId: string,
+          chapterId: string,
+          content: string,
+          extraPrompt?: string
+        ) => Promise<{
+          summary: string
+          suggestions: Array<{
+            id: string
+            category: string
+            issue: string
+            originalText: string
+            suggestedText: string
+            reason: string
+          }>
+        }>
       }
 
 

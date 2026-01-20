@@ -392,6 +392,21 @@
         <el-button @click="showContextSummaryDialog = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- 一致性检查 Diff 对话框 -->
+    <el-dialog
+      v-model="showConsistencyDiffDialog"
+      title="一致性检查结果"
+      width="900px"
+      :close-on-click-modal="false"
+    >
+      <ConsistencyDiffViewer
+        v-if="consistencyDiffResult"
+        :result="consistencyDiffResult"
+        :chapter-content="props.chapterContent || ''"
+        @apply-changes="handleApplyConsistencyChanges"
+      />
+    </el-dialog>
   </div>
 </template>
 
@@ -401,6 +416,7 @@ import { chapterSkills } from '@/llm/prompts/chapter'
 import { Brush, Calendar, Cpu, Loading, Plus, Refresh, Search, Warning, List, Check } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { onMounted, ref } from 'vue'
+import ConsistencyDiffViewer from '@/components/ConsistencyDiffViewer.vue'
 
 
 // ... other imports ...
@@ -456,6 +472,10 @@ const completionTargetChapter = ref<{ novelId: string; chapterNumber: number } |
 // 上下文摘要显示
 const showContextSummaryDialog = ref(false)
 const contextSummaryData = ref<any>(null)
+
+// 一致性检查 Diff 显示
+const showConsistencyDiffDialog = ref(false)
+const consistencyDiffResult = ref<any>(null)
 
 // ReIO 相关状态
 interface ReICheckResult {
@@ -818,25 +838,38 @@ const executeConsistency = async () => {
   }
 
   const prompt = dialogPrompt.value.trim()
-  const systemPrompt = chapterSkills.consistency.systemPrompt
-  const userPrompt = chapterSkills.consistency.buildUserPrompt({
-    novelTitle: props.novelTitle,
-    content: props.chapterContent,
-    extraPrompt: prompt
-  })
-
-  const result = (await callChatModel(systemPrompt, userPrompt)).trim()
-  if (!result) {
-    ElMessage.warning('未生成一致性检查结果')
+  
+  try {
+    const result = await window.electronAPI.chapter.checkConsistencyDiff(
+      props.novelId!,
+      props.chapterId,
+      props.chapterContent,
+      prompt
+    )
+    
+    // 显示 Diff 对话框
+    consistencyDiffResult.value = result
+    showConsistencyDiffDialog.value = true
+    
+    return '一致性检查完成'
+  } catch (error: any) {
+    console.error('一致性检查失败:', error)
+    ElMessage.error('一致性检查失败: ' + (error.message || '未知错误'))
     return null
   }
-
-  await ElMessageBox.alert(result, '一致性检查结果', {
-    confirmButtonText: '知道了',
-    dangerouslyUseHTMLString: false
-  })
-  return '一致性检查完成'
 }
+
+// 应用一致性检查的修改
+const handleApplyConsistencyChanges = (newContent: string) => {
+  // 先关闭对话框
+  showConsistencyDiffDialog.value = false
+  // 更新内容
+  emit('content-updated', newContent)
+  ElMessage.success('修改已应用,可重新检查')
+  // 清空结果,确保下次使用最新内容
+  consistencyDiffResult.value = null
+}
+
 
 
 const handleGenerateNextChapter = async () => {
