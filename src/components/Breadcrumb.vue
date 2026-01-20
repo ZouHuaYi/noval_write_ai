@@ -50,23 +50,32 @@ const items = computed(() => {
 
   const path = route.path
   
-  if (path.startsWith('/novels')) {
+  // 处理可能存在的 /layout 前缀
+  const normalizedPath = path.startsWith('/layout') ? path.replace('/layout', '') : path
+
+  if (normalizedPath.startsWith('/novels')) {
     breadcrumbs.push({ label: '小说列表', to: '/novels', icon: Document })
-  } else if (path.startsWith('/novel/')) {
+  } else if (normalizedPath.startsWith('/novel/')) {
     breadcrumbs.push({ label: '小说列表', to: '/novels', icon: Document })
     if (props.novelTitle) {
-      breadcrumbs.push({ label: props.novelTitle, to: route.path })
+      breadcrumbs.push({ label: props.novelTitle, to: path })
     }
-  } else if (path.startsWith('/workbench/')) {
+  } else if (normalizedPath.startsWith('/workbench/')) {
     breadcrumbs.push({ label: '小说列表', to: '/novels', icon: Document })
     if (props.novelTitle) {
-      breadcrumbs.push({ label: props.novelTitle })
+      breadcrumbs.push({ label: props.novelTitle, to: `/novel/${route.params.novelId}` })
     }
     breadcrumbs.push({ label: '工作台', icon: Edit })
     if (props.chapterTitle) {
       breadcrumbs.push({ label: props.chapterTitle })
     }
-  } else if (path.startsWith('/settings')) {
+  } else if (normalizedPath.startsWith('/reader/')) {
+    breadcrumbs.push({ label: '小说列表', to: '/novels', icon: Document })
+    if (props.novelTitle) {
+      breadcrumbs.push({ label: props.novelTitle, to: `/novel/${route.params.novelId}` })
+    }
+    breadcrumbs.push({ label: '阅读器' })
+  } else if (normalizedPath.startsWith('/settings')) {
     breadcrumbs.push({ label: '设置', to: '/settings', icon: Setting })
   }
 
