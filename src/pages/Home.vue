@@ -3,16 +3,16 @@
     <!-- 顶部导航栏 -->
     <div class="h-16 app-header flex items-center justify-between px-6">
       <div class="flex items-center space-x-4">
-        <div class="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center">
-          <span class="text-emerald-700 font-semibold">文</span>
+        <div class="logo-container">
+          <img src="@/assets/logo.svg" alt="Logo" class="app-logo" />
         </div>
         <div>
           <div class="text-xs app-muted">创作工作台</div>
-          <h1 class="text-2xl font-semibold">小说写作助手</h1>
+          <h1 class="text-2xl font-semibold bg-gradient-to-r from-[var(--app-primary)] to-[var(--app-accent)] bg-clip-text text-transparent">小说写作助手</h1>
         </div>
       </div>
       <div class="flex items-center space-x-3">
-        <el-button type="primary" @click="goToSettings">
+        <el-button type="primary" @click="goToSettings" class="hover-lift">
           <el-icon class="mr-1"><Setting /></el-icon>
           设置
         </el-button>
@@ -24,16 +24,23 @@
     <div class="flex-1 overflow-auto p-8">
       <div class="max-w-6xl mx-auto">
         <!-- 欢迎卡片 -->
-        <el-card shadow="hover" class="mb-6 app-card">
-          <div class="text-center py-8">
-            <h2 class="text-3xl font-semibold mb-3">欢迎进入创作时刻</h2>
-            <p class="app-muted text-lg mb-6">一个专注写作体验的 AI 创作工作台</p>
+        <el-card shadow="hover" class="mb-6 app-card welcome-card fade-slide-in">
+          <div class="text-center py-12">
+            <div class="welcome-icon mb-4">
+              <img src="@/assets/logo.svg" alt="Welcome" style="width: 80px; height: 80px; margin: 0 auto;" />
+            </div>
+            <h2 class="text-4xl font-bold mb-4 bg-gradient-to-r from-[var(--app-primary)] to-[var(--app-accent)] bg-clip-text text-transparent">
+              欢迎进入创作时刻
+            </h2>
+            <p class="app-muted text-lg mb-8 max-w-2xl mx-auto">
+              让 AI 成为你的写作伙伴，一起创造精彩故事
+            </p>
             <div class="flex justify-center space-x-4">
-              <el-button type="primary" size="large" @click="goToNovels">
+              <el-button type="primary" size="large" @click="goToNovels" class="hover-lift">
                 <el-icon class="mr-1"><Document /></el-icon>
                 管理小说
               </el-button>
-              <el-button size="large" @click="createNovel" :loading="creating">
+              <el-button size="large" @click="createNovel" :loading="creating" class="hover-lift">
                 <el-icon class="mr-1"><Plus /></el-icon>
                 创建新小说
               </el-button>
@@ -44,9 +51,11 @@
 
         <!-- 快速访问 -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <el-card shadow="hover" class="cursor-pointer transition-shadow app-card" @click="goToNovels">
-            <div class="text-center py-6">
-              <el-icon class="text-4xl text-emerald-500 mb-3"><Document /></el-icon>
+          <el-card shadow="hover" class="cursor-pointer app-card feature-card hover-lift" @click="goToNovels">
+            <div class="text-center py-8">
+              <div class="feature-icon mb-4">
+                <el-icon class="text-4xl"><Document /></el-icon>
+              </div>
               <h3 class="text-lg font-semibold mb-2">小说管理</h3>
               <p class="text-sm app-muted">查看和管理所有小说</p>
             </div>
@@ -54,20 +63,24 @@
 
           <el-card
             shadow="hover"
-            class="cursor-pointer transition-shadow app-card"
+            class="cursor-pointer app-card feature-card hover-lift"
             @click="goToWorkbench"
-            :class="{ 'opacity-50': !hasNovels }"
+            :class="{ 'opacity-50 pointer-events-none': !hasNovels }"
           >
-            <div class="text-center py-6">
-              <el-icon class="text-4xl text-amber-500 mb-3"><Edit /></el-icon>
+            <div class="text-center py-8">
+              <div class="feature-icon accent mb-4">
+                <el-icon class="text-4xl"><Edit /></el-icon>
+              </div>
               <h3 class="text-lg font-semibold mb-2">写作工作台</h3>
               <p class="text-sm app-muted">开始创作你的小说</p>
             </div>
           </el-card>
 
-          <el-card shadow="hover" class="cursor-pointer transition-shadow app-card" @click="goToSettings">
-            <div class="text-center py-6">
-              <el-icon class="text-4xl text-rose-400 mb-3"><Setting /></el-icon>
+          <el-card shadow="hover" class="cursor-pointer app-card feature-card hover-lift" @click="goToSettings">
+            <div class="text-center py-8">
+              <div class="feature-icon danger mb-4">
+                <el-icon class="text-4xl"><Setting /></el-icon>
+              </div>
               <h3 class="text-lg font-semibold mb-2">应用设置</h3>
               <p class="text-sm app-muted">配置 AI 模型和其他设置</p>
             </div>
@@ -248,9 +261,89 @@ function formatDate(timestamp?: number) {
 </script>
 
 <style scoped>
+.logo-container {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: transform var(--app-transition-base) ease;
+}
+
+.app-logo:hover {
+  transform: scale(1.05);
+}
+
+.welcome-card {
+  background: var(--app-gradient-surface);
+  border: 1px solid var(--app-border);
+  position: relative;
+  overflow: hidden;
+}
+
+.welcome-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(79, 138, 118, 0.05) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.welcome-icon {
+  animation: scaleIn 0.6s ease-out;
+}
+
+.feature-card {
+  transition: all var(--app-transition-base) ease;
+  border: 1px solid transparent;
+}
+
+.feature-card:hover {
+  border-color: var(--app-primary);
+  background: var(--app-primary-soft);
+}
+
+.feature-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: var(--app-primary-soft);
+  color: var(--app-primary);
+  transition: all var(--app-transition-base) ease;
+}
+
+.feature-icon.accent {
+  background: var(--app-warning-soft);
+  color: var(--app-warning);
+}
+
+.feature-icon.danger {
+  background: rgba(212, 91, 91, 0.1);
+  color: var(--app-danger);
+}
+
+.feature-card:hover .feature-icon {
+  transform: scale(1.1);
+  box-shadow: var(--app-shadow-colored);
+}
+
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

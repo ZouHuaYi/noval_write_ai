@@ -1,27 +1,35 @@
 <template>
   <div class="h-screen flex flex-col bg-[radial-gradient(circle_at_top,rgba(243,236,224,0.6),transparent_55%),var(--app-bg)] text-[var(--app-text)]">
+    <!-- 面包屑导航 -->
+    <Breadcrumb 
+      :novel-title="novel?.title"
+      :chapter-title="currentChapter?.title"
+    />
 
     <!-- 顶部导航栏 -->
     <div class="h-14 bg-[var(--app-surface)] border-b border-[var(--app-border)] shadow-[0_6px_18px_rgba(32,30,25,0.06)] flex items-center justify-between px-6 flex-shrink-0 z-10">
-
       <div class="flex items-center space-x-3">
-        <el-button 
-          text 
-          @click="goBack"
-          class="flex items-center hover:bg-[var(--app-surface-muted)] rounded-lg px-2 py-1"
-        >
-          <el-icon class="mr-1 text-[var(--app-text-muted)]"><ArrowLeft /></el-icon>
-          <span class="text-sm text-[var(--app-text-muted)]">返回</span>
-        </el-button>
-        <el-divider direction="vertical" class="h-6" />
         <div v-if="novel" class="flex flex-col">
           <span class="text-xs text-[var(--app-text-muted)]">当前小说</span>
           <span class="text-[1.05rem] font-600 tracking-wide">{{ novel?.title }}</span>
         </div>
         <div v-else class="text-[var(--app-text-muted)] text-sm">加载中...</div>
-
       </div>
       <div class="flex items-center space-x-2">
+        <!-- 专注模式按钮 -->
+        <el-button 
+          v-if="leftTab === 'chapters' && currentChapterId"
+          :type="isFocusMode ? 'primary' : ''"
+          text 
+          @click="toggleFocusMode"
+          class="transition-all"
+        >
+          <el-icon class="mr-1"><component :is="isFocusMode ? 'FullScreen' : 'Crop'" /></el-icon>
+          {{ isFocusMode ? '退出专注' : '专注写作' }}
+        </el-button>
+        
+        <el-divider v-if="leftTab === 'chapters' && currentChapterId" direction="vertical" class="h-5" />
+        
         <el-tag size="large" type="info" effect="plain" class="rounded-full font-600 tracking-wide px-3 py-1.5 shadow-sm">
           {{ activeTabLabel }}
         </el-tag>
@@ -38,7 +46,12 @@
     </div>
 
     <!-- 工作台内容 -->
-    <WorkbenchLayout :show-right="leftTab === 'chapters'" class="flex-1 overflow-hidden">
+    <WorkbenchLayout 
+      :show-left="!isFocusMode"
+      :show-right="leftTab === 'chapters' && !isFocusMode" 
+      class="flex-1 overflow-hidden"
+      :class="{ 'focus-mode-active': isFocusMode }"
+    >
       <template #left>
         <div class="h-full flex flex-col">
           <div class="relative flex-shrink-0 px-4 py-3 border-b border-[var(--app-border)] bg-[var(--app-surface-muted)] rounded-t-[var(--app-radius)]">
@@ -127,6 +140,14 @@
 
 
       <template #center>
+        <!-- 写作统计（悬浮模式） -->
+        <WritingStats 
+          v-if="leftTab === 'chapters' && currentChapterId"
+          :content="currentChapterContent"
+          :visible="true"
+          :floating="true"
+        />
+        
         <EditorPanel 
           v-if="leftTab === 'chapters'"
           :novel-id="novelId"
@@ -180,11 +201,13 @@ import EditorPanel from '@/panels/EditorPanel.vue'
 import NovelTree from '@/panels/NovelTree.vue'
 import PlanningPanel from '@/panels/PlanningPanel.vue'
 import GraphPanel from '@/panels/GraphPanel.vue'
-import { ArrowLeft, ArrowUp, Document, DataAnalysis, Share } from '@element-plus/icons-vue'
+import WritingStats from '@/components/WritingStats.vue'
+import Breadcrumb from '@/components/Breadcrumb.vue'
+import { ArrowUp, Document, DataAnalysis, Share } from '@element-plus/icons-vue'
 
 
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 
@@ -192,8 +215,14 @@ const route = useRoute()
 const router = useRouter()
 
 const isLeftPanelOpen = ref(true)
+const isFocusMode = ref(false)
+
 const toggleLeftPanel = () => {
   isLeftPanelOpen.value = !isLeftPanelOpen.value
+}
+
+const toggleFocusMode = () => {
+  isFocusMode.value = !isFocusMode.value
 }
 
 const novelId = ref<string>('')
@@ -253,6 +282,27 @@ async function loadNovel() {
     goBack()
   }
 }
+
+// 键盘快捷键
+function handleKeydown(e: KeyboardEvent) {
+  // ESC 退出专注模式
+  if (e.key === 'Escape' && isFocusMode.value) {
+    toggleFocusMode()
+  }
+}
+
+onMounted(async () => {
+  novelId.value = route.params.novelId as string
+  await loadNovel()
+  
+  // 添加键盘监听
+  window.addEventListener('keydown', handleKeydown)
+})
+
+// 组件卸载时移除监听
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
+})
 
 function handleChapterSelected(chapterId: string) {
   currentChapterId.value = chapterId
@@ -353,3 +403,31 @@ function goToSettings() {
 }
 
 </script>
+
+<style scoped>
+.focus-mode-active {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* ESC 提示 */
+.focus-mode-active::before {
+  content: '按 ESC 退出专注模式';
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border-radius: 8px;
+  font-size: 12px;
+  z-index: 1000;
+  opacity: 0;
+  animation: fadeInOut 3s ease-in-out;
+}
+
+@keyframes fadeInOut {
+  0%, 100% { opacity: 0; }
+  10%, 90% { opacity: 1; }
+}
+</style>

@@ -1,12 +1,11 @@
 <template>
   <div class="h-full flex flex-col app-shell">
+    <!-- 面包屑导航 -->
+    <Breadcrumb :novel-title="novel?.title" />
+
     <div class="app-header p-4 flex justify-between items-center">
       <div class="flex items-center space-x-2">
-        <el-button @click="$router.back()">
-          <el-icon><ArrowLeft /></el-icon>
-          返回
-        </el-button>
-        <span class="ml-4 text-lg font-bold">{{ chapter?.title || '加载中...' }}</span>
+        <span class="text-lg font-bold">{{ chapter?.title || '加载中...' }}</span>
       </div>
       <div class="flex items-center gap-3">
         <div class="text-sm app-muted">第 {{ currentIndexDisplay }} / {{ chapters.length || 0 }} 章</div>
@@ -29,18 +28,18 @@
           <span class="text-xs">{{ lineHeight.toFixed(1) }}</span>
           <el-button size="small" text @click="increaseLineHeight">+</el-button>
         </div>
-        <el-button text @click="goToWorkbench">工作台</el-button>
-        <el-button text @click="goToNovelDetail">小说详情</el-button>
-        <el-button @click="prevChapter" :disabled="!prevChapterId">
-          上一章
-        </el-button>
-        <el-button @click="nextChapter" :disabled="!nextChapterId">
-          下一章
-        </el-button>
+        
+        <el-button-group>
+          <el-button @click="prevChapter" :disabled="!prevChapterId">
+            上一章
+          </el-button>
+          <el-button @click="nextChapter" :disabled="!nextChapterId">
+            下一章
+          </el-button>
+        </el-button-group>
       </div>
     </div>
 
-    
     <div class="flex-1 overflow-auto p-8">
       <div v-if="loading" class="flex justify-center items-center h-full">
         <el-icon class="is-loading text-4xl"><Loading /></el-icon>
@@ -53,14 +52,14 @@
         v-html="formatContent(chapter.content)"
       ></div>
     </div>
-
   </div>
 </template>
 
 <script setup>
 import { useNovelStore } from '@/stores/novel'
-import { ArrowLeft, Loading } from '@element-plus/icons-vue'
-import { computed, onMounted, ref } from 'vue'
+import Breadcrumb from '@/components/Breadcrumb.vue'
+import { Loading } from '@element-plus/icons-vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
@@ -68,18 +67,32 @@ const router = useRouter()
 const novelStore = useNovelStore()
 
 const loading = ref(true)
+const novel = ref(null)
 const chapter = ref(null)
 const chapters = ref([])
 const fontSize = ref(18)
 const lineHeight = ref(2.1)
 
-
 const novelId = computed(() => route.params.novelId)
 const chapterId = computed(() => route.params.chapterId)
 
+// 监听路由变化，重新加载数据
+watch(() => route.params.chapterId, () => {
+  loadData()
+})
+
 onMounted(async () => {
+  await loadNovelInfo()
   await loadData()
 })
+
+const loadNovelInfo = async () => {
+  try {
+    novel.value = await novelStore.fetchNovelById(novelId.value)
+  } catch (e) {
+    console.error('加载小说信息失败:', e)
+  }
+}
 
 const loadData = async () => {
   loading.value = true
@@ -89,10 +102,10 @@ const loadData = async () => {
     if (chapterId.value) {
       chapter.value = await novelStore.fetchChapter(chapterId.value)
     } else if (chapters.value.length > 0) {
-      // 如果没有指定章节，跳转到第一章
       router.replace(`/reader/${novelId.value}/${chapters.value[0].id}`)
-      chapter.value = chapters.value[0]
     }
+  } catch (e) {
+    console.error('加载章节数据失败:', e)
   } finally {
     loading.value = false
   }
@@ -111,7 +124,6 @@ const readingProgress = computed(() => {
   return Math.round((currentIndexDisplay.value / chapters.value.length) * 100)
 })
 
-
 const prevChapterId = computed(() => {
   if (currentIndex.value > 0) {
     return chapters.value[currentIndex.value - 1].id
@@ -129,23 +141,13 @@ const nextChapterId = computed(() => {
 const prevChapter = () => {
   if (prevChapterId.value) {
     router.push(`/reader/${novelId.value}/${prevChapterId.value}`)
-    loadData()
   }
 }
 
 const nextChapter = () => {
   if (nextChapterId.value) {
     router.push(`/reader/${novelId.value}/${nextChapterId.value}`)
-    loadData()
   }
-}
-
-const goToWorkbench = () => {
-  router.push(`/workbench/${novelId.value}`)
-}
-
-const goToNovelDetail = () => {
-  router.push(`/novel/${novelId.value}`)
 }
 
 const increaseFont = () => {
@@ -168,7 +170,6 @@ const formatContent = (content) => {
   if (!content) return ''
   return content.replace(/\n/g, '<br>')
 }
-
 </script>
 
 <style scoped>
@@ -181,5 +182,4 @@ const formatContent = (content) => {
   display: block;
   margin-bottom: 12px;
 }
-
 </style>

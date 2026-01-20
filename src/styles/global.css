@@ -4,6 +4,8 @@
 
 :root {
   color-scheme: light;
+
+  /* 基础色彩 */
   --app-bg: #f7f4ee;
   --app-surface: #ffffff;
   --app-surface-muted: #fbf8f2;
@@ -16,16 +18,52 @@
   --app-primary-soft: #e5f2ec;
   --app-accent: #d29f5b;
   --app-danger: #d45b5b;
+
+  /* 情感化配色 */
+  --app-success: #22c55e;
+  --app-success-soft: #dcfce7;
+  --app-success-gold: #d4af37;
+  --app-success-gold-dark: #c5a028;
+  --app-warning: #fb923c;
+  --app-warning-soft: #fed7aa;
+  --app-info: #3b82f6;
+  --app-info-soft: #dbeafe;
+
+  /* 章节状态色 */
+  --app-status-draft: #94a3b8;
+  --app-status-progress: #fb923c;
+  --app-status-complete: #22c55e;
+
+  /* 渐变系统 */
+  --app-gradient-primary: linear-gradient(135deg, #4f8a76 0%, #3a6b5d 100%);
+  --app-gradient-success: linear-gradient(135deg, #d4af37 0%, #c5a028 100%);
+  --app-gradient-surface: linear-gradient(180deg, var(--app-surface) 0%, var(--app-surface-muted) 100%);
+  --app-gradient-warm: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+
+  /* 阴影系统 */
   --app-shadow: 0 12px 28px rgba(32, 30, 25, 0.08);
   --app-shadow-sm: 0 6px 16px rgba(32, 30, 25, 0.08);
+  --app-shadow-lg: 0 20px 40px rgba(32, 30, 25, 0.12);
+  --app-shadow-colored: 0 10px 22px rgba(79, 138, 118, 0.18);
+
+  /* 圆角系统 */
   --app-radius-sm: 10px;
   --app-radius: 14px;
   --app-radius-lg: 18px;
+  --app-radius-xl: 24px;
+
+  /* 动画时长 */
+  --app-transition-fast: 0.15s;
+  --app-transition-base: 0.25s;
+  --app-transition-slow: 0.4s;
+  --app-transition-slower: 0.6s;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
+
+    /* 基础色彩 - 深色模式 */
     --app-bg: #12110e;
     --app-surface: #1c1a16;
     --app-surface-muted: #171512;
@@ -38,8 +76,32 @@
     --app-primary-soft: rgba(121, 178, 155, 0.15);
     --app-accent: #e0b170;
     --app-danger: #e28a8a;
+
+    /* 情感化配色 - 深色模式 */
+    --app-success: #4ade80;
+    --app-success-soft: rgba(74, 222, 128, 0.15);
+    --app-success-gold: #fbbf24;
+    --app-success-gold-dark: #f59e0b;
+    --app-warning: #fb923c;
+    --app-warning-soft: rgba(251, 146, 60, 0.15);
+    --app-info: #60a5fa;
+    --app-info-soft: rgba(96, 165, 250, 0.15);
+
+    /* 章节状态色 - 深色模式 */
+    --app-status-draft: #94a3b8;
+    --app-status-progress: #fb923c;
+    --app-status-complete: #4ade80;
+
+    /* 渐变系统 - 深色模式 */
+    --app-gradient-primary: linear-gradient(135deg, #79b29b 0%, #5a8a75 100%);
+    --app-gradient-success: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    --app-gradient-surface: linear-gradient(180deg, var(--app-surface) 0%, var(--app-surface-muted) 100%);
+
+    /* 阴影系统 - 深色模式 */
     --app-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
     --app-shadow-sm: 0 8px 20px rgba(0, 0, 0, 0.35);
+    --app-shadow-lg: 0 24px 48px rgba(0, 0, 0, 0.55);
+    --app-shadow-colored: 0 12px 28px rgba(121, 178, 155, 0.25);
   }
 }
 
@@ -209,6 +271,7 @@ body {
 .text-truncate-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -216,6 +279,7 @@ body {
 .text-truncate-3 {
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -268,11 +332,64 @@ body {
 
 .el-button {
   border-radius: 10px;
-  transition: all 0.2s ease;
+  transition: all var(--app-transition-base) ease;
+  font-weight: 500;
 }
 
-.el-button--primary {
+.el-button--primary:not(.is-plain) {
+  background: var(--app-gradient-primary);
+  border-color: var(--app-primary);
   box-shadow: 0 10px 18px rgba(79, 138, 118, 0.25);
+  color: #ffffff;
+}
+
+.el-button--primary:not(.is-plain):hover {
+  background: linear-gradient(135deg, #3a6b5d 0%, #2d5447 100%);
+  border-color: #3a6b5d;
+  box-shadow: 0 12px 24px rgba(79, 138, 118, 0.35);
+  transform: translateY(-1px);
+}
+
+.el-button--primary:not(.is-plain):active {
+  background: linear-gradient(135deg, #2d5447 0%, #234238 100%);
+  transform: translateY(0);
+}
+
+/* 默认按钮 */
+.el-button--default:hover {
+  color: var(--app-primary);
+  border-color: var(--app-primary);
+  background: var(--app-primary-soft);
+}
+
+/* 文本按钮 */
+.el-button.is-text:hover {
+  background: var(--app-surface-muted);
+  color: var(--app-primary);
+}
+
+/* 危险按钮 */
+.el-button--danger:hover {
+  background: #c24545;
+  border-color: #c24545;
+}
+
+/* 成功按钮 */
+.el-button--success:hover {
+  background: #1ea84d;
+  border-color: #1ea84d;
+}
+
+/* 警告按钮 */
+.el-button--warning:hover {
+  background: var(--app-warning);
+  border-color: var(--app-warning);
+}
+
+/* 信息按钮 */
+.el-button--info:hover {
+  background: #909399;
+  border-color: #909399;
 }
 
 .el-button:hover {
@@ -313,16 +430,30 @@ body {
 }
 
 .el-tabs__header {
-  margin: 0;
-  padding: 0 16px;
-  background: var(--app-surface);
-  border-bottom: 1px solid var(--app-border);
+  margin: 0 0 20px;
+  padding: 4px;
+  background: var(--app-surface-muted);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-sm);
+}
+
+.el-tabs--card>.el-tabs__header {
+  border-bottom: none;
+}
+
+.el-tabs__nav-wrap::after {
+  display: none;
 }
 
 .el-tabs__item {
-  padding: 12px 16px;
+  height: 36px;
+  line-height: 36px;
+  padding: 0 20px !important;
   font-weight: 500;
-  transition: all 0.2s ease;
+  color: var(--app-text-muted);
+  border-radius: calc(var(--app-radius-sm) - 2px);
+  transition: all var(--app-transition-base) ease;
+  border: none !important;
 }
 
 .el-tabs__item:hover {
@@ -330,13 +461,14 @@ body {
 }
 
 .el-tabs__item.is-active {
+  background: var(--app-surface);
   color: var(--app-primary);
   font-weight: 600;
+  box-shadow: var(--app-shadow-sm);
 }
 
 .el-tabs__active-bar {
-  background-color: var(--app-primary);
-  height: 2px;
+  display: none;
 }
 
 .el-select .el-input__inner {
@@ -397,6 +529,11 @@ body {
   }
 }
 
+/* ============================================
+   动画与过渡效果
+   ============================================ */
+
+/* 页面切换动画 */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -409,6 +546,182 @@ body {
   }
 }
 
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeSlideOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+
+/* 成功操作脉冲 */
+@keyframes pulseSuccess {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+
+  50% {
+    box-shadow: 0 0 0 8px rgba(34, 197, 94, 0.3);
+  }
+}
+
+/* 打字机光标 */
+@keyframes blink {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0;
+  }
+}
+
+/* 缩放进入 */
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 抖动效果（错误提示） */
+@keyframes shake {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  10%,
+  30%,
+  50%,
+  70%,
+  90% {
+    transform: translateX(-4px);
+  }
+
+  20%,
+  40%,
+  60%,
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+/* 加载旋转 */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 呼吸效果（引导提示） */
+@keyframes breathe {
+
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+}
+
+/* 工具类 */
 .fade-in {
   animation: fadeIn 0.3s ease-out;
+}
+
+.fade-slide-in {
+  animation: fadeSlideIn 0.4s ease-out;
+}
+
+.scale-in {
+  animation: scaleIn 0.3s ease-out;
+}
+
+.pulse-success {
+  animation: pulseSuccess 0.6s ease-out;
+}
+
+.shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+.breathe {
+  animation: breathe 2s ease-in-out infinite;
+}
+
+/* 打字机效果 */
+.typing-cursor::after {
+  content: '|';
+  animation: blink 1s step-start infinite;
+  margin-left: 2px;
+}
+
+/* 过渡类 */
+.transition-all {
+  transition: all var(--app-transition-base) ease;
+}
+
+.transition-fast {
+  transition: all var(--app-transition-fast) ease;
+}
+
+.transition-slow {
+  transition: all var(--app-transition-slow) ease;
+}
+
+/* Hover 效果增强 */
+.hover-lift {
+  transition: transform var(--app-transition-base) ease, box-shadow var(--app-transition-base) ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--app-shadow);
+}
+
+.hover-glow {
+  transition: box-shadow var(--app-transition-base) ease;
+}
+
+.hover-glow:hover {
+  box-shadow: var(--app-shadow-colored);
 }

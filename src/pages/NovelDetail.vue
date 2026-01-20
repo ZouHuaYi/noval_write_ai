@@ -1,16 +1,15 @@
 <template>
-  <div class="h-full p-6 overflow-auto app-shell">
-    <div v-if="loading" class="flex justify-center items-center h-full">
+  <div class="h-full flex flex-col app-shell">
+    <!-- 面包屑导航 -->
+    <Breadcrumb :novel-title="novel?.title" />
+    
+    <div v-if="loading" class="flex-1 flex justify-center items-center">
       <el-icon class="is-loading text-4xl"><Loading /></el-icon>
     </div>
 
-    <div v-else-if="novel" class="max-w-4xl mx-auto">
-      <div class="mb-6 flex items-center justify-between">
-        <el-button @click="$router.back()">
-          <el-icon><ArrowLeft /></el-icon>
-          返回
-        </el-button>
-        <div class="flex items-center space-x-2">
+    <div v-else-if="novel" class="flex-1 p-6 overflow-auto">
+      <div class="max-w-4xl mx-auto">
+        <div class="mb-6 flex items-center justify-end space-x-2">
           <el-button type="primary" @click="goToWorkbench">
             进入工作台
           </el-button>
@@ -18,142 +17,140 @@
             开始阅读
           </el-button>
         </div>
-      </div>
 
-      <div class="app-card p-6 mb-6">
-        <div class="flex gap-6">
-          <img
-            v-if="novel.cover"
-            :src="novel.cover"
-            alt="封面"
-            class="w-32 h-48 object-cover rounded"
-          />
-          <div class="flex-1">
-            <h1 class="text-3xl font-semibold mb-2">{{ novel?.title }}</h1>
-            <p class="app-muted">{{ novel?.description || '暂无描述' }}</p>
-            <div class="mt-4 flex flex-wrap items-center gap-3">
-              <el-tag size="small" effect="plain">共 {{ chapters.length }} 章</el-tag>
-              <el-tag size="small" effect="plain">总字数 {{ totalWords }}</el-tag>
-              <el-tag size="small" effect="plain">已完成 {{ completedChapters }} 章</el-tag>
-              <div class="flex items-center gap-2">
-                <span class="text-xs app-muted">进度</span>
-                <el-progress
-                  :percentage="completionRate"
-                  :stroke-width="6"
-                  :show-text="false"
-                  class="w-28"
-                />
+        <div class="app-card p-6 mb-6">
+          <div class="flex gap-6">
+            <img
+              v-if="novel.cover"
+              :src="novel.cover"
+              alt="封面"
+              class="w-32 h-48 object-cover rounded"
+            />
+            <div class="flex-1">
+              <h1 class="text-3xl font-semibold mb-2">{{ novel?.title }}</h1>
+              <p class="app-muted">{{ novel?.description || '暂无描述' }}</p>
+              <div class="mt-4 flex flex-wrap items-center gap-3">
+                <el-tag size="small" effect="plain">共 {{ chapters.length }} 章</el-tag>
+                <el-tag size="small" effect="plain">总字数 {{ totalWords }}</el-tag>
+                <el-tag size="small" effect="plain">已完成 {{ completedChapters }} 章</el-tag>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs app-muted">进度</span>
+                  <el-progress
+                    :percentage="completionRate"
+                    :stroke-width="6"
+                    :show-text="false"
+                    class="w-28"
+                  />
+                </div>
               </div>
-            </div>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <el-tag size="small" type="info" effect="plain">草稿 {{ draftChapters }}</el-tag>
-              <el-tag size="small" type="warning" effect="plain">写作中 {{ writingChapters }}</el-tag>
-              <el-tag size="small" type="success" effect="plain">已完成 {{ completedChapters }}</el-tag>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <el-tag size="small" type="info" effect="plain">草稿 {{ draftChapters }}</el-tag>
+                <el-tag size="small" type="warning" effect="plain">写作中 {{ writingChapters }}</el-tag>
+                <el-tag size="small" type="success" effect="plain">已完成 {{ completedChapters }}</el-tag>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="app-card p-6">
-        <div class="flex justify-between items-center mb-4">
-          <h2 class="text-xl font-semibold">章节目录</h2>
-          <div class="text-sm app-muted">最近更新：{{ lastUpdatedAt }}</div>
+        <div class="app-card p-6">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold">章节目录</h2>
+            <div class="text-sm app-muted">最近更新：{{ lastUpdatedAt }}</div>
+          </div>
+
+          <el-collapse v-model="activeGroups">
+            <el-collapse-item name="writing">
+              <template #title>
+                <span class="font-semibold">写作中（{{ writingChaptersList.length }}）</span>
+              </template>
+              <el-table
+                :data="writingChaptersList"
+                style="width: 100%"
+                size="small"
+                empty-text="暂无写作中章节"
+              >
+                <el-table-column prop="chapterNumber" label="序号" width="80" />
+                <el-table-column prop="title" label="标题" />
+                <el-table-column label="状态" width="120">
+                  <template #default="{ row }">
+                    <el-tag size="small" :type="getStatusType(row.status)" effect="plain">
+                      {{ getStatusText(row.status) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="wordCount" label="字数" width="100" />
+                <el-table-column label="操作" width="150">
+                  <template #default="{ row }">
+                    <el-button size="small" type="primary" @click="readChapter(row.id)">阅读</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-collapse-item>
+            <el-collapse-item name="draft">
+              <template #title>
+                <span class="font-semibold">草稿（{{ draftChaptersList.length }}）</span>
+              </template>
+              <el-table
+                :data="draftChaptersList"
+                style="width: 100%"
+                size="small"
+                empty-text="暂无草稿章节"
+              >
+                <el-table-column prop="chapterNumber" label="序号" width="80" />
+                <el-table-column prop="title" label="标题" />
+                <el-table-column label="状态" width="120">
+                  <template #default="{ row }">
+                    <el-tag size="small" :type="getStatusType(row.status)" effect="plain">
+                      {{ getStatusText(row.status) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="wordCount" label="字数" width="100" />
+                <el-table-column label="操作" width="150">
+                  <template #default="{ row }">
+                    <el-button size="small" type="primary" @click="readChapter(row.id)">阅读</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-collapse-item>
+            <el-collapse-item name="completed">
+              <template #title>
+                <span class="font-semibold">已完成（{{ completedChaptersList.length }}）</span>
+              </template>
+              <el-table
+                :data="completedChaptersList"
+                style="width: 100%"
+                size="small"
+                empty-text="暂无已完成章节"
+              >
+                <el-table-column prop="chapterNumber" label="序号" width="80" />
+                <el-table-column prop="title" label="标题" />
+                <el-table-column label="状态" width="120">
+                  <template #default="{ row }">
+                    <el-tag size="small" :type="getStatusType(row.status)" effect="plain">
+                      {{ getStatusText(row.status) }}
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="wordCount" label="字数" width="100" />
+                <el-table-column label="操作" width="150">
+                  <template #default="{ row }">
+                    <el-button size="small" type="primary" @click="readChapter(row.id)">阅读</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-collapse-item>
+          </el-collapse>
         </div>
-
-        <el-collapse v-model="activeGroups">
-          <el-collapse-item name="writing">
-            <template #title>
-              <span class="font-semibold">写作中（{{ writingChaptersList.length }}）</span>
-            </template>
-            <el-table
-              :data="writingChaptersList"
-              style="width: 100%"
-              size="small"
-              empty-text="暂无写作中章节"
-            >
-              <el-table-column prop="chapterNumber" label="序号" width="80" />
-              <el-table-column prop="title" label="标题" />
-              <el-table-column label="状态" width="120">
-                <template #default="{ row }">
-                  <el-tag size="small" :type="getStatusType(row.status)" effect="plain">
-                    {{ getStatusText(row.status) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="wordCount" label="字数" width="100" />
-              <el-table-column label="操作" width="150">
-                <template #default="{ row }">
-                  <el-button link type="primary" @click="readChapter(row.id)">阅读</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </el-collapse-item>
-          <el-collapse-item name="draft">
-            <template #title>
-              <span class="font-semibold">草稿（{{ draftChaptersList.length }}）</span>
-            </template>
-            <el-table
-              :data="draftChaptersList"
-              style="width: 100%"
-              size="small"
-              empty-text="暂无草稿章节"
-            >
-              <el-table-column prop="chapterNumber" label="序号" width="80" />
-              <el-table-column prop="title" label="标题" />
-              <el-table-column label="状态" width="120">
-                <template #default="{ row }">
-                  <el-tag size="small" :type="getStatusType(row.status)" effect="plain">
-                    {{ getStatusText(row.status) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="wordCount" label="字数" width="100" />
-              <el-table-column label="操作" width="150">
-                <template #default="{ row }">
-                  <el-button link type="primary" @click="readChapter(row.id)">阅读</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </el-collapse-item>
-          <el-collapse-item name="completed">
-            <template #title>
-              <span class="font-semibold">已完成（{{ completedChaptersList.length }}）</span>
-            </template>
-            <el-table
-              :data="completedChaptersList"
-              style="width: 100%"
-              size="small"
-              empty-text="暂无已完成章节"
-            >
-              <el-table-column prop="chapterNumber" label="序号" width="80" />
-              <el-table-column prop="title" label="标题" />
-              <el-table-column label="状态" width="120">
-                <template #default="{ row }">
-                  <el-tag size="small" :type="getStatusType(row.status)" effect="plain">
-                    {{ getStatusText(row.status) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="wordCount" label="字数" width="100" />
-              <el-table-column label="操作" width="150">
-                <template #default="{ row }">
-                  <el-button link type="primary" @click="readChapter(row.id)">阅读</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </el-collapse-item>
-        </el-collapse>
       </div>
     </div>
-
   </div>
 </template>
 
-
 <script setup lang="ts">
-
 import { useNovelStore } from '@/stores/novel'
-import { ArrowLeft, Loading } from '@element-plus/icons-vue'
+import Breadcrumb from '@/components/Breadcrumb.vue'
+import { Loading } from '@element-plus/icons-vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -162,15 +159,10 @@ const router = useRouter()
 const novelStore = useNovelStore()
 
 const loading = ref(true)
-const novel = ref(null)
-const chapters = ref([])
-const chapterForm = ref({
-  title: '',
-  chapterNumber: 1,
-  content: ''
-})
+const novel = ref<any>(null)
+const chapters = ref<any[]>([])
 
-const novelId = computed(() => route.params.id)
+const novelId = computed(() => route.params.id as string)
 const totalWords = computed(() => {
   return chapters.value.reduce((total, chapter) => total + (chapter.wordCount || 0), 0)
 })
@@ -229,7 +221,7 @@ const loadData = async () => {
   }
 }
 
-const readChapter = (chapterId) => {
+const readChapter = (chapterId: string) => {
   router.push(`/reader/${novelId.value}/${chapterId}`)
 }
 
@@ -241,7 +233,4 @@ const readFirstChapter = () => {
 const goToWorkbench = () => {
   router.push(`/workbench/${novelId.value}`)
 }
-
-
-
 </script>

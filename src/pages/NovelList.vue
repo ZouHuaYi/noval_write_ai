@@ -1,16 +1,13 @@
 <template>
   <div class="h-full flex flex-col app-shell">
+    <!-- 面包屑导航 -->
+    <Breadcrumb />
     <!-- 工具栏 -->
     <div class="p-5 app-header flex items-center justify-between">
       <div class="flex items-center space-x-4">
-        <el-button text @click="goToHome">
-          <el-icon class="mr-1"><HomeFilled /></el-icon>
-          首页
-        </el-button>
-        <el-divider direction="vertical" />
         <div>
           <div class="text-xs app-muted">创作管理</div>
-          <h2 class="text-xl font-semibold">小说列表</h2>
+          <h2 class="text-xl font-semibold bg-gradient-to-r from-[var(--app-primary)] to-[var(--app-accent)] bg-clip-text text-transparent">小说列表</h2>
         </div>
         <el-radio-group v-model="viewMode" size="small">
           <el-radio-button label="table">
@@ -63,22 +60,28 @@
               {{ formatDate(row.updatedAt) }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="200" fixed="right">
+          <el-table-column label="操作" width="240" fixed="right">
             <template #default="{ row }">
-              <el-button link type="primary" @click.stop="goToWorkbench(row.id)">
+              <el-button size="small"  type="primary" @click.stop="goToWorkbench(row.id)">
                 工作台
               </el-button>
-              <el-button link type="primary" @click.stop="editNovel(row)">
+              <el-button size="small"  type="primary" @click.stop="editNovel(row)">
                 编辑
               </el-button>
-              <el-button link type="danger" @click.stop="deleteNovel(row.id)">
+              <el-button size="small"  type="danger" @click.stop="deleteNovel(row.id)">
                 删除
               </el-button>
             </template>
           </el-table-column>
         </el-table>
-        <div v-if="filteredNovels.length === 0 && !loading" class="text-center py-10 app-muted">
-          <div class="text-sm">暂无小说，点击上方按钮创建</div>
+        <div v-if="filteredNovels.length === 0 && !loading" class="text-center py-16">
+          <EmptyState 
+            title="暂无小说"
+            description="点击上方按钮创建你的第一部作品"
+            action-text="添加小说"
+            :icon="Document"
+            @action="showAddDialog = true"
+          />
         </div>
       </div>
 
@@ -112,9 +115,15 @@
           </div>
         </el-card>
 
-        <div v-if="filteredNovels.length === 0 && !loading" class="col-span-full text-center py-12 app-muted">
-          <el-icon class="text-4xl mb-2"><Document /></el-icon>
-          <div>暂无小说，点击上方按钮创建</div>
+        <div v-if="filteredNovels.length === 0 && !loading" class="col-span-full">
+          <EmptyState 
+            title="暂无小说"
+            description="点击上方按钮创建你的第一部作品"
+            action-text="添加小说"
+            :icon="Document"
+            size="large"
+            @action="showAddDialog = true"
+          />
         </div>
       </div>
     </div>
@@ -153,7 +162,9 @@
 </template>
 
 <script setup lang="ts">
-import { Document, Grid, HomeFilled, List, Plus } from '@element-plus/icons-vue'
+import { Document, Grid, List, Plus } from '@element-plus/icons-vue'
+import EmptyState from '@/components/EmptyState.vue'
+import Breadcrumb from '@/components/Breadcrumb.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -165,6 +176,7 @@ type Novel = {
   description?: string
   genre?: string
   updatedAt?: number
+  createdAt?: number
 }
 
 const router = useRouter()
@@ -242,9 +254,7 @@ function goToWorkbench(id: string) {
   router.push(`/workbench/${id}`)
 }
 
-function goToHome() {
-  router.push('/')
-}
+
 
 function formatDate(timestamp?: number) {
   if (!timestamp) return '-'
@@ -327,7 +337,17 @@ async function deleteNovel(id: string) {
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.app-card {
+  transition: all var(--app-transition-base) ease;
+}
+
+.app-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--app-shadow);
 }
 </style>
