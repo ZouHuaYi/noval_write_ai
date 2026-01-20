@@ -87,14 +87,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // ===== Outline Agent =====
     // 生成事件图谱
     generateEventGraph: (options) => ipcRenderer.invoke('outline:generateEventGraph', options),
-    // 从章节提取事件
-    extractEvents: (options) => ipcRenderer.invoke('outline:extractEvents', options),
-    // 分析事件依赖
-    analyzeDependencies: (events) => ipcRenderer.invoke('outline:analyzeDependencies', events),
-    // 扩展事件节点
-    expandEvent: (event, context) => ipcRenderer.invoke('outline:expandEvent', event, context),
-    // 验证事件图谱
-    validateGraph: (events) => ipcRenderer.invoke('outline:validateGraph', events),
 
     // ===== Context Building =====
     buildContext: (novelId, chapterId) => ipcRenderer.invoke('planning:buildContext', { novelId, chapterId }),
@@ -106,10 +98,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createKanban: (chapters) => ipcRenderer.invoke('planning:createKanban', chapters),
     // 推荐下一个任务
     recommendTask: (options) => ipcRenderer.invoke('planning:recommendTask', options),
-    // 估算写作时间
-    estimateTime: (chapter, wordsPerHour) => ipcRenderer.invoke('planning:estimateTime', chapter, wordsPerHour),
-    // 生成写作日程
-    generateSchedule: (chapters, options) => ipcRenderer.invoke('planning:generateSchedule', chapters, options),
 
     // ===== 规划元数据与章节 =====
     getChapterPlan: (novelId, chapterNumber) => ipcRenderer.invoke('planning:getChapterPlan', novelId, chapterNumber),

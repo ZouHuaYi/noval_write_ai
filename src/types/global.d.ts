@@ -267,14 +267,6 @@ declare global {
         // ===== Outline Agent =====
         // 生成事件图谱
         generateEventGraph: (options) => Promise<any>
-        // 从章节提取事件
-        extractEvents: (options) => Promise<any>
-        // 分析事件依赖
-        analyzeDependencies: (events) => Promise<any>
-        // 扩展事件节点
-        expandEvent: (event, context) => Promise<any>
-        // 验证事件图谱
-        validateGraph: (events) => Promise<any>
 
         // ===== Context Building =====
         buildContext: (novelId: string, chapterId: string) => Promise<any>
@@ -285,10 +277,6 @@ declare global {
         // 创建看板
         createKanban: (chapters) => Promise<any>
         recommendTask: (options: { novelId: string; events?: any[]; chapters?: any[]; progress?: any }) => Promise<any>
-        // 估算写作时间
-        estimateTime: (chapter, wordsPerHour) => Promise<any>
-        // 生成写作日程
-        generateSchedule: (chapters, options) => Promise<any>
 
         // ===== 规划元数据与章节 =====
         getChapterPlan: (novelId: string, chapterNumber: number) => Promise<any>
