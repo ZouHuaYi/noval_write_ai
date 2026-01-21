@@ -1202,7 +1202,6 @@ function openGeneratePlanDialog() {
   const eventChapters = events.value
     .map(e => Number(e.chapter))
     .filter(n => Number.isFinite(n))
-  const minEventChapter = eventChapters.length > 0 ? Math.min(...eventChapters) : 1
   const maxEventChapter = eventChapters.length > 0 ? Math.max(...eventChapters) : 10
   
   // 获取当前已有章节的最大章节号
