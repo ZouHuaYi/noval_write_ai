@@ -376,7 +376,7 @@ const taskForm = ref({
   chapterNumber: 1,
   title: '',
   priority: 'medium' as 'high' | 'medium' | 'low',
-  targetWords: 1500,
+  targetWords: 3000,
   status: 'pending'
 })
 

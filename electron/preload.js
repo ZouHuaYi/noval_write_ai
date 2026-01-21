@@ -27,7 +27,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     generateStatus: (chapterId) => ipcRenderer.invoke('chapter:generateStatus', chapterId),
     generateReset: (chapterId) => ipcRenderer.invoke('chapter:generateReset', chapterId),
     checkConsistencyDiff: (novelId, chapterId, content, extraPrompt) =>
-      ipcRenderer.invoke('chapter:checkConsistencyDiff', novelId, chapterId, content, extraPrompt)
+      ipcRenderer.invoke('chapter:checkConsistencyDiff', novelId, chapterId, content, extraPrompt),
+    validateParagraph: (options) => ipcRenderer.invoke('chapter:validateParagraph', options)
   },
 
 

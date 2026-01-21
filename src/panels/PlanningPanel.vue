@@ -1255,7 +1255,7 @@ async function generatePlan() {
     // 构建请求参数
     const params: any = {
       events: serializedEvents,
-      wordsPerChapter: 1500,
+      wordsPerChapter: 3000,
       startChapter,
       endChapter,
       targetChapters
