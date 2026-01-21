@@ -24,7 +24,7 @@ const formatSection = (title: string, content: string) => `【${title}】\n${con
 
 export const chapterSkills = {
   continue: {
-    systemPrompt: '你是小说续写助手。请根据给定上下文续写章节，保持原文叙事视角与文风，不重复已有内容，不输出标题或说明，只输出续写正文。',
+    systemPrompt: '你是小说写作助手。请根据给定上下文续写章节，保持原文叙事视角与文风，不重复已有内容，不输出标题或说明，只输出章节正文。',
     buildUserPrompt: ({
       novelTitle,
       chapterTitle,

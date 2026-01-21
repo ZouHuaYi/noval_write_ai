@@ -250,15 +250,7 @@
              
              <div v-else-if="previewContext" class="space-y-2">
                <el-collapse class="context-preview-collapse">
-                 <el-collapse-item name="1" v-if="previewContext.outlineContext">
-                   <template #title>
-                     <span class="text-xs text-purple-800">大纲上下文 ({{ previewContext.outlineContext.length }} chars)</span>
-                   </template>
-                   <div class="text-xs text-gray-600 max-h-32 overflow-y-auto whitespace-pre-wrap">
-                     {{ previewContext.outlineContext }}
-                   </div>
-                 </el-collapse-item>
-                 <el-collapse-item name="2" v-if="previewContext.memoryContext">
+                 <el-collapse-item name="1" v-if="previewContext.memoryContext">
                    <template #title>
                      <span class="text-xs text-purple-800">记忆上下文 ({{ previewContext.memoryContext.length }} chars)</span>
                    </template>
@@ -266,7 +258,7 @@
                      {{ previewContext.memoryContext }}
                    </div>
                  </el-collapse-item>
-                 <el-collapse-item name="3" v-if="previewContext.worldviewContext">
+                 <el-collapse-item name="2" v-if="previewContext.worldviewContext">
                    <template #title>
                      <span class="text-xs text-purple-800">世界观上下文 ({{ previewContext.worldviewContext.length }} chars)</span>
                    </template>
@@ -795,13 +787,13 @@ const confirmAction = async () => {
   try {
     let actionResult: string | null = null
     switch (dialogType.value) {
-      case 'continue':
+      case 'continue': // 
         actionResult = await executeContinue()
         break
-      case 'polish':
+      case 'polish': // 润色
         actionResult = await executePolish()
         break
-      case 'consistency':
+      case 'consistency': // 一致性检查
         actionResult = await executeConsistency()
         break
     }

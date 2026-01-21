@@ -34,7 +34,6 @@ function registerChapterGenerationHandlers(ipcMain) {
               status: result.status === 'completed' ? matched.status : 'in_progress'
             }
             planningDAO.upsertPlanningChapters(payload.novelId, [updated])
-
             if (result.status === 'completed') {
               result.planCompletionSuggested = true
             }
