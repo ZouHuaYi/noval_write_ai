@@ -154,6 +154,7 @@ async function generateChapterChunks({
   }
 
   const { chapter, chapterNumber, planningContext, worldRules, lastChapterContentEnd } = await buildGenerationContext({ novelId, chapterId })
+  // 构建知识上下文
   const knowledgeContext = buildKnowledgeSummary({
     novelId,
     types: ['character', 'location', 'timeline', 'plot'],

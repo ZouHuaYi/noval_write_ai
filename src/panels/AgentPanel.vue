@@ -322,71 +322,6 @@
       </template>
     </el-dialog>
 
-    <!-- 章节完成确认对话框 -->
-    <el-dialog
-      v-model="showCompletionConfirmDialog"
-      title="计划完成建议"
-      width="400px"
-      append-to-body
-    >
-      <div class="flex gap-3">
-        <el-icon class="text-success text-2xl mt-1"><Check /></el-icon>
-        <div>
-          <div class="text-base font-bold mb-2">是否标记为完成？</div>
-          <div class="text-sm text-gray-600 leading-relaxed">
-            AI 检测到当前情节已较好地完成了规划目标，是否将该章节计划标记为"已完成"？
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <div class="flex justify-between items-center w-full">
-          <el-checkbox v-model="dontShowCompletionPrompt">不再提示</el-checkbox>
-          <div class="flex gap-2">
-            <el-button @click="showCompletionConfirmDialog = false">暂不标记</el-button>
-            <el-button type="primary" @click="confirmCompletion">标记为完成</el-button>
-          </div>
-        </div>
-      </template>
-    </el-dialog>
-
-    <!-- 上下文摘要对话框 -->
-    <el-dialog
-      v-model="showContextSummaryDialog"
-      title="本次生成引用的上下文"
-      width="600px"
-    >
-      <div v-if="contextSummaryData" class="space-y-4">
-        <div v-if="contextSummaryData.outline" class="bg-blue-50 p-3 rounded-lg border border-blue-100">
-          <div class="font-bold text-blue-800 mb-1 flex items-center gap-1">
-            <el-icon><List /></el-icon> 引用大纲
-          </div>
-          <div class="text-sm text-blue-900 leading-relaxed whitespace-pre-wrap">{{ contextSummaryData.outline }}</div>
-        </div>
-        
-        <div v-if="contextSummaryData.memory" class="bg-amber-50 p-3 rounded-lg border border-amber-100">
-          <div class="font-bold text-amber-800 mb-1 flex items-center gap-1">
-            <el-icon><Cpu /></el-icon> 引用记忆
-          </div>
-          <div class="text-sm text-amber-900 leading-relaxed whitespace-pre-wrap">{{ contextSummaryData.memory }}</div>
-        </div>
-
-        <div v-if="contextSummaryData.rules" class="bg-purple-50 p-3 rounded-lg border border-purple-100">
-          <div class="font-bold text-purple-800 mb-1 flex items-center gap-1">
-            <el-icon><Warning /></el-icon> 引用规则
-          </div>
-          <div class="text-sm text-purple-900 leading-relaxed whitespace-pre-wrap">{{ contextSummaryData.rules }}</div>
-        </div>
-        
-        <!-- 兜底显示 -->
-        <div v-if="typeof contextSummaryData === 'string'" class="bg-gray-50 p-3 rounded-lg border border-gray-100">
-           <div class="text-sm text-gray-700 whitespace-pre-wrap">{{ contextSummaryData }}</div>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="showContextSummaryDialog = false">关闭</el-button>
-      </template>
-    </el-dialog>
-
     <!-- 一致性检查 Diff 对话框 -->
     <el-dialog
       v-model="showConsistencyDiffDialog"
@@ -532,13 +467,10 @@ const previewContext = ref<{
 const loadingContext = ref(false)
 
 // Completion Dialog
-const showCompletionConfirmDialog = ref(false)
 const dontShowCompletionPrompt = ref(false)
-const completionTargetChapter = ref<{ novelId: string; chapterNumber: number } | null>(null)
 
 // 上下文摘要显示
 const showContextSummaryDialog = ref(false)
-const contextSummaryData = ref<any>(null)
 
 // 一致性检查 Diff 显示
 const showConsistencyDiffDialog = ref(false)
@@ -827,56 +759,23 @@ const executeContinue = async () => {
     novelId: props.novelId,
     chapterId: props.chapterId,
     novelTitle: props.novelTitle,
-    chunkSize: 1200,
-    maxChunks: 1,
     extraPrompt: prompt,
     systemPrompt
   })
-
-  // 处理上下文摘要
-  if (result?.contextSummary) {
-    const summary = result.contextSummary
-    contextSummaryData.value = {
-      outline: summary.outlineContext || '',
-      memory: summary.memoryContext || summary.planningContext || '',
-      rules: summary.knowledgeContext || ''
-    }
-    showContextSummaryDialog.value = true
-  }
-
 
   const updatedContent = result?.chapter?.content
   if (!updatedContent) {
     ElMessage.warning('未生成有效续写内容')
     return null
   }
+  const chapter = await window.electronAPI.chapter.get(props.chapterId)
 
-  // 建议完成计划
-  if (result?.planCompletionSuggested && props.novelId) {
-    // 获取章节号
-    const chapter = await window.electronAPI.chapter.get(props.chapterId)
-    if (chapter?.chapterNumber) {
-      // 检查设置
-      let promptDisabled = false
-      try {
-        promptDisabled = await window.electronAPI.settings.get('writing:completionPromptDisabled')
-      } catch (e) {
-        console.error('读取设置失败', e)
-      }
-
-      if (!promptDisabled) {
-        completionTargetChapter.value = { novelId: props.novelId, chapterNumber: chapter.chapterNumber }
-        showCompletionConfirmDialog.value = true
-      }
-    }
-  }
-
+  confirmCompletion({ novelId: props.novelId, chapterNumber: chapter.chapterNumber })
   // 显示流式输出对话框
   showStreamingDialog.value = true
   streamingContent.value = updatedContent
   streamingCompleted.value = false
   isGenerating.value = true
-
   return '续写完成'
 }
 
@@ -984,9 +883,6 @@ const handleRejectPolish = () => {
   ElMessage.info('已取消润色')
 }
 
-
-
-
 const handleGenerateNextChapter = async () => {
   if (!props.chapterId) {
     ElMessage.warning('请先选择章节')
@@ -1072,17 +968,15 @@ const handleGenerateNextChapter = async () => {
   }
 }
 
-const confirmCompletion = async () => {
-  showCompletionConfirmDialog.value = false
-  if (completionTargetChapter.value) {
-    const { novelId, chapterNumber } = completionTargetChapter.value
+// 标记章节完成
+const confirmCompletion = async (completionTargetChapter: { novelId: string; chapterNumber: number }) => {
+    const { novelId, chapterNumber } = completionTargetChapter
     await window.electronAPI.planning.updateChapterStatus(novelId, chapterNumber, 'completed')
     ElMessage.success('已更新章节状态')
     
     if (dontShowCompletionPrompt.value) {
       await window.electronAPI.settings.set('writing:completionPromptDisabled', true, '不再提示章节计划完成建议')
     }
-  }
 }
 
 // 流式输出处理函数

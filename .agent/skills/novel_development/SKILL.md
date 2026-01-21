@@ -1,0 +1,130 @@
+---
+name: Novel Project Development
+description: 针对 Novel-Electron 项目的开发指南、架构说明和最佳实践。包含 IPC 通信、数据库操作和 UI 开发规范。
+---
+
+# 小说管理 Electron 项目开发指南 (Skills)
+
+这份文档汇总了项目架构、核心开发流程、代码规范及常用技巧，旨在帮助开发助手（AI）和开发者快速上手并遵循最佳实践。
+
+## 1. 项目概览
+
+本项目是一个基于 **Electron + Vue 3** 的本地小说管理与创作应用，集成了本地数据库 (SQLite) 和 LLM (大模型) 能力。
+
+### 技术栈
+
+- **Core**: Electron
+- **Frontend**: Vue 3 (Composition API), Vite, Element Plus (UI), UnoCSS (Utility CSS), Pinia (State), Vue Router
+- **Backend (Main Process)**: Node.js, better-sqlite3 (Database), LangChain-like Patterns (LLM)
+- **Editor**: Tiptap (Rich Text)
+- **Graph**: @vue-flow, graphology (知识图谱)
+
+### 目录结构核心映射
+
+| 路径                  | 说明                                                  |
+| :-------------------- | :---------------------------------------------------- |
+| `src/pages/`          | 页面级组件 (Home, NovelList, Workbench 等)            |
+| `src/panels/`         | 工作台子面板 (AgentPanel, EditorPanel, NovelTree)     |
+| `src/stores/`         | Pinia 状态管理 (novel.js 等)                          |
+| `electron/main.js`    | 主进程入口，窗口管理，DB 初始化                       |
+| `electron/preload.js` | 预加载脚本，**所有 IPC API 定义处**                   |
+| `electron/ipc/`       | IPC 业务逻辑实现 (novelHandlers, chapterHandlers 等)  |
+| `electron/database/`  | 数据库连接、Schema (`schema.sql`)、DAO 层             |
+| `electron/llm/`       | LLM 服务与智能体逻辑 (PlanningAgent, OutlineAgent 等) |
+
+---
+
+## 2. 核心开发工作流 (Workflows)
+
+### 2.1 新增后端 API (IPC 通信)
+
+遵循 **3 步走** 流程，严禁在前端直接操作数据库或文件系统。
+
+1.  **实现 Handler**: 在 `electron/ipc/` 下寻找对应模块（如 `chapterHandlers.js`）或新建文件。
+    ```javascript
+    // electron/ipc/exampleHandlers.js
+    const { getDatabase } = require("../database");
+    function registerExampleHandlers(ipcMain) {
+      ipcMain.handle("example:getData", async (event, id) => {
+        const db = getDatabase();
+        return db.prepare("SELECT * FROM table WHERE id = ?").get(id);
+      });
+    }
+    module.exports = { registerExampleHandlers };
+    ```
+2.  **注册 Handler**: 在 `electron/ipcHandlers.js` 中引入并调用注册函数。
+    ```javascript
+    const { registerExampleHandlers } = require("./ipc/exampleHandlers");
+    function registerIpcHandlers() {
+      // ...
+      registerExampleHandlers(ipcMain);
+    }
+    ```
+3.  **暴露给前端**: 修改 `electron/preload.js`，在 `electronAPI` 对象中添加定义。
+    ```javascript
+    contextBridge.exposeInMainWorld("electronAPI", {
+      // ...
+      example: {
+        getData: (id) => ipcRenderer.invoke("example:getData", id),
+      },
+    });
+    ```
+4.  _(可选但推荐)_: 更新 `src/vite-env.d.ts` 为 `window.electronAPI` 添加类型提示。
+
+### 2.2 数据库变更
+
+本项目数据库初始化是**同步**的，且包含自动迁移逻辑。
+
+1.  **修改 Schema**: 如果是新表，编辑 `electron/database/schema.sql`。
+2.  **修改已有表**: **不要**直接修改 `schema.sql` 来变更已有生产环境的表结构。应在 `electron/database/index.js` 的 `initDatabase` 函数中添加迁移逻辑（参考 `contentHash` 列的添加方式），通过 `PRAGMA table_info` 检查字段是否存在，不存在则 `ALTER TABLE`。
+
+### 2.3 新增 UI 页面/组件
+
+1.  **页面**: 放入 `src/pages/`，并在 `src/router/index.js` 注册路由。
+2.  **通用组件**: 放入 `src/components/`。
+3.  **业务面板**: 放入 `src/panels/` (如特定于工作台的功能)。
+4.  **样式**: 优先使用 UnoCSS 原子类 (e.g., `flex items-center m-4`)。复杂自定义样式使用 `<style scoped>`。
+5.  **组件引用**: Element Plus 组件已自动引入，无需手动 import。
+
+---
+
+## 3. 代码规范与最佳实践
+
+### 前端 (Vue)
+
+- **Composition API**: 必须使用 `<script setup>`。
+- **不使用 Class 组件**: 保持 Vue 3 原生风格。
+- **布局**: 遇到布局错乱，优先检查父容器的 `flex`, `h-full`, `overflow` 属性。避免滥用 `position: absolute` 做整体布局。
+- **滚动条**: 复用 `.custom-scrollbar` 类（定义在全局或面板组件中）。
+
+### 后端 (Electron)
+
+- **异步操作**: IPC Handler 此时应始终为 `async`，即使操作是同步的（为了未来扩展性）。
+- **错误处理**: Handler 内部捕获错误并打印日志，但这会抛回给前端，前端需处理 `try-catch`。
+
+### LLM / Agent 集成
+
+- **调用方式**: 前端通过 `window.electronAPI.llm` 或 `window.electronAPI.planning` 调用。
+- **Prompt 管理**: 提示词通常位于 `electron/llm/` 或 `electron/prompt/` 目录。修改提示词需谨慎，建议先在简单场景测试。
+- **依赖**: LLM 服务封装在 `electron/llm/llmService.js`，支持兼容 OpenAI 接口的模型。
+
+---
+
+## 4. 常用命令
+
+| 命令              | 作用             | 备注                                 |
+| :---------------- | :--------------- | :----------------------------------- |
+| `npm run dev`     | 启动开发环境     | 同时启动 Vite 和 Electron            |
+| `npm run rebuild` | 重新编译原生依赖 | 解决 `better-sqlite3` 版本不匹配问题 |
+| `npm run build`   | 打包生产版本     | 输出到 release 目录                  |
+
+## 5. 调试技巧
+
+- **前端调试**: 使用 Electron 窗口自带的 DevTools (自动打开或 Ctrl+Shift+I)。
+- **后端调试**: `console.log` 输出在启动 Electron 的终端中。
+- **数据库调试**: 数据文件位于 `AppData/Roaming/novel-electron/novels.db` (或开发时的 `userData` 路径)。
+
+## 6. 开发要求
+
+- 代码功能完成一定要加注释
+- 一段代码功能开发完成，要进行校验，而不是全部完成后再校验
