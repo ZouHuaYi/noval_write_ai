@@ -352,84 +352,23 @@
         @reject="handleRejectPolish"
       />
     </el-dialog>
-
-    <!-- AI 生成流式输出对话框 -->
-    <el-dialog
-      v-model="showStreamingDialog"
-      title="AI 正在生成内容"
-      width="800px"
-      :close-on-click-modal="false"
-      :show-close="!isGenerating"
-    >
-      <div class="streaming-dialog-content">
-        <div class="streaming-header">
-          <el-icon class="text-primary text-xl"><EditPen /></el-icon>
-          <span class="text-sm text-muted ml-2">正在为您创作精彩内容...</span>
-        </div>
-        
-        <div class="streaming-preview">
-          <StreamingText 
-            v-if="streamingContent"
-            ref="streamingTextRef"
-            :text="streamingContent"
-            :speed="25"
-            :auto-start="true"
-            @complete="handleStreamingComplete"
-            @stop="handleStreamingStop"
-          />
-        </div>
-      </div>
-      
-      <template #footer>
-        <div class="flex justify-between items-center w-full">
-          <div class="text-xs text-muted">
-            <el-icon><InfoFilled /></el-icon>
-            生成完成后将自动应用到章节
-          </div>
-          <el-button 
-            v-if="!streamingCompleted"
-            type="primary" 
-            @click="acceptStreamingContent"
-            :disabled="isGenerating"
-          >
-            接受并应用
-          </el-button>
-          <el-button 
-            v-else
-            type="primary" 
-            @click="showStreamingDialog = false"
-          >
-            关闭
-          </el-button>
-        </div>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { callChatModel } from '@/llm/client'
 import { chapterSkills } from '@/llm/prompts/chapter'
-import { Brush, Calendar, Cpu, EditPen, InfoFilled, Loading, Plus, Refresh, Search, Warning, List, Check } from '@element-plus/icons-vue'
+import { Brush, Calendar, Cpu, Loading, Plus, Refresh, Search, Warning, List } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { onMounted, ref } from 'vue'
 import ConsistencyDiffViewer from '@/components/ConsistencyDiffViewer.vue'
 import PolishDiffViewer from '@/components/PolishDiffViewer.vue'
-import StreamingText from '@/components/StreamingText.vue'
-
-
-// ... other imports ...
-
-// ... inside script setup ...
 
 onMounted(() => {
   if (props.novelId) {
     loadReIOStats()
   }
 })
-
-// Keep closing script tag
-
 
 const props = defineProps<{
   novelId?: string
@@ -469,9 +408,6 @@ const loadingContext = ref(false)
 // Completion Dialog
 const dontShowCompletionPrompt = ref(false)
 
-// 上下文摘要显示
-const showContextSummaryDialog = ref(false)
-
 // 一致性检查 Diff 显示
 const showConsistencyDiffDialog = ref(false)
 const consistencyDiffResult = ref<any>(null)
@@ -479,13 +415,6 @@ const consistencyDiffResult = ref<any>(null)
 // 润色预览显示
 const showPolishDiffDialog = ref(false)
 const polishDiffData = ref<{ original: string; polished: string } | null>(null)
-
-// 流式输出相关状态
-const showStreamingDialog = ref(false)
-const streamingContent = ref('')
-const isGenerating = ref(false)
-const streamingCompleted = ref(false)
-const streamingTextRef = ref<InstanceType<typeof StreamingText> | null>(null)
 
 // ReIO 相关状态
 interface ReICheckResult {
@@ -771,14 +700,16 @@ const executeContinue = async () => {
   const chapter = await window.electronAPI.chapter.get(props.chapterId)
 
   confirmCompletion({ novelId: props.novelId, chapterNumber: chapter.chapterNumber })
-  // 显示流式输出对话框
-  showStreamingDialog.value = true
-  streamingContent.value = updatedContent
-  streamingCompleted.value = false
-  isGenerating.value = true
+  
+  // 直接应用内容，不显示流式对话框
+  emit('content-updated', updatedContent)
+  
+  const wordCount = (result as any)?.totalWords || updatedContent.length
+  const paragraphCount = (result as any)?.paragraphCount || 0
+  ElMessage.success(`生成完成！共 ${paragraphCount} 段，${wordCount} 字`)
+  
   return '续写完成'
 }
-
 
 const executePolish = async () => {
   if (!props.chapterId || !props.chapterContent) {
@@ -979,64 +910,7 @@ const confirmCompletion = async (completionTargetChapter: { novelId: string; cha
     }
 }
 
-// 流式输出处理函数
-function handleStreamingComplete() {
-  isGenerating.value = false
-  streamingCompleted.value = true
-  // 自动应用内容
-  setTimeout(() => {
-    acceptStreamingContent()
-  }, 500)
-}
-
-function handleStreamingStop() {
-  isGenerating.value = false
-  streamingCompleted.value = true
-}
-
-function acceptStreamingContent() {
-  if (streamingContent.value) {
-    emit('content-updated', streamingContent.value)
-    ElMessage.success('内容已应用到章节')
-    showStreamingDialog.value = false
-    // 重置状态
-    streamingContent.value = ''
-    streamingCompleted.value = false
-  }
-}
-
 </script>
 
-<style scoped>
-.streaming-dialog-content {
-  min-height: 400px;
-}
-
-.streaming-header {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  background: var(--app-primary-soft);
-  border-radius: var(--app-radius);
-  margin-bottom: 20px;
-}
-
-.streaming-preview {
-  padding: 20px;
-  background: var(--app-surface-muted);
-  border-radius: var(--app-radius);
-  min-height: 300px;
-  max-height: 500px;
-  overflow-y: auto;
-}
-
-.text-primary {
-  color: var(--app-primary);
-}
-
-.text-muted {
-  color: var(--app-text-muted);
-}
-</style>
 
 

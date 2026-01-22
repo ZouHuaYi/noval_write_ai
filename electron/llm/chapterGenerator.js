@@ -25,42 +25,105 @@ function countWords(text) {
  * @param {string} novelId 
  * @returns {Promise<string>}
  */
-async function getGraphContext(novelId) {
+/**
+ * 获取知识图谱上下文摘要 (智能筛选版)
+ * 优先包含：
+ * 1. 计划中提及的实体
+ * 2. 已写内容中提及的实体
+ * 3. 具有特殊状态(如"死亡","损坏")的实体
+ * @param {string} novelId 
+ * @param {string} contextText -用于匹配的上下文文本(计划+已写内容)
+ * @returns {Promise<string>}
+ */
+async function getGraphContext(novelId, contextText = '') {
   try {
     const manager = getGraphManager()
-    const stats = manager.getStats(novelId)
-    if (!stats || (stats.nodeCount === 0 && stats.edgeCount === 0)) {
-      return ''
-    }
-    
-    // 导出图谱可视化数据作为摘要
     const graphData = manager.exportForVisualization(novelId)
     if (!graphData || !graphData.nodes || graphData.nodes.length === 0) {
       return ''
     }
 
-    // 构建简洁的图谱摘要
-    const characters = graphData.nodes
+    const { nodes, edges } = graphData
+
+    // 1. 提取上下文关键词 (简单的 N-gram 或分词匹配)
+    // 这里做个简单的包含匹配
+    const textToMatch = contextText || ''
+    
+    // 2. 节点评分
+    const scoredNodes = nodes.map(node => {
+      let score = 0
+      const label = node.data?.label || ''
+      const desc = node.data?.description || ''
+      const status = node.data?.properties?.status
+
+      // 规则A: 上下文中提及 (+10分)
+      if (textToMatch.includes(label)) {
+        score += 10
+      }
+
+      // 规则B: 有特殊状态 (+5分，防止死人复活等)
+      if (status) {
+        score += 5
+      }
+
+      // 规则C: 描述中有提及 (+1分)
+      // if (desc && textToMatch.includes(desc.slice(0, 5))) score += 1
+
+      return { node, score }
+    })
+
+    // 3. 排序并筛选
+    // 优先取分数高的，如果分数相同，取原本顺序
+    scoredNodes.sort((a, b) => b.score - a.score)
+
+    // 取前 20 个高关联节点 (数量可调整)
+    const topNodes = scoredNodes
+      .filter(item => item.score > 0 || scoredNodes.indexOf(item) < 10) // 至少保留前10个基础节点，或有分数的
+      .slice(0, 20)
+      .map(item => item.node)
+
+    // 4. 获取相关边
+    // 只保留两个端点都在 topNodes 中的边
+    const nodeIds = new Set(topNodes.map(n => n.id))
+    const relevantEdges = edges.filter(e => nodeIds.has(e.source) && nodeIds.has(e.target))
+
+    // 5. 格式化输出
+    const formatProps = (props) => {
+        if (!props) return ''
+        const parts = []
+        if (props.status) parts.push(`状态:${props.status}`)
+        if (props.condition) parts.push(`状况:${props.condition}`)
+        if (props.owner) parts.push(`归属:${props.owner}`)
+        if (props.currentLocation) parts.push(`位置:${props.currentLocation}`)
+        if (props.powerLevel) parts.push(`层级:${props.powerLevel}`)
+        return parts.length > 0 ? ` [${parts.join(', ')}]` : ''
+    }
+
+    const characters = topNodes
       .filter(n => n.data?.type === 'character')
-      .slice(0, 10)
-      .map(n => `- ${n.data.label}: ${n.data.description || '无描述'}`)
+      .map(n => `- ${n.data.label}${formatProps(n.data.properties)}: ${n.data.description || '无描述'}`)
       .join('\n')
     
-    const locations = graphData.nodes
+    const locations = topNodes
       .filter(n => n.data?.type === 'location')
-      .slice(0, 5)
-      .map(n => `- ${n.data.label}: ${n.data.description || '无描述'}`)
+      .map(n => `- ${n.data.label}${formatProps(n.data.properties)}: ${n.data.description || '无描述'}`)
       .join('\n')
 
-    const relations = graphData.edges
-      .slice(0, 10)
+    const items = topNodes
+      .filter(n => n.data?.type === 'item')
+      .map(n => `- ${n.data.label}${formatProps(n.data.properties)}: ${n.data.description || '无描述'}`)
+      .join('\n')
+
+    const relations = relevantEdges
+      .slice(0, 15)
       .map(e => `- ${e.data?.label || '关系'}`)
       .join('\n')
 
     let summary = ''
-    if (characters) summary += `【角色】\n${characters}\n`
-    if (locations) summary += `【地点】\n${locations}\n`
-    if (relations) summary += `【关系】\n${relations}\n`
+    if (characters) summary += `【角色状态】\n${characters}\n`
+    if (locations) summary += `【地点状态】\n${locations}\n`
+    if (items) summary += `【物品状态】\n${items}\n`
+    if (relations) summary += `【当前关系】\n${relations}\n`
     
     return summary || ''
   } catch (error) {
@@ -257,10 +320,23 @@ async function buildGenerationContext({ novelId, chapterId }) {
   // 获取世界观设定，规则设置
   const worldview = worldviewDAO.getWorldviewByNovel(novelId)
   const worldRules = `${worldview?.worldview || '无世界观数据'}\n${worldview?.rules || '无规则数据'}`
-  // 这里应该取上一章节内容最后结束的 500 字符
+  // 获取上一章节最后一段内容（更有上下文意义）
   const lastChapter = chapterNumber > 1 ? await chapterDAO.getChapterByNovelAndNumber(novelId, chapterNumber - 1) : null
   const lastChapterContent = lastChapter?.content || ''
-  const lastChapterContentEnd = lastChapterContent?.slice(-500) || ''
+  // 按段落分割，取最后一段（非空段落）
+  let lastChapterContentEnd = ''
+  if (lastChapterContent) {
+    const paragraphs = lastChapterContent.split(/\n\n+/).filter(p => p.trim().length > 0)
+    lastChapterContentEnd = paragraphs.length > 0 ? paragraphs[paragraphs.length - 1].trim() : ''
+    // 如果最后一段太短（少于 300 字），尝试取最后两段
+    if (lastChapterContentEnd.length < 300 && paragraphs.length > 1) {
+      lastChapterContentEnd = paragraphs.slice(-2).join('\n\n').trim()
+    }
+    // 如果太长（超过 800 字），截取最后 800 字
+    if (lastChapterContentEnd.length > 800) {
+      lastChapterContentEnd = lastChapterContentEnd.slice(-800)
+    }
+  }
 
   return {
     chapter,
@@ -332,7 +408,8 @@ async function generateChapterChunks({
   // 初始化
   const paragraphs = []
   let chapterSoFar = chapter.content || '' // 保留已有内容
-  let graphContext = await getGraphContext(novelId)
+  // 初始化图谱上下文（包含计划和已有内容）
+  let graphContext = await getGraphContext(novelId, `${planningContext}\n${chapterSoFar}`)
   let paragraphIndex = 0
 
   // 循环生成段落
@@ -419,8 +496,8 @@ async function generateChapterChunks({
     // 传递章节号、当前累计内容、上一次内容（用于增量更新）
     await updateGraph(novelId, chapterNumber, chapterSoFar, previousChapterContent)
 
-    // 6. 更新图谱上下文供下一段使用
-    graphContext = await getGraphContext(novelId)
+    // 6. 更新图谱上下文供下一段使用 (加入新生成的内容作为上下文)
+    graphContext = await getGraphContext(novelId, `${planningContext}\n${chapterSoFar}`)
     
     console.log(`[分块生成] 第 ${paragraphIndex} 段完成，当前总字数: ${countWords(chapterSoFar)}`)
   }

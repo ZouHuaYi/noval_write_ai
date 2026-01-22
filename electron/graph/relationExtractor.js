@@ -184,39 +184,57 @@ ${context.chapter ? `【章节】第 ${context.chapter} 章` : ''}
 }
 
 /**
- * 提取角色状态变化
+ * 提取实体状态变化 (角色、物品、地点)
  * @param {string} text - 章节文本
- * @param {Array} characters - 角色列表
+ * @param {Array} entities - 相关实体列表
  * @returns {Promise<Array>}
  */
-async function extractStateChanges(text, characters = []) {
-  if (characters.length === 0) {
+async function extractStateChanges(text, entities = []) {
+  if (entities.length === 0) {
     return []
   }
 
-  const systemPrompt = `你是一个状态变化分析专家，负责从文本中识别角色的重要状态变化。
+  // 过滤出支持状态变化的实体类型
+  const candidates = entities.filter(e => 
+    ['character', 'item', 'location'].includes(e.type || e.data?.type)
+  )
+
+  if (candidates.length === 0) return []
+
+  const names = candidates.map(c => {
+    const name = c.name || c.label || c
+    const type = c.type || c.data?.type || 'unknown'
+    return `${name}(${type})`
+  }).slice(0, 50) // 限制数量防止 Prompt 过长
+
+  const systemPrompt = `你是一个状态变化分析专家，负责从文本中识别实体的重要状态变化。
 
 请识别以下类型的状态变化：
-1. 生死状态：死亡、复活、重伤
-2. 位置变化：到达新地点、离开、被困
-3. 关系变化：结盟、反目、相遇
-4. 能力变化：突破、获得能力、失去能力
-5. 身份变化：晋升、被驱逐、加入组织
+1. 生死/存在状态：死亡、复活、损坏、销毁、丢失
+2. 位置/归属变化：到达新地点、被获取、易主
+3. 关系/阵营变化：结盟、反目、相遇、背叛
+4. 自身属性变化：突破、受伤、修复、强化、黑化
 
 请以 JSON 数组格式返回：
 {
-  "character": "角色名称",
-  "changeType": "状态变化类型",
+  "entity": "实体名称",
+  "changeType": "status|location|possession|condition|power",
   "fromState": "原状态（如有）",
   "toState": "新状态",
   "description": "变化描述",
   "significance": "high|medium|low"
-}`
+}
 
-  const userPrompt = `请从以下文本中分析角色状态变化：
+注意：
+- 对于物品：关注"损坏"、"修复"、"获得"、"丢失"
+- 对于地点：关注"毁灭"、"封锁"、"开启"
+- 对于角色：关注"受伤"、"死亡"、"突破"
+`
 
-【关注角色】
-${characters.map(c => c.name || c).join('、')}
+  const userPrompt = `请从以下文本中分析实体状态变化：
+
+【关注实体】
+${names.join('、')}
 
 【文本内容】
 ${text.slice(0, 4000)}
@@ -341,34 +359,51 @@ function updateGraphWithExtraction(graph, extraction, chapter) {
 
   // 3. 处理状态变化
   stateChanges?.forEach(change => {
-    const charId = nodeMapping.get(change.character) || normalizeEntityId(change.character)
-    const node = graph.getNode(charId)
+    // 兼容 entity 或 character 字段
+    const entityName = change.entity || change.character
+    if (!entityName) return
+
+    const nodeId = nodeMapping.get(entityName) || normalizeEntityId(entityName)
+    const node = graph.getNode(nodeId)
 
     if (node) {
       const updatedProperties = { ...node.properties }
 
+      // 记录最后一次状态变化的章节
+      updatedProperties.lastStateChangeChapter = chapter
+
       switch (change.changeType) {
-        case 'death':
-          updatedProperties.status = 'dead'
-          updatedProperties.deathChapter = chapter
+        case 'death': // 兼容旧格式
+        case 'status':
+          // 处理生/死/销毁/损坏
+          if (['dead', 'destroyed', 'broken', 'lost'].includes(change.toState)) {
+             updatedProperties.status = change.toState // 统一为状态字段
+          } else {
+             updatedProperties.status = change.toState
+          }
           break
-        case 'revival':
-          updatedProperties.status = 'alive'
-          updatedProperties.revivalChapter = chapter
+        case 'condition':
+          // 处理受伤/中毒等
+          updatedProperties.condition = change.toState
           break
-        case 'injury':
-          updatedProperties.condition = 'injured'
-          updatedProperties.injuryChapter = chapter
-          break
-        case 'breakthrough':
+        case 'power':
+        case 'breakthrough': // 兼容旧格式
           updatedProperties.powerLevel = change.toState
-          updatedProperties.breakthroughChapter = chapter
+          break
+        case 'location':
+          // 位置通常作为关系，但也可以作为属性备份
+          updatedProperties.currentLocation = change.toState
+          break
+        case 'possession':
+          // 归属权变化
+          updatedProperties.owner = change.toState
           break
         default:
+          // 其他通用属性更新
           updatedProperties[change.changeType] = change.toState
       }
 
-      graph.updateNode(charId, { properties: updatedProperties })
+      graph.updateNode(nodeId, { properties: updatedProperties })
     }
   })
 
@@ -425,12 +460,19 @@ async function analyzeChapter(text, graph, chapter, options = {}) {
   }
 
   // 3. 提取状态变化
-  const characters = [
-    ...result.entities.filter(e => e.type === 'character'),
-    ...existingCharacters
+  const candidateTypes = ['character', 'item', 'location']
+  const existingNodes = []
+  candidateTypes.forEach(type => {
+      existingNodes.push(...graph.getAllNodes(type))
+  })
+  
+  const candidates = [
+    ...result.entities.filter(e => candidateTypes.includes(e.type)),
+    ...existingNodes
   ]
-  if (characters.length > 0) {
-    result.stateChanges = await extractStateChanges(text, characters)
+
+  if (candidates.length > 0) {
+    result.stateChanges = await extractStateChanges(text, candidates)
   }
 
   // 4. 更新图谱
