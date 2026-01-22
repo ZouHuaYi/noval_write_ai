@@ -364,6 +364,19 @@ import { onMounted, ref } from 'vue'
 import ConsistencyDiffViewer from '@/components/ConsistencyDiffViewer.vue'
 import PolishDiffViewer from '@/components/PolishDiffViewer.vue'
 
+// 章节字数默认值与上限
+// 统一章节目标字数，避免生成水字
+const DEFAULT_TARGET_WORDS = 1200
+const MAX_TARGET_WORDS = 1200
+
+function normalizeTargetWords(value?: number | null) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return DEFAULT_TARGET_WORDS
+  }
+  return Math.min(Math.round(numeric), MAX_TARGET_WORDS)
+}
+
 onMounted(() => {
   if (props.novelId) {
     loadReIOStats()
@@ -684,12 +697,24 @@ const executeContinue = async () => {
     return null
   }
 
+  const chapter = await window.electronAPI.chapter.get(props.chapterId)
+  const chapterNumber = chapter?.chapterNumber ?? null
+  let targetWords = DEFAULT_TARGET_WORDS
+  if (props.novelId && chapterNumber != null && window.electronAPI?.planning) {
+    const [plan, meta] = await Promise.all([
+      window.electronAPI.planning.getChapterPlan(props.novelId, chapterNumber),
+      window.electronAPI.planning.getMeta(props.novelId)
+    ])
+    targetWords = normalizeTargetWords(plan?.targetWords ?? meta?.wordsPerChapter)
+  }
+
   const result = await window.electronAPI.chapter.generateChunks({
     novelId: props.novelId,
     chapterId: props.chapterId,
     novelTitle: props.novelTitle,
     extraPrompt: prompt,
-    systemPrompt
+    systemPrompt,
+    targetWords
   })
 
   const updatedContent = result?.chapter?.content
@@ -697,8 +722,6 @@ const executeContinue = async () => {
     ElMessage.warning('未生成有效续写内容')
     return null
   }
-  const chapter = await window.electronAPI.chapter.get(props.chapterId)
-
   confirmCompletion({ novelId: props.novelId, chapterNumber: chapter.chapterNumber })
   
   // 直接应用内容，不显示流式对话框

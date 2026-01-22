@@ -24,7 +24,7 @@ const formatSection = (title: string, content: string) => `【${title}】\n${con
 
 export const chapterSkills = {
   continue: {
-    systemPrompt: '你是小说写作助手。请根据给定上下文续写章节，保持原文叙事视角与文风，不重复已有内容，不输出标题或说明，只输出章节正文。',
+    systemPrompt: '你是小说写作助手。根据给定上下文续写章节，保持原文叙事视角与文风，语言精炼克制，避免赘述与空泛描写，不重复已有内容，不输出标题或说明，只输出章节正文。',
     buildUserPrompt: ({
       novelTitle,
       chapterTitle,
@@ -42,7 +42,7 @@ export const chapterSkills = {
         formatSection('记忆上下文', memoryContext || '无可用记忆'),
         formatSection('世界观与核心规则', worldviewContext || '无设定数据'),
         formatSection('作者补充要求', extraPrompt || '无'),
-        formatSection('输出要求', '请基于以上上下文（特别是章节计划中的目标与事件），生成本章后续内容。续写约 500-1000 字（或参考章节目标字数），保证情节生动、连贯，符合世界观设定。只输出正文内容。')
+        formatSection('输出要求', '请基于以上上下文（特别是章节计划中的目标与事件），生成本章后续内容。总字数控制在 1200-1500 左右，每段 200-400 字，信息密度高、情节推进明确，保持画面感与节奏感，避免水字。这一段必须承接上一段最后一句的情绪/动作，不要重新起头。每 2-3 段安排一次“缓冲段”（走路、观察、对话、内心）。只输出正文内容。')
       ].join('\n')
     }
   },

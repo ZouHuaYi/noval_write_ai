@@ -296,7 +296,7 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="目标字数">
-          <el-input-number v-model="taskForm.targetWords" :step="500" />
+          <el-input-number v-model="taskForm.targetWords" :step="500" :max="MAX_TARGET_WORDS" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -315,6 +315,11 @@ import {
 } from '@element-plus/icons-vue'
 
 import { ElMessage } from 'element-plus'
+
+// 章节字数默认值与上限
+// 统一章节目标字数，避免生成水字
+const DEFAULT_TARGET_WORDS = 1200
+const MAX_TARGET_WORDS = 1200
 
 interface Task {
   id: string
@@ -376,7 +381,7 @@ const taskForm = ref({
   chapterNumber: 1,
   title: '',
   priority: 'medium' as 'high' | 'medium' | 'low',
-  targetWords: 3000,
+  targetWords: DEFAULT_TARGET_WORDS,
   status: 'pending'
 })
 
@@ -390,7 +395,7 @@ function showAddTaskDialog() {
     chapterNumber: maxChapter + 1,
     title: '',
     priority: 'medium',
-    targetWords: 3000,
+    targetWords: DEFAULT_TARGET_WORDS,
     status: 'pending'
   }
   addTaskDialogVisible.value = true

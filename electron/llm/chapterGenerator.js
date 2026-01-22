@@ -9,6 +9,11 @@ const { getGraphManager } = require('../graph/graphManager')
 
 const formatSection = (title, content) => `【${title}】\n${content || '无'}\n`
 
+// 章节字数与分块配置（默认与上限）
+// 统一收敛为 1200 左右，强制控制章节总字数
+const DEFAULT_TARGET_WORDS = 1200
+const MAX_TARGET_WORDS = 1200
+
 /**
  * 统计中文字数（包括标点）
  * @param {string} text 
@@ -18,6 +23,45 @@ function countWords(text) {
   if (!text) return 0
   // 移除空白字符后统计长度
   return text.replace(/\s/g, '').length
+}
+
+function normalizeTargetWords(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return DEFAULT_TARGET_WORDS
+  }
+  return Math.min(Math.round(numeric), MAX_TARGET_WORDS)
+}
+
+function resolveParagraphConfig(targetWords, overrides = {}) {
+  const normalizedTargetWords = normalizeTargetWords(targetWords)
+  // 段落字数固定区间，避免出现冗长水字
+  const minParagraphWords = 200
+  const maxParagraphWords = 400
+
+  const overrideMin = Number(overrides.minParagraphWords)
+  const overrideMax = Number(overrides.maxParagraphWords)
+  const effectiveMin = Number.isFinite(overrideMin) && overrideMin > 0
+    ? Math.max(minParagraphWords, Math.min(overrideMin, maxParagraphWords))
+    : minParagraphWords
+  const effectiveMax = Number.isFinite(overrideMax) && overrideMax > 0
+    ? Math.max(effectiveMin, Math.min(overrideMax, maxParagraphWords))
+    : maxParagraphWords
+  const safeMax = Math.max(effectiveMax, effectiveMin)
+
+  const avgParagraphWords = (effectiveMin + safeMax) / 2
+  const computedMaxParagraphs = Math.ceil(normalizedTargetWords / avgParagraphWords)
+  const overrideParagraphs = Number(overrides.maxParagraphs)
+  const effectiveMaxParagraphs = Number.isFinite(overrideParagraphs) && overrideParagraphs > 0
+    ? Math.min(Math.max(Math.round(overrideParagraphs), 3), 6)
+    : Math.min(Math.max(computedMaxParagraphs, 3), 6)
+
+  return {
+    normalizedTargetWords,
+    minParagraphWords: effectiveMin,
+    maxParagraphWords: safeMax,
+    maxParagraphs: effectiveMaxParagraphs
+  }
 }
 
 /**
@@ -181,10 +225,11 @@ function buildParagraphPrompt({
     formatSection('输出要求', `
 请生成本章的下一个段落，要求：
 1. 字数控制在 ${targetWords[0]}-${targetWords[1]} 字之间
-2. 必须紧密承接上文，不要重复已写内容
-3. 保持情节生动连贯，符合世界观设定
-4. 段落结尾可留一个轻钩子，引发读者继续阅读的兴趣
-5. 只输出正文内容，不要任何解释`)
+2. 紧密承接上文，不重复已写内容
+3. 语言精炼克制，避免空泛铺陈与水字
+4. 保持画面感与节奏感，优先推进情节与关键细节
+5. 段落结尾可留轻钩子，引发继续阅读
+6. 只输出正文内容，不要任何解释`)
   ].join('\n')
 }
 
@@ -379,17 +424,24 @@ async function generateChapterChunks({
   novelTitle,
   extraPrompt,
   systemPrompt,
-  targetWords = 3000, // 目标总字数
-  minParagraphWords = 300,
-  maxParagraphWords = 500,
-  maxParagraphs = 12, // 最大段落数
+  targetWords = DEFAULT_TARGET_WORDS, // 目标总字数
+  minParagraphWords,
+  maxParagraphWords,
+  maxParagraphs, // 最大段落数
   maxRetries = 2 // 每段最大重试次数
 }) {
   if (!novelId || !chapterId) {
     throw new Error('生成章节需要 novelId 与 chapterId')
   }
 
-  console.log(`[分块生成] 开始生成章节，目标字数: ${targetWords}`)
+  const paragraphConfig = resolveParagraphConfig(targetWords, {
+    minParagraphWords,
+    maxParagraphWords,
+    maxParagraphs
+  })
+
+  console.log(`[分块生成] 开始生成章节，目标字数: ${paragraphConfig.normalizedTargetWords}`)
+  console.log(`[分块生成] 分块配置: ${paragraphConfig.minParagraphWords}-${paragraphConfig.maxParagraphWords} 字/段，最多 ${paragraphConfig.maxParagraphs} 段`)
 
   const { chapter, chapterNumber, planningContext, worldRules, lastChapterContentEnd } = await buildGenerationContext({ novelId, chapterId })
   
@@ -413,7 +465,7 @@ async function generateChapterChunks({
   let paragraphIndex = 0
 
   // 循环生成段落
-  while (countWords(chapterSoFar) < targetWords && paragraphIndex < maxParagraphs) {
+  while (countWords(chapterSoFar) < paragraphConfig.normalizedTargetWords && paragraphIndex < paragraphConfig.maxParagraphs) {
     paragraphIndex++
     console.log(`[分块生成] 生成第 ${paragraphIndex} 段...`)
 
@@ -430,7 +482,7 @@ async function generateChapterChunks({
       systemPrompt,
       worldRules,
       lastChapterContentEnd,
-      targetWords: [minParagraphWords, maxParagraphWords]
+      targetWords: [paragraphConfig.minParagraphWords, paragraphConfig.maxParagraphWords]
     })
 
     if (!paragraph || paragraph.trim().length === 0) {
@@ -469,7 +521,7 @@ async function generateChapterChunks({
           systemPrompt,
           worldRules,
           lastChapterContentEnd,
-          targetWords: [minParagraphWords, maxParagraphWords]
+          targetWords: [paragraphConfig.minParagraphWords, paragraphConfig.maxParagraphWords]
         })
 
         validation = await validateParagraph({

@@ -390,6 +390,18 @@ import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import EventGraph from '@/components/EventGraph.vue'
 import KanbanBoard from '@/components/KanbanBoard.vue'
 
+// 章节计划字数配置（默认与上限）
+const DEFAULT_WORDS_PER_CHAPTER = 1800
+const MAX_WORDS_PER_CHAPTER = 2000
+
+function normalizeWordsPerChapter(value: number) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return DEFAULT_WORDS_PER_CHAPTER
+  }
+  return Math.min(Math.round(numeric), MAX_WORDS_PER_CHAPTER)
+}
+
 const props = defineProps<{
   novelId?: string
   novelTitle?: string
@@ -1253,9 +1265,11 @@ async function generatePlan() {
     }
     
     // 构建请求参数
+    // 生成计划时统一规范化目标字数
+    const wordsPerChapter = normalizeWordsPerChapter(DEFAULT_WORDS_PER_CHAPTER)
     const params: any = {
       events: serializedEvents,
-      wordsPerChapter: 3000,
+      wordsPerChapter,
       startChapter,
       endChapter,
       targetChapters

@@ -5,6 +5,19 @@
 const llmService = require('./llmService')
 const { safeParseJSON } = require('../utils/helpers')
 
+// 章节计划字数配置（默认与上限）
+// 统一收敛为 1200 左右，避免计划与生成不一致
+const DEFAULT_WORDS_PER_CHAPTER = 1200
+const MAX_WORDS_PER_CHAPTER = 1200
+
+function normalizeWordsPerChapter(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return DEFAULT_WORDS_PER_CHAPTER
+  }
+  return Math.min(Math.round(numeric), MAX_WORDS_PER_CHAPTER)
+}
+
 /**
  * 任务状态
  */
@@ -37,11 +50,13 @@ const TASK_PRIORITY = {
 async function generateChapterPlan({
   events,
   targetChapters = 10,
-  wordsPerChapter = 3000,
+  wordsPerChapter = DEFAULT_WORDS_PER_CHAPTER,
   pacing = 'medium',
   startChapter = 1,
   endChapter = null
 }) {
+  // 统一规范化目标字数，避免超过上限
+  const normalizedWordsPerChapter = normalizeWordsPerChapter(wordsPerChapter)
   // 按章节分组现有事件
   const chapterEvents = new Map()
   events.forEach(event => {
@@ -74,7 +89,7 @@ async function generateChapterPlan({
       title: mainEvent ? mainEvent.label : `第 ${i} 章`,
       summary,
       events: eventsInChapter.map(e => e.id),
-      targetWords: wordsPerChapter,
+      targetWords: normalizedWordsPerChapter,
       status: eventsInChapter.length > 0 ? TASK_STATUS.PENDING : TASK_STATUS.BLOCKED,
       priority: determinePriority(i, totalChapters, eventsInChapter),
       focus: determineFocus(eventsInChapter),
@@ -124,7 +139,7 @@ async function generateChapterPlan({
       totalChapters,
       totalEvents: events.length,
       averageEventsPerChapter: (events.length / totalChapters).toFixed(1),
-      estimatedTotalWords: totalChapters * wordsPerChapter
+      estimatedTotalWords: totalChapters * normalizedWordsPerChapter
     }
   }
 

@@ -14,6 +14,18 @@ const worldviewService = require('../worldviewService')
 const { buildKnowledgeSummary } = require('../llm/knowledgeContext')
 const { buildPlanningSummary } = require('../llm/planningContext')
 
+// 章节计划字数配置（默认与上限）
+const DEFAULT_WORDS_PER_CHAPTER = 1800
+const MAX_WORDS_PER_CHAPTER = 2000
+
+function normalizeWordsPerChapter(value) {
+  const numeric = Number(value)
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return DEFAULT_WORDS_PER_CHAPTER
+  }
+  return Math.min(Math.round(numeric), MAX_WORDS_PER_CHAPTER)
+}
+
 function mergeEvents(existingEvents = [], newEvents = []) {
   console.log('[mergeEvents] 现有事件数量:', existingEvents.length)
   console.log('[mergeEvents] 新事件数量:', newEvents.length)
@@ -311,7 +323,9 @@ function registerPlanningHandlers(ipcMain) {
   ipcMain.handle('planning:generatePlan', async (_, options) => {
     try {
       // 解析前端传递的参数
-      const { mode, startChapter, endChapter, appendCount, targetChapters, wordsPerChapter = 3000 } = options
+      const { mode, startChapter, endChapter, appendCount, targetChapters, wordsPerChapter = DEFAULT_WORDS_PER_CHAPTER } = options
+      // 规范化目标字数，保证不超过上限
+      const normalizedWordsPerChapter = normalizeWordsPerChapter(wordsPerChapter)
 
       // 过滤出有章节关联的事件
       const chapterEvents = (options.events || []).filter(event => event.chapter != null)
@@ -337,7 +351,7 @@ function registerPlanningHandlers(ipcMain) {
       const result = await planningAgent.generateChapterPlan({
         events: chapterEvents,
         targetChapters: targetChapters || (effectiveEnd - effectiveStart + 1),
-        wordsPerChapter,
+        wordsPerChapter: normalizedWordsPerChapter,
         pacing: options.pacing || 'medium',
         startChapter: effectiveStart,
         endChapter: effectiveEnd
