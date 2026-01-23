@@ -80,18 +80,25 @@ async function generateEventGraph({
   const chaptersCount = endChapter != null ? Math.max(endChapter - startChapter + 1, 1) : targetChapters
 
   // 构建已有事件的摘要信息
+  console.log(`[事件图谱] ========== 生成事件图谱 ==========`)
+  console.log(`[事件图谱] 小说: ${novelTitle}, 章节范围: ${startChapter}-${endChapter || '末尾'}`)
+  console.log(`[事件图谱] 已有事件总数: ${existingEvents?.length || 0}`)
+  
   let existingEventsContext = ''
   if (existingEvents && existingEvents.length > 0) {
     // 只选择早于起始章节的事件
     const eventsBeforeRange = existingEvents.filter(e => e.chapter < startChapter)
+    console.log(`[事件图谱] 早于起始章节的事件数: ${eventsBeforeRange.length}`)
 
     if (eventsBeforeRange.length > 0) {
       // 找出这些事件所在的章节号，并排序
       const chapterNumbers = [...new Set(eventsBeforeRange.map(e => e.chapter))].sort((a, b) => b - a)
+      console.log(`[事件图谱] 涉及章节: [${chapterNumbers.join(', ')}]`)
 
       // 只取最接近起始章节的5个章节
       const relevantChapters = chapterNumbers.slice(0, 5)
       const relevantEvents = eventsBeforeRange.filter(e => relevantChapters.includes(e.chapter))
+      console.log(`[事件图谱] 选取的相关章节: [${relevantChapters.join(', ')}], 相关事件数: ${relevantEvents.length}`)
 
       if (relevantEvents.length > 0) {
         existingEventsContext = `\n【已有事件】（可以在 dependencies 中引用这些事件的 ID）\n`
@@ -115,6 +122,7 @@ async function generateEventGraph({
       }
     }
   }
+  console.log(`[事件图谱] 已有事件上下文长度: ${existingEventsContext.length} 字符`)
 
   const userPrompt = `请为以下小说生成事件图谱：
 
@@ -153,19 +161,28 @@ ${rangeLabel}
       maxTokens: 8000
     })
 
-    const result = safeParseJSON(response)
+    let result = safeParseJSON(response)
 
     if (!result || !result.events) {
       // 尝试提取 JSON
       const jsonMatch = response.match(/\{[\s\S]*\}/)
       if (jsonMatch) {
         try {
-          return JSON.parse(jsonMatch[0])
+          result = JSON.parse(jsonMatch[0])
         } catch (e) {
-          throw new Error('无法解析事件图谱 JSON')
+          result = null
         }
       }
-      throw new Error('生成的内容不包含有效的事件数据')
+    }
+
+    if (!result || !result.events) {
+      // 追加一次 JSON 修复尝试（不改变原始提示，仅修复格式）
+      const repaired = await repairEventGraphJSON(response)
+      if (repaired && repaired.events) {
+        result = repaired
+      } else {
+        throw new Error('无法解析事件图谱 JSON')
+      }
     }
 
     // 使用时间戳确保事件 ID 唯一
@@ -266,4 +283,35 @@ ${rangeLabel}
 module.exports = {
   generateEventGraph,
   EVENT_TYPES
+}
+
+// 修复事件图谱 JSON 输出
+async function repairEventGraphJSON(rawText) {
+  if (!rawText) return null
+  const systemPrompt = '你是 JSON 修复助手。请把用户提供的内容修复为严格 JSON，只输出 JSON，不要解释。'
+  const userPrompt = `请将以下内容修复为严格 JSON：\n\n${rawText}`
+  try {
+    const response = await llmService.callChatModel({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.2,
+      maxTokens: 2000
+    })
+    const parsed = safeParseJSON(response)
+    if (parsed && parsed.events) return parsed
+    const jsonMatch = response.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0])
+      } catch (error) {
+        return null
+      }
+    }
+    return null
+  } catch (error) {
+    console.error('事件图谱 JSON 修复失败:', error)
+    return null
+  }
 }

@@ -60,10 +60,13 @@
               {{ formatDate(row.updatedAt) }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="240" fixed="right">
+          <el-table-column label="操作" width="300" fixed="right">
             <template #default="{ row }">
               <el-button size="small"  type="primary" @click.stop="goToWorkbench(row.id)">
                 工作台
+              </el-button>
+              <el-button size="small"  type="primary" @click.stop="goToPipeline(row.id)">
+                流水线
               </el-button>
               <el-button size="small"  type="primary" @click.stop="editNovel(row)">
                 编辑
@@ -105,6 +108,9 @@
           <div class="flex space-x-2 pt-3 border-t border-[color:var(--app-border)]">
             <el-button size="small" type="primary" text @click.stop="goToWorkbench(novel.id)">
               工作台
+            </el-button>
+            <el-button size="small" type="primary" text @click.stop="goToPipeline(novel.id)">
+              流水线
             </el-button>
             <el-button size="small" text @click.stop="editNovel(novel)">
               编辑
@@ -252,6 +258,10 @@ function goToNovelDetail(id: string) {
 
 function goToWorkbench(id: string) {
   router.push(`/workbench/${id}`)
+}
+
+function goToPipeline(id: string) {
+  router.push({ path: '/pipeline', query: { novelId: id } })
 }
 
 

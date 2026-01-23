@@ -40,6 +40,12 @@ const routes = [
         name: 'Reader',
         component: () => import('@/pages/Reader.vue'),
         meta: { title: '阅读器' }
+      },
+      {
+        path: 'pipeline',
+        name: 'Pipeline',
+        component: () => import('@/pages/Pipeline.vue'),
+        meta: { title: '流水线生成' }
       }
     ]
   }

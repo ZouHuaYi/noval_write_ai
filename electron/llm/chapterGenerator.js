@@ -440,10 +440,23 @@ async function generateChapterChunks({
     maxParagraphs
   })
 
-  console.log(`[分块生成] 开始生成章节，目标字数: ${paragraphConfig.normalizedTargetWords}`)
+  console.log(`[分块生成] ========== 开始生成章节 ==========`)
+  console.log(`[分块生成] 章节ID: ${chapterId}, 小说ID: ${novelId}`)
+  console.log(`[分块生成] 目标字数: ${paragraphConfig.normalizedTargetWords}`)
   console.log(`[分块生成] 分块配置: ${paragraphConfig.minParagraphWords}-${paragraphConfig.maxParagraphWords} 字/段，最多 ${paragraphConfig.maxParagraphs} 段`)
 
-  const { chapter, chapterNumber, planningContext, worldRules, lastChapterContentEnd } = await buildGenerationContext({ novelId, chapterId })
+  let generationContext
+  try {
+    generationContext = await buildGenerationContext({ novelId, chapterId })
+  } catch (error) {
+    console.error(`[分块生成] ❌ 构建生成上下文失败:`, error)
+    throw error
+  }
+  const { chapter, chapterNumber, planningContext, worldRules, lastChapterContentEnd } = generationContext
+  console.log(`[分块生成] 章节号: ${chapterNumber}, 标题: ${chapter.title}`)
+  console.log(`[分块生成] 规划上下文长度: ${planningContext?.length || 0} 字符`)
+  console.log(`[分块生成] 世界规则长度: ${worldRules?.length || 0} 字符`)
+  console.log(`[分块生成] 上一章结尾长度: ${lastChapterContentEnd?.length || 0} 字符`)
   
   // 构建知识上下文
   const knowledgeContext = buildKnowledgeSummary({
@@ -453,6 +466,7 @@ async function generateChapterChunks({
     currentChapter: chapterNumber,
     maxChars: 1200
   })
+  console.log(`[分块生成] 知识上下文长度: ${knowledgeContext?.length || 0} 字符`)
 
   // 创建生成前快照
   createSnapshot(novelId, chapter, 'pre_generate')
@@ -460,9 +474,23 @@ async function generateChapterChunks({
   // 初始化
   const paragraphs = []
   let chapterSoFar = chapter.content || '' // 保留已有内容
+  console.log(`[分块生成] 已有内容长度: ${chapterSoFar?.length || 0} 字符`)
+  
   // 初始化图谱上下文（包含计划和已有内容）
-  let graphContext = await getGraphContext(novelId, `${planningContext}\n${chapterSoFar}`)
+  let graphContext
+  try {
+    graphContext = await getGraphContext(novelId, `${planningContext}\n${chapterSoFar}`)
+    console.log(`[分块生成] 图谱上下文长度: ${graphContext?.length || 0} 字符`)
+  } catch (error) {
+    console.error(`[分块生成] ⚠️ 获取图谱上下文失败:`, error)
+    graphContext = ''
+  }
   let paragraphIndex = 0
+  
+  // 计算总上下文大小（用于监控 token 使用）
+  const totalContextSize = (planningContext?.length || 0) + (worldRules?.length || 0) + 
+    (lastChapterContentEnd?.length || 0) + (knowledgeContext?.length || 0) + (graphContext?.length || 0)
+  console.log(`[分块生成] 📊 总上下文大小: ${totalContextSize} 字符 (预估 token: ${Math.ceil(totalContextSize / 2)})`)
 
   // 循环生成段落
   while (countWords(chapterSoFar) < paragraphConfig.normalizedTargetWords && paragraphIndex < paragraphConfig.maxParagraphs) {

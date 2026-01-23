@@ -21,7 +21,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { HomeFilled, Document, Edit, Setting } from '@element-plus/icons-vue'
+import { HomeFilled, Document, Edit, Setting, Cpu } from '@element-plus/icons-vue'
 
 interface BreadcrumbItem {
   label: string
@@ -77,6 +77,24 @@ const items = computed(() => {
     breadcrumbs.push({ label: '阅读器' })
   } else if (normalizedPath.startsWith('/settings')) {
     breadcrumbs.push({ label: '设置', to: '/settings', icon: Setting })
+  } else if (normalizedPath.startsWith('/pipeline')) {
+    breadcrumbs.push({ label: '小说列表', to: '/novels', icon: Document })
+    if (props.novelTitle) {
+      // 如果知道是哪本小说，尝试构建带有小说ID的路径（虽然pipeline页面是在query里）
+      // 这里我们假设 pipeline 总是从某个小说进来的，或者用户选择了小说
+      // 由于 path 是 /pipeline，我们不能直接从 path 获取 novelId，但 props.novelTitle 存在说明上下文已知
+      // 我们可以让面包屑显示: 首页 > 小说列表 > [小说名] > 流水线
+      // 但 link 到小说详情页比较麻烦，因为没有 ID 传入。
+      // 不过 Pipeline.vue 会传 novel-title。
+      // 我们可以尝试通过 route.query.novelId 获取 ID
+      const novelId = route.query.novelId
+      if (novelId) {
+        breadcrumbs.push({ label: props.novelTitle, to: `/novel/${novelId}` })
+      } else {
+        breadcrumbs.push({ label: props.novelTitle }) // 只是展示名字，不可点击
+      }
+    }
+    breadcrumbs.push({ label: '流水线生成', icon: Cpu })
   }
 
   return breadcrumbs

@@ -57,6 +57,39 @@ function initDatabase() {
     throw error
   }
 
+  // 数据库迁移: 修复可能存在的旧的单列唯一索引问题
+  try {
+    // 检查 chapter 表上的所有索引
+    const indexes = db.prepare("SELECT name, sql FROM sqlite_master WHERE type='index' AND tbl_name='chapter'").all()
+    console.log('[数据库迁移] chapter 表的索引:', indexes.map(i => i.name).join(', '))
+    
+    // 查找可能存在的错误索引（只基于 chapterNumber 的唯一索引）
+    const problematicIndexes = indexes.filter(idx => {
+      if (!idx.sql) return false // 自动创建的索引可能没有 sql
+      const sql = idx.sql.toLowerCase()
+      // 检查是否只包含 chapterNumber 而不包含 novelId
+      return sql.includes('unique') && 
+             sql.includes('chapternumber') && 
+             !sql.includes('novelid')
+    })
+    
+    if (problematicIndexes.length > 0) {
+      console.log('[数据库迁移] 检测到有问题的唯一索引，正在删除...')
+      problematicIndexes.forEach(idx => {
+        console.log(`[数据库迁移] 删除索引: ${idx.name}`)
+        db.exec(`DROP INDEX IF EXISTS "${idx.name}"`)
+      })
+      console.log('[数据库迁移] 问题索引已删除')
+    }
+    
+    // 确保正确的组合唯一索引存在
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_chapter_novel_number ON chapter(novelId, chapterNumber)')
+    console.log('[数据库迁移] 已确保正确的组合唯一索引存在')
+  } catch (error) {
+    console.error('[数据库迁移] 索引修复失败:', error)
+    // 不抛出错误，因为这不是致命问题
+  }
+
   console.log('数据库初始化成功:', dbPath)
   return db
 }

@@ -298,6 +298,23 @@ declare global {
         export: (options: { title: string; content: string; type: string }) => Promise<{ success: boolean; filePath?: string }>
       }
 
+      // 流水线生成 API
+      pipeline: {
+        start: (options: {
+          novelId: string
+          inputWorldview?: string
+          inputRules?: string
+          inputOutline?: string
+          settings?: Record<string, any>
+        }) => Promise<any>
+        pause: (runId: string) => Promise<any>
+        resume: (runId: string) => Promise<any>
+        status: (runId: string) => Promise<{ run: any; steps: any[] } | null>
+        retryStep: (options: { runId: string; stage: string; batchIndex?: number | null }) => Promise<any>
+        listByNovel: (novelId: string) => Promise<any[]>
+        clear: (novelId: string) => Promise<{ success: boolean }>
+      }
+
 
       // 知识图谱 API
       graph: {

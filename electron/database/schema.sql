@@ -158,6 +158,37 @@ CREATE TABLE IF NOT EXISTS planning_meta (
   FOREIGN KEY (novelId) REFERENCES novel(id) ON DELETE CASCADE
 );
 
+-- 流水线运行表
+CREATE TABLE IF NOT EXISTS pipeline_run (
+  id TEXT PRIMARY KEY,
+  novelId TEXT NOT NULL,
+  status TEXT,
+  currentStage TEXT,
+  currentBatch INTEGER,
+  inputWorldview TEXT,
+  inputRules TEXT,
+  inputOutline TEXT,
+  settings TEXT,
+  createdAt INTEGER,
+  updatedAt INTEGER,
+  FOREIGN KEY (novelId) REFERENCES novel(id) ON DELETE CASCADE
+);
+
+-- 流水线步骤表
+CREATE TABLE IF NOT EXISTS pipeline_step (
+  id TEXT PRIMARY KEY,
+  runId TEXT NOT NULL,
+  stage TEXT NOT NULL,
+  batchIndex INTEGER,
+  status TEXT,
+  input TEXT,
+  output TEXT,
+  error TEXT,
+  startedAt INTEGER,
+  finishedAt INTEGER,
+  FOREIGN KEY (runId) REFERENCES pipeline_run(id) ON DELETE CASCADE
+);
+
 -- ReIO 统计
 CREATE TABLE IF NOT EXISTS reio_stats (
   id TEXT PRIMARY KEY,
@@ -186,3 +217,6 @@ CREATE INDEX IF NOT EXISTS idx_planning_event_novelId ON planning_event(novelId)
 CREATE INDEX IF NOT EXISTS idx_planning_event_chapter ON planning_event(novelId, chapter);
 CREATE INDEX IF NOT EXISTS idx_planning_chapter_novelId ON planning_chapter(novelId);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_planning_chapter_unique ON planning_chapter(novelId, chapterNumber);
+CREATE INDEX IF NOT EXISTS idx_pipeline_run_novelId ON pipeline_run(novelId);
+CREATE INDEX IF NOT EXISTS idx_pipeline_step_runId ON pipeline_step(runId);
+CREATE INDEX IF NOT EXISTS idx_pipeline_step_stage ON pipeline_step(runId, stage);

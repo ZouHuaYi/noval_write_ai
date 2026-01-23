@@ -120,6 +120,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     export: (options) => ipcRenderer.invoke('planning:export', options)
   },
 
+  // 流水线生成 API
+  pipeline: {
+    start: (options) => ipcRenderer.invoke('pipeline:start', options),
+    pause: (runId) => ipcRenderer.invoke('pipeline:pause', runId),
+    resume: (runId) => ipcRenderer.invoke('pipeline:resume', runId),
+    status: (runId) => ipcRenderer.invoke('pipeline:status', runId),
+    retryStep: (options) => ipcRenderer.invoke('pipeline:retryStep', options),
+    listByNovel: (novelId) => ipcRenderer.invoke('pipeline:listByNovel', novelId),
+    clear: (novelId) => ipcRenderer.invoke('pipeline:clear', novelId)
+  },
+
   // 知识图谱 API
   graph: {
     // 图谱管理
