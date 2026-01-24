@@ -233,21 +233,35 @@ function buildParagraphPrompt({
     formatSection('作者补充要求', extraPrompt || '无'),
     formatSection('输出要求', `
 请生成本章的下一个段落，要求：
-1. 字数控制在 ${targetWords[0]}-${targetWords[1]} 字之间
-2. 紧密承接上文，不重复已写内容
-3. 语言精炼克制，避免空泛铺陈与水字
-4. 禁止比喻（如“像/如/仿佛”）、禁止直接点名情绪（如“压抑/紧张/冷漠”）
-5. 禁止提纲式小标题（如“场景一/章节小结”）
-6. 至少一句话表达不完整，允许读者短暂误解人物动机
-7. 段落中允许出现一句多余但真实的句子
-8. 只输出正文内容，不要任何解释
+【硬约束】
+1) 字数控制在 ${targetWords[0]}-${targetWords[1]} 字之间（宁可短一点，不要硬凑满）
+2) 必须紧密承接上文，不重复已写内容，不复述背景
+3) 只能写“正在发生的事”，禁止总结、解释、讲道理
+4) 禁止提纲式小标题、禁止分点、禁止“场景一/小结”式结构
+5) 禁止连续使用相同句式（例如反复“他攥紧/他想起/他必须”）
+6) 段落内最多出现 1 次“必须/得/立刻/赶紧”类催促词（尽量不用）
+7) 同一段落内“黑西装/脚步声/黄铜”这类压迫符号最多出现 1 次，避免复读
 
-【广读者增强】
-- 本章中至少出现 1 次明确处境风险（非情绪化陈述）
-- 本章中至少出现 1 次人际关系的“可持续信号”
-- 本章结尾必须暗示下一章的具体行动或时间点
-- 禁止用情绪形容词代替事实
-- 禁止用抽象压力替代明确问题`)
+【风格约束（反AI关键）】
+8) 允许出现 0-1 处比喻，但必须是具体物象类（不许抽象抒情），能删就删
+9) 禁止直接点名情绪词（如“紧张/压抑/恐惧/愤怒”），用动作与事实表现
+10) 必须包含 1 句“非推进剧情但真实”的句子：
+   - 这句必须与人物习惯/关系/错误有关
+   - 禁止只是环境装饰（例如茶垢/糖霜/天气描写）
+
+【悬疑与可读性】
+11) 段落里至少出现 1 个明确风险（具体威胁/损失/后果），不能只写“感觉不妙”
+12) 段落里至少出现 1 个“关系信号”（合作/试探/背离/交换条件），必须可持续
+13) 至少有 1 句话表达不完整或被打断，让读者短暂误解人物动机
+14) 线索出现必须伴随代价（丢时间/丢证据/暴露行踪/伤口/信任受损/被误会）
+
+【段落收束】
+15) 段落结尾：
+   - 70% 概率给出下一步具体行动或时间点
+   - 30% 概率只留下一个未说破的决定（不写“明天必须去XX”也能收住）
+   你自行判断当前段落属于哪一种。
+
+只输出正文内容，不要任何解释。`)
   ].join('\n')
 }
 
@@ -267,7 +281,8 @@ async function generateParagraph({
   systemPrompt,
   worldRules,
   lastChapterContentEnd,
-  targetWords = [300, 500]
+  targetWords = [300, 500],
+  configOverride
 }) {
   const userPrompt = buildParagraphPrompt({
     novelTitle,
@@ -288,8 +303,9 @@ async function generateParagraph({
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
     ],
-    temperature: 0.9, // 高温度，保持创意和灵性
-    maxTokens: 1500
+    temperature: 0.75, // 高温度，保持创意和灵性
+    maxTokens: 1000,
+    configOverride
   })
 
   return content?.trim() || ''
@@ -303,7 +319,8 @@ async function validateParagraph({
   paragraph,
   chapterSoFar,
   graphContext,
-  extraPrompt
+  extraPrompt,
+  configOverride
 }) {
   if (!paragraph || paragraph.trim().length === 0) {
     return { isValid: true, issues: [], fixedParagraph: '' }
@@ -346,7 +363,8 @@ ${extraPrompt ? `【额外约束】\n${extraPrompt}` : ''}
         { role: 'user', content: userPrompt }
       ],
       temperature: 0.2, // 低温度，严谨校验
-      maxTokens: 2000
+      maxTokens: 2000,
+      configOverride
     })
 
     const parsed = safeParseJSON(response)
@@ -368,7 +386,7 @@ ${extraPrompt ? `【额外约束】\n${extraPrompt}` : ''}
 }
 
 // 审查章节是否存在明显 AI 痕迹
-async function reviewChapterStyle({ content }) {
+async function reviewChapterStyle({ content, configOverride }) {
   if (!content) return { needRewrite: false, issues: [], suggestion: '' }
 
   const systemPrompt = `你是小说质量审校助手，只检查 AI 痕迹并输出 JSON。
@@ -397,7 +415,8 @@ ${content}`
         { role: 'user', content: userPrompt }
       ],
       temperature: 0.2,
-      maxTokens: 800
+      maxTokens: 800,
+      configOverride
     })
     const parsed = safeParseJSON(response)
     if (!parsed) return { needRewrite: false, issues: [], suggestion: '' }
@@ -413,7 +432,7 @@ ${content}`
 }
 
 // 反 AI 风格重写（保留事实与剧情）
-async function rewriteChapterStyle({ content, issues = [] }) {
+async function rewriteChapterStyle({ content, issues = [], configOverride }) {
   if (!content) return ''
 
   const systemPrompt = `你是小说修订助手，目标是降低 AI 痕迹。
@@ -431,20 +450,21 @@ ${content}`
       { role: 'user', content: userPrompt }
     ],
     temperature: 0.4,
-    maxTokens: 2000
+    maxTokens: 2000,
+    configOverride
   })
 
   return response?.trim() || ''
 }
 
 // 章节反 AI 清洗入口（仅在需要时重写）
-async function applyAntiAiPolish({ novelId, chapterId, content }) {
+async function applyAntiAiPolish({ novelId, chapterId, content, configOverride }) {
   if (!novelId || !chapterId || !content) return { changed: false }
 
-  const review = await reviewChapterStyle({ content })
+  const review = await reviewChapterStyle({ content, configOverride })
   if (!review.needRewrite) return { changed: false, issues: review.issues }
 
-  const rewritten = await rewriteChapterStyle({ content, issues: review.issues })
+  const rewritten = await rewriteChapterStyle({ content, issues: review.issues, configOverride })
   if (!rewritten) return { changed: false, issues: review.issues }
 
   const chapter = await chapterDAO.getChapterById(chapterId)
@@ -534,7 +554,8 @@ async function generateChapterChunks({
   minParagraphWords,
   maxParagraphWords,
   maxParagraphs, // 最大段落数
-  maxRetries = 2 // 每段最大重试次数
+  maxRetries = 2, // 每段最大重试次数
+  configOverride
 }) {
   if (!novelId || !chapterId) {
     throw new Error('生成章节需要 novelId 与 chapterId')
@@ -617,7 +638,8 @@ async function generateChapterChunks({
       systemPrompt,
       worldRules,
       lastChapterContentEnd,
-      targetWords: paragraphRange
+      targetWords: paragraphRange,
+      configOverride
     })
 
     if (!paragraph || paragraph.trim().length === 0) {
@@ -630,7 +652,8 @@ async function generateChapterChunks({
       paragraph,
       chapterSoFar,
       graphContext,
-      extraPrompt
+      extraPrompt,
+      configOverride
     })
 
     let finalParagraph = paragraph
@@ -657,14 +680,16 @@ async function generateChapterChunks({
           systemPrompt,
           worldRules,
           lastChapterContentEnd,
-          targetWords: retryRange
+          targetWords: retryRange,
+          configOverride
         })
 
         validation = await validateParagraph({
           paragraph,
           chapterSoFar,
           graphContext,
-          extraPrompt
+          extraPrompt,
+          configOverride
         })
 
         if (validation.isValid || (validation.fixedParagraph && validation.fixedParagraph.trim().length > 0)) {

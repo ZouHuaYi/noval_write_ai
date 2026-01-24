@@ -7,7 +7,8 @@ const {
   generateChapterBatch,
   syncGraph,
   persistWorldview,
-  DEFAULT_CHAPTER_SYSTEM_PROMPT
+  DEFAULT_CHAPTER_SYSTEM_PROMPT,
+  resolvePipelineConfig
 } = require('./pipelineSteps')
 
 const RUN_STATUS = {
@@ -136,6 +137,7 @@ async function runPipeline(runId) {
 
       if (stage === 'analyze') {
         pipelineDAO.updatePipelineRun(runId, { currentStage: stage, currentBatch: 0 })
+        const analysisConfig = await resolvePipelineConfig(run.settings || {}, 'analyze')
         const analysisStep = await executeStep({
           runId,
           stage,
@@ -150,7 +152,8 @@ async function runPipeline(runId) {
             inputWorldview: run.inputWorldview,
             inputRules: run.inputRules,
             inputOutline: run.inputOutline,
-            settings: run.settings
+            settings: run.settings,
+            configOverride: analysisConfig
           })
         })
 
@@ -163,7 +166,14 @@ async function runPipeline(runId) {
 
       if (stage !== 'analyze') {
         const settings = run.settings || {}
-        const loopBatchSize = 5
+        const eventConfig = await resolvePipelineConfig(settings, 'events_batch')
+        const planConfig = await resolvePipelineConfig(settings, 'plan')
+        const chapterConfig = await resolvePipelineConfig(settings, 'chapter_batch')
+        const reviewConfig = await resolvePipelineConfig(settings, 'review')
+        const configuredBatchSize = Number(settings.cycleBatchSize || settings.batchSize)
+        const loopBatchSize = Number.isFinite(configuredBatchSize) && configuredBatchSize > 0
+          ? configuredBatchSize
+          : 5
         const batches = buildEventBatches(settings.targetChapters, loopBatchSize)
         const loopStages = ['events_batch', 'plan', 'chapter_batch', 'graph_sync']
         const resumeStageIndex = loopStages.indexOf(run.currentStage)
@@ -194,7 +204,8 @@ async function runPipeline(runId) {
                   startChapter: batch.startChapter,
                   endChapter: batch.endChapter,
                   targetChapters: settings.targetChapters,
-                  inputOutline: run.inputOutline
+                  inputOutline: run.inputOutline,
+                  configOverride: eventConfig
                 })
               })
             }
@@ -209,7 +220,8 @@ async function runPipeline(runId) {
                   novelId: run.novelId,
                   settings: run.settings,
                   startChapter: batch.startChapter,
-                  endChapter: batch.endChapter
+                  endChapter: batch.endChapter,
+                  configOverride: planConfig
                 })
               })
             }
@@ -231,7 +243,9 @@ async function runPipeline(runId) {
                   executor: async () => generateChapterBatch({
                     novelId: run.novelId,
                     chapterNumbers: chapterBatch.chapterNumbers,
-                    systemPrompt: DEFAULT_CHAPTER_SYSTEM_PROMPT
+                    systemPrompt: DEFAULT_CHAPTER_SYSTEM_PROMPT,
+                    configOverride: chapterConfig,
+                    reviewConfigOverride: reviewConfig
                   })
                 })
               }

@@ -54,7 +54,8 @@ async function generateChapterPlan({
   pacing = 'medium',
   startChapter = 1,
   endChapter = null,
-  mode = 'default'
+  mode = 'default',
+  configOverride
 }) {
   // 统一规范化目标字数，避免超过上限
   const normalizedWordsPerChapter = normalizeWordsPerChapter(wordsPerChapter)
@@ -118,14 +119,15 @@ async function generateChapterPlan({
       .join('\n')
 
     try {
-      const response = await llmService.callChatModel({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `第 ${chapter.chapterNumber} 章包含以下事件：\n${eventDescriptions}\n\n请给出 2-3 条写作建议，返回 JSON 数组格式。` }
-        ],
-        temperature: 0.6,
-        maxTokens: 500
-      })
+        const response = await llmService.callChatModel({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `第 ${chapter.chapterNumber} 章包含以下事件：\n${eventDescriptions}\n\n请给出 2-3 条写作建议，返回 JSON 数组格式。` }
+          ],
+          temperature: 0.6,
+          maxTokens: 500,
+          configOverride
+        })
 
       const hints = safeParseJSON(response)
       if (Array.isArray(hints)) {

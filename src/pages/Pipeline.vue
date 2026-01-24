@@ -152,6 +152,50 @@
             <el-form-item label="模型温度 (Temperature)">
               <el-slider v-model="settings.temperature" :min="0" :max="1" :step="0.1" show-stops />
             </el-form-item>
+              <el-form-item label="事件生成模型">
+                <el-select v-model="settings.eventModelConfigId" placeholder="跟随系统默认" class="w-full">
+                  <el-option label="跟随系统默认" value="" />
+                  <el-option
+                    v-for="config in llmConfigs"
+                    :key="config.id"
+                    :label="config.name ? `${config.name} (${config.model})` : config.model"
+                    :value="config.id"
+                  />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="计划生成模型">
+                <el-select v-model="settings.planModelConfigId" placeholder="跟随系统默认" class="w-full">
+                  <el-option label="跟随系统默认" value="" />
+                  <el-option
+                    v-for="config in llmConfigs"
+                    :key="config.id"
+                    :label="config.name ? `${config.name} (${config.model})` : config.model"
+                    :value="config.id"
+                  />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="章节写作模型">
+                <el-select v-model="settings.chapterModelConfigId" placeholder="跟随系统默认" class="w-full">
+                  <el-option label="跟随系统默认" value="" />
+                  <el-option
+                    v-for="config in llmConfigs"
+                    :key="config.id"
+                    :label="config.name ? `${config.name} (${config.model})` : config.model"
+                    :value="config.id"
+                  />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="风格审查模型">
+                <el-select v-model="settings.reviewModelConfigId" placeholder="跟随系统默认" class="w-full">
+                  <el-option label="跟随系统默认" value="" />
+                  <el-option
+                    v-for="config in llmConfigs"
+                    :key="config.id"
+                    :label="config.name ? `${config.name} (${config.model})` : config.model"
+                    :value="config.id"
+                  />
+                </el-select>
+              </el-form-item>
           </el-form>
         </el-card>
 
@@ -331,7 +375,12 @@ const settings = reactive({
   batchSize: 2,
   targetChapters: 10,
   wordsPerChapter: 1200,
-  temperature: 0.7
+  temperature: 0.7,
+  modelConfigId: '',
+  eventModelConfigId: '',
+  planModelConfigId: '',
+  chapterModelConfigId: '',
+  reviewModelConfigId: ''
 })
 
 const currentRun = ref(null)
@@ -339,6 +388,7 @@ const steps = ref([])
 const runs = ref([])
 const graphEvents = ref([])
 const activeGraphTab = ref('event')
+const llmConfigs = ref([])
 
 const draftKeyPrefix = 'pipeline:draft:'
 const settingsKeyPrefix = 'pipeline:settings:'
@@ -401,7 +451,12 @@ function normalizeSettings(value) {
     targetChapters: Number.isFinite(targetChapters) && targetChapters > 0 ? targetChapters : 10,
     wordsPerChapter: Number.isFinite(wordsPerChapter) && wordsPerChapter > 0 ? wordsPerChapter : 1200,
     batchSize: Number.isFinite(batchSize) && batchSize > 0 ? batchSize : 2,
-    temperature: Number.isFinite(temperature) ? temperature : 0.7
+    temperature: Number.isFinite(temperature) ? temperature : 0.7,
+    modelConfigId: typeof value?.modelConfigId === 'string' ? value.modelConfigId : '',
+    eventModelConfigId: typeof value?.eventModelConfigId === 'string' ? value.eventModelConfigId : '',
+    planModelConfigId: typeof value?.planModelConfigId === 'string' ? value.planModelConfigId : '',
+    chapterModelConfigId: typeof value?.chapterModelConfigId === 'string' ? value.chapterModelConfigId : '',
+    reviewModelConfigId: typeof value?.reviewModelConfigId === 'string' ? value.reviewModelConfigId : ''
   }
 }
 
@@ -416,6 +471,11 @@ async function loadPipelineSettings(novelId) {
       settings.targetChapters = normalized.targetChapters
       settings.wordsPerChapter = normalized.wordsPerChapter
       settings.temperature = normalized.temperature
+      settings.modelConfigId = normalized.modelConfigId
+      settings.eventModelConfigId = normalized.eventModelConfigId
+      settings.planModelConfigId = normalized.planModelConfigId
+      settings.chapterModelConfigId = normalized.chapterModelConfigId
+      settings.reviewModelConfigId = normalized.reviewModelConfigId
     }
   } catch (error) {
     console.error('加载生成参数失败:', error)
@@ -456,6 +516,15 @@ async function loadDraft(novelId) {
     console.error('加载流水线草稿失败:', error)
   } finally {
     isDraftLoading.value = false
+  }
+}
+
+async function loadLLMConfigs() {
+  try {
+    const configs = await window.electronAPI.settings.get('llm_configs')
+    llmConfigs.value = Array.isArray(configs) ? configs : []
+  } catch (error) {
+    console.error('加载模型配置失败:', error)
   }
 }
 
@@ -623,9 +692,15 @@ async function onStart() {
       settings: {
         targetChapters: normalizedSettings.targetChapters,
         wordsPerChapter: normalizedSettings.wordsPerChapter,
-        eventBatchSize: 5,
-        chapterBatchSize: 5,
-        temperature: normalizedSettings.temperature
+        eventBatchSize: normalizedSettings.batchSize,
+        chapterBatchSize: normalizedSettings.batchSize,
+        cycleBatchSize: normalizedSettings.batchSize,
+        temperature: normalizedSettings.temperature,
+        modelConfigId: normalizedSettings.modelConfigId,
+        eventModelConfigId: normalizedSettings.eventModelConfigId,
+        planModelConfigId: normalizedSettings.planModelConfigId,
+        chapterModelConfigId: normalizedSettings.chapterModelConfigId,
+        reviewModelConfigId: normalizedSettings.reviewModelConfigId
       }
     })
     await refreshStatus(run.id)
@@ -772,6 +847,7 @@ watch(settings, () => {
 
 onMounted(async () => {
   await loadNovels()
+  await loadLLMConfigs()
   if (selectedNovelId.value) {
     await loadRuns(selectedNovelId.value)
     await loadGraphData(selectedNovelId.value)

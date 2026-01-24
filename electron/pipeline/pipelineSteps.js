@@ -1,4 +1,3 @@
-const llmService = require('../llm/llmService')
 const outlineAgent = require('../llm/outlineAgent')
 const planningAgent = require('../llm/planningAgent')
 const chapterGenerator = require('../llm/chapterGenerator')
@@ -8,6 +7,7 @@ const chapterDAO = require('../database/chapterDAO')
 const novelDAO = require('../database/novelDAO')
 const { safeParseJSON } = require('../utils/helpers')
 const { buildKnowledgeSummary } = require('../llm/knowledgeContext')
+const llmService = require('../llm/llmService')
 const { getGraphManager } = require('../graph/graphManager')
 
 // 章节生成默认系统提示
@@ -69,8 +69,32 @@ function mergeEvents(existingEvents = [], newEvents = []) {
   return merged
 }
 
+let cachedLLMConfigs = null
+
+async function resolvePipelineConfig(settings = {}, stage = 'default') {
+  try {
+    if (!cachedLLMConfigs) {
+      cachedLLMConfigs = await llmService.getAllLLMConfigs()
+    }
+    const stageKeyMap = {
+      analyze: 'analysisModelConfigId',
+      events_batch: 'eventModelConfigId',
+      plan: 'planModelConfigId',
+      chapter_batch: 'chapterModelConfigId',
+      review: 'reviewModelConfigId'
+    }
+    const stageKey = stageKeyMap[stage]
+    const selectedId = (stageKey && settings[stageKey]) || settings.modelConfigId
+    if (!selectedId) return null
+    return cachedLLMConfigs.find(cfg => cfg.id === selectedId) || null
+  } catch (error) {
+    console.error('解析流水线模型配置失败:', error)
+    return null
+  }
+}
+
 // 分析评估输入
-async function analyzeInput({ novelId, inputWorldview, inputRules, inputOutline, settings }) {
+async function analyzeInput({ novelId, inputWorldview, inputRules, inputOutline, settings, configOverride }) {
   const novel = novelDAO.getNovelById(novelId)
   const systemPrompt = '你是小说策划评估助手，请根据输入的世界观、规则与章节大纲，估算章节数、每章字数、节奏与分批策略。必须输出 JSON。'
   const userPrompt = `【小说标题】\n${novel?.title || '未命名'}\n\n【世界观设定】\n${inputWorldview || '无'}\n\n【规则设定】\n${inputRules || '无'}\n\n【章节大纲】\n${inputOutline || '无'}\n\n请输出 JSON：\n{\n  "synopsis": "一句话梗概",\n  "targetChapters": 预计章节数(数字),\n  "wordsPerChapter": 每章目标字数(数字),\n  "pacing": "fast|medium|slow",\n  "eventBatchSize": 事件生成每批覆盖章节数(数字),\n  "chapterBatchSize": 章节生成每批章节数(数字),\n  "notes": "可选备注"\n}`
@@ -81,7 +105,8 @@ async function analyzeInput({ novelId, inputWorldview, inputRules, inputOutline,
       { role: 'user', content: userPrompt }
     ],
     temperature: 0.4,
-    maxTokens: 1200
+    maxTokens: 1200,
+    configOverride
   })
 
   const parsed = safeParseJSON(response)
@@ -94,7 +119,8 @@ async function generateEventBatch({
   startChapter,
   endChapter,
   targetChapters,
-  inputOutline
+  inputOutline,
+  configOverride
 }) {
   const novel = novelDAO.getNovelById(novelId)
   const existingEvents = planningDAO.listPlanningEvents(novelId)
@@ -112,6 +138,7 @@ async function generateEventBatch({
     synopsis: novel?.description || '',
     existingOutline: inputOutline || '',
     knowledgeContext,
+    configOverride,
     targetChapters: targetChapters,
     startChapter,
     endChapter,
@@ -129,7 +156,7 @@ async function generateEventBatch({
 }
 
 // 生成章节计划
-async function generatePlan({ novelId, settings, startChapter, endChapter }) {
+async function generatePlan({ novelId, settings, startChapter, endChapter, configOverride }) {
   const events = planningDAO.listPlanningEvents(novelId) || []
   const targetChapters = Number(settings?.targetChapters) || 10
   const wordsPerChapter = Number(settings?.wordsPerChapter) || 1200
@@ -149,7 +176,8 @@ async function generatePlan({ novelId, settings, startChapter, endChapter }) {
     pacing: settings?.pacing || 'medium',
     startChapter: rangeStart,
     endChapter: rangeEnd,
-    mode: 'pipeline'
+    mode: 'pipeline',
+    configOverride
   })
 
   planningDAO.upsertPlanningChapters(novelId, result.chapters || [])
@@ -168,7 +196,7 @@ async function generatePlan({ novelId, settings, startChapter, endChapter }) {
 }
 
 // 生成章节批次
-async function generateChapterBatch({ novelId, chapterNumbers, systemPrompt }) {
+async function generateChapterBatch({ novelId, chapterNumbers, systemPrompt, configOverride, reviewConfigOverride }) {
   console.log(`[章节批次] 开始生成, novelId: ${novelId}, 章节: [${chapterNumbers.join(', ')}]`)
   
   const novel = novelDAO.getNovelById(novelId)
@@ -248,14 +276,16 @@ async function generateChapterBatch({ novelId, chapterNumbers, systemPrompt }) {
       novelTitle: novel?.title || '未命名',
       extraPrompt: '',
       systemPrompt: systemPrompt || DEFAULT_CHAPTER_SYSTEM_PROMPT,
-      targetWords
+      targetWords,
+      configOverride
     })
 
     // 章节生成后进行反 AI 清洗（仅流水线使用）
     await chapterGenerator.applyAntiAiPolish({
       novelId,
       chapterId: chapter.id,
-      content: generationResult?.chapter?.content || ''
+      content: generationResult?.chapter?.content || '',
+      configOverride: reviewConfigOverride || configOverride
     })
       console.log(`[章节批次] ✅ 第 ${chapterNumber} 章生成成功`)
     } catch (error) {
@@ -301,6 +331,7 @@ function persistWorldview({ novelId, inputWorldview, inputRules }) {
 }
 
 module.exports = {
+  resolvePipelineConfig,
   analyzeInput,
   generateEventBatch,
   generatePlan,

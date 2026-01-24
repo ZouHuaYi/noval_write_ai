@@ -32,6 +32,7 @@ async function generateEventGraph({
   synopsis,
   existingOutline,
   knowledgeContext,
+  configOverride,
   targetChapters = 10,
   startChapter = 1,
   endChapter = null,
@@ -166,7 +167,8 @@ ${existingOutline || '无'}
         { role: 'user', content: userPrompt }
       ],
       temperature: 0.7,
-      maxTokens: 8000
+      maxTokens: 8000,
+      configOverride
     })
 
     let result = safeParseJSON(response)
@@ -185,7 +187,7 @@ ${existingOutline || '无'}
 
     if (!result || !result.events) {
       // 追加一次 JSON 修复尝试（不改变原始提示，仅修复格式）
-      const repaired = await repairEventGraphJSON(response)
+      const repaired = await repairEventGraphJSON(response, configOverride)
       if (repaired && repaired.events) {
         result = repaired
       } else {
@@ -294,7 +296,7 @@ module.exports = {
 }
 
 // 修复事件图谱 JSON 输出
-async function repairEventGraphJSON(rawText) {
+async function repairEventGraphJSON(rawText, configOverride) {
   if (!rawText) return null
   const systemPrompt = '你是 JSON 修复助手。请把用户提供的内容修复为严格 JSON，只输出 JSON，不要解释。'
   const userPrompt = `请将以下内容修复为严格 JSON：\n\n${rawText}`
@@ -305,7 +307,8 @@ async function repairEventGraphJSON(rawText) {
         { role: 'user', content: userPrompt }
       ],
       temperature: 0.2,
-      maxTokens: 2000
+      maxTokens: 2000,
+      configOverride
     })
     const parsed = safeParseJSON(response)
     if (parsed && parsed.events) return parsed

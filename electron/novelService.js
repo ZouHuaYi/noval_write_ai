@@ -36,7 +36,7 @@ async function exportNovel(novelId) {
   content += `\n`
 
   for (const chapter of chapters) {
-    content += `\n${chapter.title}\n`
+    content += `\n第${chapter.chapterNumber}章 ${chapter.title}\n`
     content += `--------------------\n`
     content += `${chapter.content}\n\n`
   }
