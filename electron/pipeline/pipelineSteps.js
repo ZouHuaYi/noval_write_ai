@@ -69,13 +69,10 @@ function mergeEvents(existingEvents = [], newEvents = []) {
   return merged
 }
 
-let cachedLLMConfigs = null
-
 async function resolvePipelineConfig(settings = {}, stage = 'default') {
   try {
-    if (!cachedLLMConfigs) {
-      cachedLLMConfigs = await llmService.getAllLLMConfigs()
-    }
+    const allConfigs = await llmService.getAllLLMConfigs()
+    
     const stageKeyMap = {
       analyze: 'analysisModelConfigId',
       events_batch: 'eventModelConfigId',
@@ -86,7 +83,7 @@ async function resolvePipelineConfig(settings = {}, stage = 'default') {
     const stageKey = stageKeyMap[stage]
     const selectedId = (stageKey && settings[stageKey]) || settings.modelConfigId
     if (!selectedId) return null
-    return cachedLLMConfigs.find(cfg => cfg.id === selectedId) || null
+    return allConfigs.find(cfg => cfg.id === selectedId) || null
   } catch (error) {
     console.error('解析流水线模型配置失败:', error)
     return null

@@ -171,7 +171,7 @@ async function runPipeline(runId) {
         }
 
         run = pipelineDAO.updatePipelineRun(runId, {
-          settings: analysisStep.output,
+          settings: { ...run.settings, ...analysisStep.output },
           currentStage: stage,
           currentBatch: 0
         })
