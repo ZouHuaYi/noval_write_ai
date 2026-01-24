@@ -152,6 +152,7 @@ async function generateEventBatch({
       ...currentMeta,
       chapterBeats: result.chapterBeats
     })
+    console.log(`[pipeline:generateEventBatch] 已保存章级骨架: ${result.chapterBeats.length} 条, novelId=${novelId}`)
   }
 
   const merged = mergeEvents(existingEvents, result?.events || [])

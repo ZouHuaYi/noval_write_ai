@@ -161,6 +161,7 @@ function registerPlanningHandlers(ipcMain) {
           ...currentMeta,
           chapterBeats: result.chapterBeats
         })
+        console.log(`[outline:generateEventGraph] 已保存章级骨架: ${result.chapterBeats.length} 条, novelId=${options.novelId}`)
       }
 
       if (options.mergeEvents) {
@@ -503,7 +504,13 @@ function registerPlanningHandlers(ipcMain) {
       planningDAO.deletePlanningChaptersByNovel(novelId)
       planningDAO.upsertPlanningEvents(novelId, eventsResult.data)
       planningDAO.upsertPlanningChapters(novelId, chaptersResult.data)
-      planningDAO.upsertPlanningMeta(novelId, metaResult.data)
+
+      const existingMeta = planningDAO.getPlanningMeta(novelId) || {}
+      const mergedMeta = { ...existingMeta, ...metaResult.data }
+      if (metaResult.data?.chapterBeats == null && existingMeta.chapterBeats) {
+        mergedMeta.chapterBeats = existingMeta.chapterBeats
+      }
+      planningDAO.upsertPlanningMeta(novelId, mergedMeta)
 
       const dbChapters = chapterDAO.getChaptersByNovel(novelId)
       const dbByNumber = new Map(dbChapters.map(ch => [ch.chapterNumber, ch]))

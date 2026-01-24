@@ -26,6 +26,7 @@ function buildPlanningSummary({ novelId, chapterNumber }) {
     const planningMeta = planningDAO.getPlanningMeta(novelId)
     const chapterBeats = Array.isArray(planningMeta?.chapterBeats) ? planningMeta.chapterBeats : []
     const chapterBeat = chapterBeats.find(beat => Number(beat.chapter) === Number(chapterNumber))
+    console.log(`[buildPlanningSummary] 章级骨架读取: ${chapterBeats.length} 条, 命中=${Boolean(chapterBeat)}, novelId=${novelId}, chapter=${chapterNumber}`)
 
     // 读取全量事件数据，后续用于章节映射
     const events = planningDAO.listPlanningEvents(novelId)
