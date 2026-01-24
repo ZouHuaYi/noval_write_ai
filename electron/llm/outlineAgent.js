@@ -16,6 +16,297 @@ const EVENT_TYPES = {
   TRANSITION: 'transition'  // 过渡事件
 }
 
+// 检测事件图谱是否存在明显 AI 任务链味
+function detectOutlineAiSmell(events = []) {
+  const text = events.map(event => `${event.label || ''}\n${event.description || ''}`).join('\n')
+  const mustCount = (text.match(/必须|得|立刻|赶紧/g) || []).length
+  const findCount = (text.match(/发现|找到|线索|证据/g) || []).length
+  const goCount = (text.match(/前往|赶到|去往|前去|赶去/g) || []).length
+
+  const issues = []
+  if (mustCount >= 10) issues.push('推进词过密（必须/得/立刻/赶紧）')
+  if (findCount >= 12) issues.push('线索词过密（发现/线索/证据）')
+  if (goCount >= 10) issues.push('移动事件过密（前往/赶到）')
+
+  return {
+    hasSmell: issues.length > 0,
+    issues
+  }
+}
+
+// 生成章级骨架（ChapterBeats），先定节奏再拆事件
+async function generateChapterBeats({
+  novelTitle,
+  genre,
+  synopsis,
+  existingOutline,
+  knowledgeContext,
+  targetChapters = 10,
+  startChapter = 1,
+  endChapter = null,
+  configOverride
+}) {
+  const systemPrompt = `你是小说分章策划编辑。
+你的任务是先生成“章级骨架”，让故事节奏像人写，而不是任务列表。
+
+【语言要求】
+- 必须使用中文输出
+- 除了 JSON 字段名，其余内容均用中文
+
+【必须避免】
+- 每章都一样的结构（发现线索->被追->得到新线索）
+- 每章都强行2-3件事
+- 只写推进，不写代价/误判
+
+【每章必须包含】
+- purpose: 本章目的（引爆/追查/试探/失手/反击/收束等）
+- turningPoint: 本章转折点（发生了什么具体事）
+- cost: 本章代价（失去什么、暴露什么、关系变化）
+- misconception: 本章误判（角色当下相信但可能错误的一句话）
+- nextHook: 下一章钩子（不一定是“明天去XX”，也可以是未说破的决定）
+
+只输出严格 JSON，不要解释。`
+
+  const rangeStart = startChapter
+  const rangeEnd = endChapter != null ? endChapter : (startChapter + targetChapters - 1)
+  const rangeLabel = `第 ${rangeStart} 章 - 第 ${rangeEnd} 章`
+
+  const userPrompt = `请为小说生成章级骨架（ChapterBeats）：
+
+【小说标题】
+${novelTitle}
+
+【类型】
+${genre || '未指定'}
+
+【梗概】
+${synopsis || '无'}
+
+【现有大纲】
+${existingOutline || '无'}
+
+【知识图谱要点】
+${knowledgeContext || '无'}
+
+【章节范围】
+${rangeLabel}
+
+输出 JSON 格式：
+{
+  "chapterBeats": [
+    {
+      "chapter": 1,
+      "purpose": "",
+      "turningPoint": "",
+      "cost": "",
+      "misconception": "",
+      "nextHook": ""
+    }
+  ]
+}
+
+要求：
+1) chapter 必须覆盖 ${rangeStart} 到 ${rangeEnd}，每章 1 条
+2) 节奏允许不均衡：有的章推进快，有的章停顿/失手/误判
+3) 至少 2 章出现“失手/误判/走弯路”
+4) 至少 1 章出现“主角主动布局/反击”
+5) 不要写成全知总结，要像作者排章法。`
+
+  const response = await llmService.callChatModel({
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    temperature: 0.6,
+    maxTokens: 3000,
+    configOverride
+  })
+
+  let parsed = safeParseJSON(response)
+  if (!parsed || !Array.isArray(parsed.chapterBeats)) {
+    const jsonMatch = response.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      parsed = safeParseJSON(jsonMatch[0])
+    }
+  }
+
+  if (!parsed || !Array.isArray(parsed.chapterBeats)) {
+    throw new Error('无法解析 ChapterBeats JSON')
+  }
+
+  // 修正章范围（兜底补齐）
+  const beatsMap = new Map(parsed.chapterBeats.map(beat => [Number(beat.chapter), beat]))
+  const chapterBeats = []
+  for (let chapter = rangeStart; chapter <= rangeEnd; chapter += 1) {
+    const beat = beatsMap.get(chapter) || {}
+    chapterBeats.push({
+      chapter,
+      purpose: beat.purpose || '',
+      turningPoint: beat.turningPoint || '',
+      cost: beat.cost || '',
+      misconception: beat.misconception || '',
+      nextHook: beat.nextHook || ''
+    })
+  }
+
+  return {
+    chapterBeats,
+    range: { startChapter: rangeStart, endChapter: rangeEnd }
+  }
+}
+
+// 基于章级骨架生成事件图谱（EventNodes）
+async function generateEventGraphFromBeats({
+  novelTitle,
+  genre,
+  synopsis,
+  existingOutline,
+  knowledgeContext,
+  chapterBeats = [],
+  existingEvents = [],
+  startChapter = 1,
+  endChapter = null,
+  configOverride
+}) {
+  const systemPrompt = `你是专业小说故事架构师。
+你将把“章级骨架”拆解成 EventNode 事件图谱。
+
+【语言要求】
+- 必须使用中文输出
+- 除了 JSON 字段名，其余内容均用中文
+
+【反AI关键规则】
+每个事件必须包含四要素：
+- 目标（角色想要什么）
+- 行动（做了什么）
+- 代价（失去/暴露/误会/伤口/信任破裂）
+- 误判（角色当下相信但可能错误的一句话）
+
+禁止把事件写成“发现线索->去下一个地点”的任务链。
+dependencies 必须是真正的因果依赖，而不是时间顺序。
+
+只输出严格 JSON。`
+
+  let existingEventsContext = ''
+  if (existingEvents && existingEvents.length) {
+    const rangeStart = Number(startChapter)
+    if (Number.isFinite(rangeStart)) {
+      const eventsBeforeRange = existingEvents.filter(event => event.chapter < rangeStart)
+      if (eventsBeforeRange.length > 0) {
+        const chapterNumbers = [...new Set(eventsBeforeRange.map(event => event.chapter))].sort((a, b) => b - a)
+        const relevantChapters = chapterNumbers.slice(0, 5)
+        const relevantEvents = eventsBeforeRange.filter(event => relevantChapters.includes(event.chapter))
+        if (relevantEvents.length > 0) {
+          existingEventsContext = `【已有事件（可引用 dependencies）】\n`
+          existingEventsContext += `以下是第 ${Math.min(...relevantChapters)} - ${Math.max(...relevantChapters)} 章的事件：\n\n`
+          relevantChapters.forEach(chapterNum => {
+            const chapterEvents = relevantEvents.filter(event => event.chapter === chapterNum)
+            if (chapterEvents.length > 0) {
+              existingEventsContext += `第${chapterNum}章：\n`
+              chapterEvents.forEach(event => {
+                existingEventsContext += `  - ID: ${event.id}, 标题: ${event.label}\n`
+                if (event.description) {
+                  existingEventsContext += `    描述: ${event.description.substring(0, 50)}${event.description.length > 50 ? '...' : ''}\n`
+                }
+              })
+            }
+          })
+          existingEventsContext += `\n提示：如果新生成的事件需要依赖这些已有事件，请在 dependencies 数组中使用它们的实际 ID。\n`
+        }
+      }
+    } else {
+      existingEventsContext = `【已有事件（可引用 dependencies）】\n` + existingEvents
+        .slice(-20)
+        .map(event => `- ${event.id} (第${event.chapter}章): ${event.label}`)
+        .join('\n')
+    }
+  }
+
+  const userPrompt = `请基于以下“章级骨架”，生成事件图谱 EventNode：
+
+【小说标题】
+${novelTitle}
+
+【类型】
+${genre || '未指定'}
+
+【梗概】
+${synopsis || '无'}
+
+【现有大纲】
+${existingOutline || '无'}
+
+【知识图谱要点】
+${knowledgeContext || '无'}
+
+  ${existingEventsContext}
+
+【章级骨架 ChapterBeats】
+${JSON.stringify(chapterBeats, null, 2)}
+
+【语言要求】
+- label/description/summary/mainCharacters/mainConflicts 必须为中文
+
+输出 JSON：
+{
+  "events": [
+    {
+      "id": "event_1",
+      "label": "",
+      "eventType": "plot|character|conflict|resolution|transition",
+      "description": "",
+      "chapter": 1,
+      "characters": [],
+      "preconditions": [],
+      "postconditions": [],
+      "dependencies": []
+    }
+  ],
+  "summary": "",
+  "mainCharacters": [],
+  "mainConflicts": []
+}
+
+要求：
+1) 每章 2-4 个事件（允许少数章只有 1 个关键事件）
+2) 每个事件 description 必须写出：目标/行动/代价/误判（用一句话串起来也行）
+3) 至少 25% 事件为 character 或 transition
+4) 至少 1 个事件为“主角主动布局/反击”
+5) 至少 1 个事件为“错误线索/误导导致走弯路”
+6) dependencies 只写因果依赖，不要写“上一章”
+7) chapter 必须严格落在 ChapterBeats 给出的范围内
+
+只输出 JSON。`
+
+  const response = await llmService.callChatModel({
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    temperature: 0.65,
+    maxTokens: 8000,
+    configOverride
+  })
+
+  let result = safeParseJSON(response)
+  if (!result || !result.events) {
+    const jsonMatch = response.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      result = safeParseJSON(jsonMatch[0])
+    }
+  }
+
+  if (!result || !Array.isArray(result.events)) {
+    const repaired = await repairEventGraphJSON(response, configOverride)
+    if (!repaired || !repaired.events) {
+      throw new Error('无法解析事件图谱 JSON')
+    }
+    result = repaired
+  }
+
+  return result
+}
+
 /**
  * 生成事件图谱
  * @param {Object} options
@@ -38,161 +329,60 @@ async function generateEventGraph({
   endChapter = null,
   existingEvents = [] // 新增：已有的事件列表
 }) {
-  const systemPrompt = `你是一个专业的小说故事架构师，擅长将故事大纲分解为结构化的事件图谱。
+  const rangeStart = startChapter
+  const rangeEnd = endChapter != null ? endChapter : Math.max(rangeStart, rangeStart + targetChapters - 1)
+  const rangeLabel = `第 ${rangeStart} 章 - 第 ${rangeEnd} 章`
 
-你需要分析故事，生成一系列 EventNode（事件节点），每个节点包含：
-- id: 唯一标识符 (格式: event_{序号})
-- label: 事件标题（简短有力）
-- eventType: 事件类型 (plot/character/conflict/resolution/transition)
-- description: 事件详细描述
-- chapter: 建议所属章节
-- characters: 相关角色列表
-- preconditions: 前置条件（需要先发生什么）
-- postconditions: 后置影响（会导致什么）
-- dependencies: 依赖的事件 ID 列表（如果新事件依赖已有事件，使用已有事件的实际 ID）
-
-事件类型说明：
-- plot: 情节推进事件（故事核心进展）
-- character: 角色发展事件（角色成长、关系变化）
-- conflict: 冲突事件（矛盾爆发、对抗）
-- resolution: 解决事件（冲突解决、问题克服）
-- transition: 过渡事件（场景转换、时间跳跃）
-
-请以 JSON 格式返回，结构如下：
-{
-  "events": [
-    {
-      "id": "event_1",
-      "label": "...",
-      "eventType": "...",
-      "description": "...",
-      "chapter": 1,
-      "characters": ["角色1", "角色2"],
-      "preconditions": ["条件1"],
-      "postconditions": ["影响1"],
-      "dependencies": []
-    }
-  ],
-  "summary": "整体故事结构摘要",
-  "mainCharacters": ["主要角色1", "主要角色2"],
-  "mainConflicts": ["核心冲突1", "核心冲突2"]
-}`
-
-  const rangeLabel = endChapter != null ? `第 ${startChapter} 章 - 第 ${endChapter} 章` : `第 ${startChapter} 章起`
-  const chaptersCount = endChapter != null ? Math.max(endChapter - startChapter + 1, 1) : targetChapters
-
-  // 构建已有事件的摘要信息
   console.log(`[事件图谱] ========== 生成事件图谱 ==========`)
-  console.log(`[事件图谱] 小说: ${novelTitle}, 章节范围: ${startChapter}-${endChapter || '末尾'}`)
+  console.log(`[事件图谱] 小说: ${novelTitle}, 章节范围: ${rangeLabel}`)
   console.log(`[事件图谱] 已有事件总数: ${existingEvents?.length || 0}`)
-  
-  let existingEventsContext = ''
-  if (existingEvents && existingEvents.length > 0) {
-    // 只选择早于起始章节的事件
-    const eventsBeforeRange = existingEvents.filter(e => e.chapter < startChapter)
-    console.log(`[事件图谱] 早于起始章节的事件数: ${eventsBeforeRange.length}`)
 
-    if (eventsBeforeRange.length > 0) {
-      // 找出这些事件所在的章节号，并排序
-      const chapterNumbers = [...new Set(eventsBeforeRange.map(e => e.chapter))].sort((a, b) => b - a)
-      console.log(`[事件图谱] 涉及章节: [${chapterNumbers.join(', ')}]`)
-
-      // 只取最接近起始章节的5个章节
-      const relevantChapters = chapterNumbers.slice(0, 5)
-      const relevantEvents = eventsBeforeRange.filter(e => relevantChapters.includes(e.chapter))
-      console.log(`[事件图谱] 选取的相关章节: [${relevantChapters.join(', ')}], 相关事件数: ${relevantEvents.length}`)
-
-      if (relevantEvents.length > 0) {
-        existingEventsContext = `\n【已有事件】（可以在 dependencies 中引用这些事件的 ID）\n`
-        existingEventsContext += `以下是第 ${Math.min(...relevantChapters)} - ${Math.max(...relevantChapters)} 章的事件：\n\n`
-
-        // 按章节分组显示
-        relevantChapters.forEach(chapterNum => {
-          const chapterEvents = relevantEvents.filter(e => e.chapter === chapterNum)
-          if (chapterEvents.length > 0) {
-            existingEventsContext += `第${chapterNum}章：\n`
-            chapterEvents.forEach(event => {
-              existingEventsContext += `  - ID: ${event.id}, 标题: ${event.label}\n`
-              if (event.description) {
-                existingEventsContext += `    描述: ${event.description.substring(0, 50)}${event.description.length > 50 ? '...' : ''}\n`
-              }
-            })
-          }
-        })
-
-        existingEventsContext += `\n提示：如果新生成的事件需要依赖这些已有事件，请在 dependencies 数组中使用它们的实际 ID。\n`
-      }
-    }
-  }
-  console.log(`[事件图谱] 已有事件上下文长度: ${existingEventsContext.length} 字符`)
-
-  // 注入知识图谱摘要，强化事件生成一致性
-  const knowledgeSection = knowledgeContext
-    ? `\n【知识图谱要点】\n${knowledgeContext}\n`
-    : ''
-
-  const userPrompt = `请为以下小说生成事件图谱：
-
-【小说标题】
-${novelTitle}
-
-【小说类型】
-${genre || '未指定'}
-
-【故事梗概】
-${synopsis || '无'}
-
-【现有大纲】
-${existingOutline || '无'}
-  ${existingEventsContext}${knowledgeSection}
-  【目标章节范围】
-  ${rangeLabel}
-
-请生成 ${Math.max(chaptersCount * 2, 6)} 个左右的事件节点，确保：
-1. 事件之间有清晰的因果关系（通过 dependencies 表示）
-2. 覆盖该章节范围的开端、发展与阶段性收束
-3. 角色发展事件与情节事件交织
-4. 每个章节有 2-3 个主要事件
-5. 如果新事件需要依赖【已有事件】，请使用它们的实际 ID
-
-重要：事件描述必须体现角色的主观选择与误判，不要写成“全知因果总结”。
-
-重要：必须为每个事件填写 chapter，且 chapter 必须在 ${startChapter} 到 ${endChapter ?? (startChapter + chaptersCount - 1)} 的范围内。不能全部是第 1 章。
-
-返回 JSON 格式的事件图谱。`
   try {
-    const response = await llmService.callChatModel({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.7,
-      maxTokens: 8000,
+    // 先生成章级骨架，降低任务链味
+    const beatsResult = await generateChapterBeats({
+      novelTitle,
+      genre,
+      synopsis,
+      existingOutline,
+      knowledgeContext,
+      targetChapters,
+      startChapter,
+      endChapter,
       configOverride
     })
 
-    let result = safeParseJSON(response)
+    const chapterBeats = beatsResult.chapterBeats
 
-    if (!result || !result.events) {
-      // 尝试提取 JSON
-      const jsonMatch = response.match(/\{[\s\S]*\}/)
-      if (jsonMatch) {
-        try {
-          result = JSON.parse(jsonMatch[0])
-        } catch (e) {
-          result = null
-        }
-      }
-    }
+    // 再根据骨架生成事件图谱
+    let result = await generateEventGraphFromBeats({
+      novelTitle,
+      genre,
+      synopsis,
+      existingOutline,
+      knowledgeContext,
+      chapterBeats,
+      existingEvents,
+      startChapter,
+      endChapter,
+      configOverride
+    })
 
-    if (!result || !result.events) {
-      // 追加一次 JSON 修复尝试（不改变原始提示，仅修复格式）
-      const repaired = await repairEventGraphJSON(response, configOverride)
-      if (repaired && repaired.events) {
-        result = repaired
-      } else {
-        throw new Error('无法解析事件图谱 JSON')
-      }
+    // 可选：检测 AI 味，必要时重试一次
+    const smell = detectOutlineAiSmell(result.events || [])
+    if (smell.hasSmell) {
+      console.log(`[事件图谱] 检测到 AI 味，重试一次: ${smell.issues.join('；')}`)
+      result = await generateEventGraphFromBeats({
+        novelTitle,
+        genre,
+        synopsis,
+        existingOutline,
+        knowledgeContext: `${knowledgeContext || ''}\n【额外约束】避免推进词复读，避免任务链事件，线索必须付代价。`,
+        chapterBeats,
+        existingEvents,
+        startChapter,
+        endChapter,
+        configOverride
+      })
     }
 
     // 使用时间戳确保事件 ID 唯一
@@ -237,8 +427,6 @@ ${existingOutline || '无'}
       }
     })
 
-    const rangeStart = startChapter
-    const rangeEnd = endChapter != null ? endChapter : Math.max(rangeStart, rangeStart + targetChapters - 1)
     const rangeSize = Math.max(rangeEnd - rangeStart + 1, 1)
 
     const withinRange = normalizedEvents.filter(event => typeof event.chapter === 'number' && event.chapter >= rangeStart && event.chapter <= rangeEnd)
@@ -281,9 +469,9 @@ ${existingOutline || '无'}
     return {
       ...result,
       events: normalizedEvents,
+      chapterBeats,
       range: { startChapter: rangeStart, endChapter: rangeEnd }
     }
-
   } catch (error) {
     console.error('生成事件图谱失败:', error)
     throw error
@@ -292,6 +480,8 @@ ${existingOutline || '无'}
 
 module.exports = {
   generateEventGraph,
+  generateChapterBeats,
+  generateEventGraphFromBeats,
   EVENT_TYPES
 }
 

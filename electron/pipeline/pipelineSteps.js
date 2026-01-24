@@ -145,6 +145,15 @@ async function generateEventBatch({
     existingEvents
   })
 
+  // 保存章级骨架，供规划摘要与正文生成使用
+  if (Array.isArray(result?.chapterBeats)) {
+    const currentMeta = planningDAO.getPlanningMeta(novelId) || {}
+    planningDAO.upsertPlanningMeta(novelId, {
+      ...currentMeta,
+      chapterBeats: result.chapterBeats
+    })
+  }
+
   const merged = mergeEvents(existingEvents, result?.events || [])
   planningDAO.upsertPlanningEvents(novelId, merged)
 

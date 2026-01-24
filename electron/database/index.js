@@ -57,6 +57,21 @@ function initDatabase() {
     throw error
   }
 
+  // 数据库迁移:为 planning_meta 表添加 chapterBeats 列
+  try {
+    const tableInfo = db.pragma('table_info(planning_meta)')
+    const hasChapterBeats = tableInfo.some(col => col.name === 'chapterBeats')
+
+    if (!hasChapterBeats) {
+      console.log('检测到旧版数据库,正在添加 planning_meta.chapterBeats 列...')
+      db.exec('ALTER TABLE planning_meta ADD COLUMN chapterBeats TEXT')
+      console.log('planning_meta.chapterBeats 列已添加')
+    }
+  } catch (error) {
+    console.error('数据库迁移失败:', error)
+    throw error
+  }
+
   // 数据库迁移: 修复可能存在的旧的单列唯一索引问题
   try {
     // 检查 chapter 表上的所有索引

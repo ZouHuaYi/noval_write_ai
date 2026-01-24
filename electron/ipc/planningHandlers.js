@@ -147,11 +147,21 @@ function registerPlanningHandlers(ipcMain) {
         genre: options.genre,
         synopsis: options.synopsis,
         existingOutline: options.existingOutline,
+        knowledgeContext: options.knowledgeContext,
         targetChapters: options.targetChapters || 10,
         startChapter: options.startChapter || 1,
         endChapter: options.endChapter ?? null,
         existingEvents: options.existingEvents || [] // 传递已有事件
       })
+
+      // 保存章级骨架到规划元数据，供 PlanningSummary 使用
+      if (options.novelId && Array.isArray(result.chapterBeats)) {
+        const currentMeta = planningDAO.getPlanningMeta(options.novelId) || {}
+        planningDAO.upsertPlanningMeta(options.novelId, {
+          ...currentMeta,
+          chapterBeats: result.chapterBeats
+        })
+      }
 
       if (options.mergeEvents) {
         let existingEvents = options.existingEvents || []

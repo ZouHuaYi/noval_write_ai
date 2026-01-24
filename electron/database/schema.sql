@@ -153,6 +153,7 @@ CREATE TABLE IF NOT EXISTS planning_meta (
   synopsis TEXT,
   targetChapters INTEGER,
   wordsPerChapter INTEGER,
+  chapterBeats TEXT,
   lockWritingTarget INTEGER,
   updatedAt INTEGER,
   FOREIGN KEY (novelId) REFERENCES novel(id) ON DELETE CASCADE
