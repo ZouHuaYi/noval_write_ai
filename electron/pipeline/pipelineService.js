@@ -64,6 +64,13 @@ function buildChapterBatches(chapterNumbers = [], chapterBatchSize) {
 async function executeStep({ runId, stage, batchIndex, input, executor }) {
   console.log(`[流水线步骤] 开始执行: stage=${stage}, batchIndex=${batchIndex}`)
   
+  // 在执行前检查暂停状态
+  const state = getPipelineState(runId)
+  if (state.paused) {
+    console.log(`[流水线步骤] 检测到暂停信号,跳过执行: stage=${stage}, batchIndex=${batchIndex}`)
+    return null // 返回 null 表示被暂停
+  }
+  
   let step = pipelineDAO.getPipelineStepByStage(runId, stage, batchIndex)
   if (!step) {
     step = pipelineDAO.createPipelineStep(runId, stage, batchIndex, input)
@@ -71,7 +78,7 @@ async function executeStep({ runId, stage, batchIndex, input, executor }) {
   }
 
   if (step.status === STEP_STATUS.COMPLETED) {
-    console.log(`[流水线步骤] 步骤已完成，跳过`)
+    console.log(`[流水线步骤] 步骤已完成,跳过`)
     return step
   }
 
@@ -157,6 +164,12 @@ async function runPipeline(runId) {
           })
         })
 
+        // 检查是否被暂停
+        if (analysisStep === null) {
+          console.log('[流水线] 分析阶段被暂停')
+          break
+        }
+
         run = pipelineDAO.updatePipelineRun(runId, {
           settings: analysisStep.output,
           currentStage: stage,
@@ -194,7 +207,7 @@ async function runPipeline(runId) {
             pipelineDAO.updatePipelineRun(runId, { currentStage: loopStage, currentBatch: batch.batchIndex })
 
             if (loopStage === 'events_batch') {
-              await executeStep({
+              const eventStep = await executeStep({
                 runId,
                 stage: loopStage,
                 batchIndex: batch.batchIndex,
@@ -208,10 +221,11 @@ async function runPipeline(runId) {
                   configOverride: eventConfig
                 })
               })
+              if (eventStep === null) break
             }
 
             if (loopStage === 'plan') {
-              await executeStep({
+              const planStep = await executeStep({
                 runId,
                 stage: loopStage,
                 batchIndex: batch.batchIndex,
@@ -224,6 +238,7 @@ async function runPipeline(runId) {
                   configOverride: planConfig
                 })
               })
+              if (planStep === null) break
             }
 
             if (loopStage === 'chapter_batch') {
@@ -235,7 +250,7 @@ async function runPipeline(runId) {
               const chapterBatches = buildChapterBatches(chapterNumbers, loopBatchSize)
               for (const chapterBatch of chapterBatches) {
                 if (state.paused) break
-                await executeStep({
+                const chapterStep = await executeStep({
                   runId,
                   stage: loopStage,
                   batchIndex: batch.batchIndex,
@@ -248,17 +263,19 @@ async function runPipeline(runId) {
                     reviewConfigOverride: reviewConfig
                   })
                 })
+                if (chapterStep === null) break
               }
             }
 
             if (loopStage === 'graph_sync') {
-              await executeStep({
+              const graphStep = await executeStep({
                 runId,
                 stage: loopStage,
                 batchIndex: batch.batchIndex,
                 input: batch,
                 executor: async () => syncGraph({ novelId: run.novelId })
               })
+              if (graphStep === null) break
             }
           }
         }
