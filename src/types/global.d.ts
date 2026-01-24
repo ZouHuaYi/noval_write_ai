@@ -10,6 +10,7 @@ declare global {
         create: (data: { title: string; genre?: string; description?: string }) => Promise<any>
         update: (id: string, data: Partial<{ title: string; genre: string; description: string }>) => Promise<any>
         delete: (id: string) => Promise<{ success: boolean }>
+        export: (id: string) => Promise<{ success: boolean; filePath?: string; canceled?: boolean }>
       }
 
       // 章节相关 API

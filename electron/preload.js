@@ -8,7 +8,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     get: (id) => ipcRenderer.invoke('novel:get', id),
     create: (data) => ipcRenderer.invoke('novel:create', data),
     update: (id, data) => ipcRenderer.invoke('novel:update', id, data),
-    delete: (id) => ipcRenderer.invoke('novel:delete', id)
+    delete: (id) => ipcRenderer.invoke('novel:delete', id),
+    export: (id) => ipcRenderer.invoke('novel:export', id)
   },
 
   // 章节相关 API

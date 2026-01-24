@@ -69,6 +69,16 @@ function getChaptersByNovel(novelId) {
 }
 
 /**
+ * 获取小说的所有章节（按章节号升序）
+ */
+function getChaptersByNovelAsc(novelId) {
+  const db = getDatabase()
+  return db.prepare(`
+    SELECT * FROM chapter WHERE novelId = ? ORDER BY chapterNumber ASC
+  `).all(novelId)
+}
+
+/**
  * 获取指定状态的章节
  */
 function getChaptersByNovelAndStatus(novelId, status) {
@@ -191,6 +201,7 @@ module.exports = {
   createChapter,
   getChapterById,
   getChaptersByNovel,
+  getChaptersByNovelAsc,
   getChaptersByNovelAndStatus,
   updateChapterContent,
   updateChapter,

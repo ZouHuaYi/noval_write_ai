@@ -7,10 +7,11 @@ const planningDAO = require('../database/planningDAO')
 const chapterDAO = require('../database/chapterDAO')
 const novelDAO = require('../database/novelDAO')
 const { safeParseJSON } = require('../utils/helpers')
+const { buildKnowledgeSummary } = require('../llm/knowledgeContext')
 const { getGraphManager } = require('../graph/graphManager')
 
 // 章节生成默认系统提示
-const DEFAULT_CHAPTER_SYSTEM_PROMPT = '你是小说写作助手。根据给定上下文续写章节，保持原文叙事视角与文风，语言精炼克制，避免赘述与空泛描写，不重复已有内容，不输出标题或说明，只输出章节正文。'
+const DEFAULT_CHAPTER_SYSTEM_PROMPT = '你是小说写作助手，只负责产出草稿式正文。保持原文叙事视角与文风，语言精炼克制，避免赘述与空泛描写，不重复已有内容，不输出标题或说明，只输出章节正文。禁止比喻与情绪直给，允许出现未说完的话与轻微误判，避免模板句与时间戳化表达。'
 
 // 解析分析结果并补全默认值（优先保留用户设置）
 function normalizeAnalysis(result, fallback = {}) {
@@ -97,12 +98,20 @@ async function generateEventBatch({
 }) {
   const novel = novelDAO.getNovelById(novelId)
   const existingEvents = planningDAO.listPlanningEvents(novelId)
+  // 构建知识图谱摘要，用于事件生成上下文
+  const knowledgeContext = buildKnowledgeSummary({
+    novelId,
+    types: ['character', 'location', 'item', 'organization'],
+    maxItems: 12,
+    maxChars: 1200
+  })
 
   const result = await outlineAgent.generateEventGraph({
     novelTitle: novel?.title || '未命名',
     genre: novel?.genre || '',
     synopsis: novel?.description || '',
     existingOutline: inputOutline || '',
+    knowledgeContext,
     targetChapters: targetChapters,
     startChapter,
     endChapter,
@@ -120,21 +129,31 @@ async function generateEventBatch({
 }
 
 // 生成章节计划
-async function generatePlan({ novelId, settings }) {
+async function generatePlan({ novelId, settings, startChapter, endChapter }) {
   const events = planningDAO.listPlanningEvents(novelId) || []
   const targetChapters = Number(settings?.targetChapters) || 10
   const wordsPerChapter = Number(settings?.wordsPerChapter) || 1200
+  const rangeStart = Number(startChapter) || 1
+  const rangeEnd = Number(endChapter) || targetChapters
+
+  // 只规划当前范围内的事件
+  const rangeEvents = events.filter(event => {
+    const chapter = Number(event.chapter)
+    return Number.isFinite(chapter) && chapter >= rangeStart && chapter <= rangeEnd
+  })
 
   const result = await planningAgent.generateChapterPlan({
-    events,
+    events: rangeEvents,
     targetChapters,
     wordsPerChapter,
     pacing: settings?.pacing || 'medium',
-    startChapter: 1,
-    endChapter: targetChapters
+    startChapter: rangeStart,
+    endChapter: rangeEnd,
+    mode: 'pipeline'
   })
 
   planningDAO.upsertPlanningChapters(novelId, result.chapters || [])
+  // 仅更新元信息，不干扰其它章节范围
   planningDAO.upsertPlanningMeta(novelId, {
     synopsis: settings?.synopsis || null,
     targetChapters,
@@ -223,14 +242,21 @@ async function generateChapterBatch({ novelId, chapterNumbers, systemPrompt }) {
     console.log(`[章节批次] 开始生成内容, 目标字数: ${targetWords}`)
 
     try {
-      await chapterGenerator.generateChapterChunks({
-        novelId,
-        chapterId: chapter.id,
-        novelTitle: novel?.title || '未命名',
-        extraPrompt: '',
-        systemPrompt: systemPrompt || DEFAULT_CHAPTER_SYSTEM_PROMPT,
-        targetWords
-      })
+    const generationResult = await chapterGenerator.generateChapterChunks({
+      novelId,
+      chapterId: chapter.id,
+      novelTitle: novel?.title || '未命名',
+      extraPrompt: '',
+      systemPrompt: systemPrompt || DEFAULT_CHAPTER_SYSTEM_PROMPT,
+      targetWords
+    })
+
+    // 章节生成后进行反 AI 清洗（仅流水线使用）
+    await chapterGenerator.applyAntiAiPolish({
+      novelId,
+      chapterId: chapter.id,
+      content: generationResult?.chapter?.content || ''
+    })
       console.log(`[章节批次] ✅ 第 ${chapterNumber} 章生成成功`)
     } catch (error) {
       console.error(`[章节批次] ❌ 第 ${chapterNumber} 章生成失败:`, error)

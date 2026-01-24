@@ -6,6 +6,7 @@ const worldviewDAO = require('../database/worldviewDAO')
 const { buildKnowledgeSummary } = require('./knowledgeContext')
 const { buildPlanningSummary } = require('./planningContext')
 const { getGraphManager } = require('../graph/graphManager')
+const { safeParseJSON } = require('../utils/helpers')
 
 const formatSection = (title, content) => `【${title}】\n${content || '无'}\n`
 
@@ -62,6 +63,14 @@ function resolveParagraphConfig(targetWords, overrides = {}) {
     maxParagraphWords: safeMax,
     maxParagraphs: effectiveMaxParagraphs
   }
+}
+
+// 随机扰动段落长度，打破均匀节奏（增强人味）
+function pickParagraphRange(config) {
+  const roll = Math.random()
+  if (roll < 0.15) return [80, 160]
+  if (roll < 0.25) return [450, 650]
+  return [config.minParagraphWords, config.maxParagraphWords]
 }
 
 /**
@@ -227,9 +236,18 @@ function buildParagraphPrompt({
 1. 字数控制在 ${targetWords[0]}-${targetWords[1]} 字之间
 2. 紧密承接上文，不重复已写内容
 3. 语言精炼克制，避免空泛铺陈与水字
-4. 保持画面感与节奏感，优先推进情节与关键细节
-5. 段落结尾可留轻钩子，引发继续阅读
-6. 只输出正文内容，不要任何解释`)
+4. 禁止比喻（如“像/如/仿佛”）、禁止直接点名情绪（如“压抑/紧张/冷漠”）
+5. 禁止提纲式小标题（如“场景一/章节小结”）
+6. 至少一句话表达不完整，允许读者短暂误解人物动机
+7. 段落中允许出现一句多余但真实的句子
+8. 只输出正文内容，不要任何解释
+
+【广读者增强】
+- 本章中至少出现 1 次明确处境风险（非情绪化陈述）
+- 本章中至少出现 1 次人际关系的“可持续信号”
+- 本章结尾必须暗示下一章的具体行动或时间点
+- 禁止用情绪形容词代替事实
+- 禁止用抽象压力替代明确问题`)
   ].join('\n')
 }
 
@@ -287,8 +305,6 @@ async function validateParagraph({
   graphContext,
   extraPrompt
 }) {
-  const { safeParseJSON } = require('../utils/helpers')
-
   if (!paragraph || paragraph.trim().length === 0) {
     return { isValid: true, issues: [], fixedParagraph: '' }
   }
@@ -349,6 +365,96 @@ ${extraPrompt ? `【额外约束】\n${extraPrompt}` : ''}
     console.error('[分块生成] 段落校验失败:', error)
     return { isValid: true, issues: [], fixedParagraph: '' }
   }
+}
+
+// 审查章节是否存在明显 AI 痕迹
+async function reviewChapterStyle({ content }) {
+  if (!content) return { needRewrite: false, issues: [], suggestion: '' }
+
+  const systemPrompt = `你是小说质量审校助手，只检查 AI 痕迹并输出 JSON。
+不要改写正文，只给出是否需要重写与问题列表。`
+  const userPrompt = `请审查下面章节内容是否存在：
+1. 提纲式小标题扩写
+2. 高频模板句或局部复读
+3. 直接点名情绪（如“压抑/紧张”）
+4. 参数化数字点缀（无意义数值）
+5. 时间戳规律重复
+
+只输出 JSON：
+{
+  "needRewrite": true/false,
+  "issues": ["问题描述"],
+  "suggestion": "一句话修复建议"
+}
+
+章节内容：
+${content}`
+
+  try {
+    const response = await llmService.callChatModel({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.2,
+      maxTokens: 800
+    })
+    const parsed = safeParseJSON(response)
+    if (!parsed) return { needRewrite: false, issues: [], suggestion: '' }
+    return {
+      needRewrite: Boolean(parsed.needRewrite),
+      issues: Array.isArray(parsed.issues) ? parsed.issues : [],
+      suggestion: parsed.suggestion || ''
+    }
+  } catch (error) {
+    console.error('[分块生成] 章节风格审查失败:', error)
+    return { needRewrite: false, issues: [], suggestion: '' }
+  }
+}
+
+// 反 AI 风格重写（保留事实与剧情）
+async function rewriteChapterStyle({ content, issues = [] }) {
+  if (!content) return ''
+
+  const systemPrompt = `你是小说修订助手，目标是降低 AI 痕迹。
+你必须保留所有事实与剧情，不允许新增情节。
+禁止比喻，禁止情绪直给，避免时间戳与模板句。`
+  const userPrompt = `请根据以下问题对章节做最小改写：
+${issues.length ? issues.map(item => `- ${item}`).join('\n') : '- 无具体问题，但需要降 AI 痕迹'}
+
+只输出修订后的正文：
+${content}`
+
+  const response = await llmService.callChatModel({
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    temperature: 0.4,
+    maxTokens: 2000
+  })
+
+  return response?.trim() || ''
+}
+
+// 章节反 AI 清洗入口（仅在需要时重写）
+async function applyAntiAiPolish({ novelId, chapterId, content }) {
+  if (!novelId || !chapterId || !content) return { changed: false }
+
+  const review = await reviewChapterStyle({ content })
+  if (!review.needRewrite) return { changed: false, issues: review.issues }
+
+  const rewritten = await rewriteChapterStyle({ content, issues: review.issues })
+  if (!rewritten) return { changed: false, issues: review.issues }
+
+  const chapter = await chapterDAO.getChapterById(chapterId)
+  if (chapter) {
+    // 保存重写前快照，便于回退
+    createSnapshot(novelId, chapter, 'anti_ai_rewrite')
+  }
+  await chapterDAO.updateChapter(chapterId, { content: rewritten })
+
+  return { changed: true, issues: review.issues }
 }
 
 async function buildGenerationContext({ novelId, chapterId }) {
@@ -497,7 +603,8 @@ async function generateChapterChunks({
     paragraphIndex++
     console.log(`[分块生成] 生成第 ${paragraphIndex} 段...`)
 
-    // 1. 生成一段（300-500字）
+    // 1. 生成一段（长度带扰动，避免节奏过于平均）
+    const paragraphRange = pickParagraphRange(paragraphConfig)
     let paragraph = await generateParagraph({
       novelTitle,
       chapterTitle: chapter.title,
@@ -510,7 +617,7 @@ async function generateChapterChunks({
       systemPrompt,
       worldRules,
       lastChapterContentEnd,
-      targetWords: [paragraphConfig.minParagraphWords, paragraphConfig.maxParagraphWords]
+      targetWords: paragraphRange
     })
 
     if (!paragraph || paragraph.trim().length === 0) {
@@ -537,6 +644,7 @@ async function generateChapterChunks({
       // 校验不通过且无修正，尝试重试
       console.log(`[分块生成] 第 ${paragraphIndex} 段校验不通过，尝试重试...`)
       for (let retry = 0; retry < maxRetries; retry++) {
+        const retryRange = pickParagraphRange(paragraphConfig)
         paragraph = await generateParagraph({
           novelTitle,
           chapterTitle: chapter.title,
@@ -549,7 +657,7 @@ async function generateChapterChunks({
           systemPrompt,
           worldRules,
           lastChapterContentEnd,
-          targetWords: [paragraphConfig.minParagraphWords, paragraphConfig.maxParagraphWords]
+          targetWords: retryRange
         })
 
         validation = await validateParagraph({
@@ -619,6 +727,7 @@ function resetGeneration(chapterId) {
 
 module.exports = {
   generateChapterChunks,
+  applyAntiAiPolish,
   getGenerationStatus,
   resetGeneration,
   // 导出用于单独调用

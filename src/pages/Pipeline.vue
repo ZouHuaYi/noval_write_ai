@@ -624,7 +624,7 @@ async function onStart() {
         targetChapters: normalizedSettings.targetChapters,
         wordsPerChapter: normalizedSettings.wordsPerChapter,
         eventBatchSize: 5,
-        chapterBatchSize: normalizedSettings.batchSize,
+        chapterBatchSize: 5,
         temperature: normalizedSettings.temperature
       }
     })

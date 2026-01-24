@@ -53,7 +53,8 @@ async function generateChapterPlan({
   wordsPerChapter = DEFAULT_WORDS_PER_CHAPTER,
   pacing = 'medium',
   startChapter = 1,
-  endChapter = null
+  endChapter = null,
+  mode = 'default'
 }) {
   // 统一规范化目标字数，避免超过上限
   const normalizedWordsPerChapter = normalizeWordsPerChapter(wordsPerChapter)
@@ -101,7 +102,11 @@ async function generateChapterPlan({
 
 
   // 生成写作提示
-  const systemPrompt = `你是一个小说写作规划师，负责为每个章节生成具体的写作提示。
+  const systemPrompt = mode === 'pipeline'
+    ? `你是一个小说写作规划师，负责为每个章节生成具体的写作提示。
+请根据章节包含的事件，给出 2-3 条简洁的写作建议。
+要求：不要写“本章目的”，只描述角色当下的认知偏差或误判。`
+    : `你是一个小说写作规划师，负责为每个章节生成具体的写作提示。
 请根据章节包含的事件，给出 2-3 条简洁的写作建议。`
 
   for (const chapter of chapters) {

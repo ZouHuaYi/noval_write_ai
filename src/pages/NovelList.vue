@@ -60,7 +60,7 @@
               {{ formatDate(row.updatedAt) }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="300" fixed="right">
+          <el-table-column label="操作" width="360" fixed="right">
             <template #default="{ row }">
               <el-button size="small"  type="primary" @click.stop="goToWorkbench(row.id)">
                 工作台
@@ -70,6 +70,10 @@
               </el-button>
               <el-button size="small"  type="primary" @click.stop="editNovel(row)">
                 编辑
+              </el-button>
+              <el-button size="small"  type="success" @click.stop="handleExportNovel(row.id)">
+                <el-icon class="mr-1"><Download /></el-icon>
+                导出
               </el-button>
               <el-button size="small"  type="danger" @click.stop="deleteNovel(row.id)">
                 删除
@@ -114,6 +118,10 @@
             </el-button>
             <el-button size="small" text @click.stop="editNovel(novel)">
               编辑
+            </el-button>
+            <el-button size="small" type="success" text @click.stop="handleExportNovel(novel.id)">
+              <el-icon class="mr-1"><Download /></el-icon>
+              导出
             </el-button>
             <el-button size="small" type="danger" text @click.stop="deleteNovel(novel.id)">
               删除
@@ -168,7 +176,7 @@
 </template>
 
 <script setup lang="ts">
-import { Document, Grid, List, Plus } from '@element-plus/icons-vue'
+import { Document, Download, Grid, List, Plus } from '@element-plus/icons-vue'
 import EmptyState from '@/components/EmptyState.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -339,6 +347,28 @@ async function deleteNovel(id: string) {
     }
   } catch {
     // 用户取消
+  }
+}
+
+async function handleExportNovel(id: string) {
+  try {
+    if (!window.electronAPI?.novel) {
+      ElMessage.error('Electron API 未加载')
+      return
+    }
+
+    const { success, filePath, canceled } = await window.electronAPI.novel.export(id)
+    
+    if (canceled) {
+      return
+    }
+
+    if (success) {
+      ElMessage.success(`导出成功: ${filePath}`)
+    }
+  } catch (error: any) {
+    console.error('导出失败:', error)
+    ElMessage.error('导出失败: ' + (error.message || '未知错误'))
   }
 }
 </script>

@@ -161,82 +161,94 @@ async function runPipeline(runId) {
         })
       }
 
-      if (stage === 'events_batch') {
+      if (stage !== 'analyze') {
         const settings = run.settings || {}
-        const batches = buildEventBatches(settings.targetChapters, settings.eventBatchSize)
+        const loopBatchSize = 5
+        const batches = buildEventBatches(settings.targetChapters, loopBatchSize)
+        const loopStages = ['events_batch', 'plan', 'chapter_batch', 'graph_sync']
+        const resumeStageIndex = loopStages.indexOf(run.currentStage)
+        const resumeBatchIndex = Number.isFinite(run.currentBatch) ? run.currentBatch : 0
+
         for (const batch of batches) {
           if (state.paused) break
-          pipelineDAO.updatePipelineRun(runId, { currentStage: stage, currentBatch: batch.batchIndex })
-          await executeStep({
-            runId,
-            stage,
-            batchIndex: batch.batchIndex,
-            input: batch,
-            executor: async () => generateEventBatch({
-              novelId: run.novelId,
-              startChapter: batch.startChapter,
-              endChapter: batch.endChapter,
-              targetChapters: settings.targetChapters,
-              inputOutline: run.inputOutline
-            })
-          })
+          if (batch.batchIndex < resumeBatchIndex) continue
+
+          for (let loopStageIndex = 0; loopStageIndex < loopStages.length; loopStageIndex += 1) {
+            const loopStage = loopStages[loopStageIndex]
+            if (batch.batchIndex === resumeBatchIndex && resumeStageIndex > -1 && loopStageIndex < resumeStageIndex) {
+              continue
+            }
+
+            if (state.paused) break
+            // 按 5 章循环：事件 -> 计划 -> 写作 -> 图谱同步
+            pipelineDAO.updatePipelineRun(runId, { currentStage: loopStage, currentBatch: batch.batchIndex })
+
+            if (loopStage === 'events_batch') {
+              await executeStep({
+                runId,
+                stage: loopStage,
+                batchIndex: batch.batchIndex,
+                input: batch,
+                executor: async () => generateEventBatch({
+                  novelId: run.novelId,
+                  startChapter: batch.startChapter,
+                  endChapter: batch.endChapter,
+                  targetChapters: settings.targetChapters,
+                  inputOutline: run.inputOutline
+                })
+              })
+            }
+
+            if (loopStage === 'plan') {
+              await executeStep({
+                runId,
+                stage: loopStage,
+                batchIndex: batch.batchIndex,
+                input: batch,
+                executor: async () => generatePlan({
+                  novelId: run.novelId,
+                  settings: run.settings,
+                  startChapter: batch.startChapter,
+                  endChapter: batch.endChapter
+                })
+              })
+            }
+
+            if (loopStage === 'chapter_batch') {
+              const chapters = planningDAO.listPlanningChapters(run.novelId) || []
+              const chapterNumbers = chapters
+                .map(ch => ch.chapterNumber)
+                .filter(num => Number.isFinite(num) && num >= batch.startChapter && num <= batch.endChapter)
+
+              const chapterBatches = buildChapterBatches(chapterNumbers, loopBatchSize)
+              for (const chapterBatch of chapterBatches) {
+                if (state.paused) break
+                await executeStep({
+                  runId,
+                  stage: loopStage,
+                  batchIndex: batch.batchIndex,
+                  input: chapterBatch,
+                  executor: async () => generateChapterBatch({
+                    novelId: run.novelId,
+                    chapterNumbers: chapterBatch.chapterNumbers,
+                    systemPrompt: DEFAULT_CHAPTER_SYSTEM_PROMPT
+                  })
+                })
+              }
+            }
+
+            if (loopStage === 'graph_sync') {
+              await executeStep({
+                runId,
+                stage: loopStage,
+                batchIndex: batch.batchIndex,
+                input: batch,
+                executor: async () => syncGraph({ novelId: run.novelId })
+              })
+            }
+          }
         }
-      }
-
-      if (stage === 'plan') {
-        pipelineDAO.updatePipelineRun(runId, { currentStage: stage, currentBatch: 0 })
-        await executeStep({
-          runId,
-          stage,
-          batchIndex: null,
-          input: null,
-          executor: async () => generatePlan({
-            novelId: run.novelId,
-            settings: run.settings
-          })
-        })
-      }
-
-      if (stage === 'chapter_batch') {
-        const chapters = planningDAO.listPlanningChapters(run.novelId) || []
-        console.log(`[流水线调试] 获取到的章节计划数量: ${chapters.length}`)
-        console.log(`[流水线调试] 章节计划详情:`, chapters.map(ch => ({ num: ch.chapterNumber, title: ch.title, status: ch.status })))
-        
-        const chapterNumbers = chapters.map(ch => ch.chapterNumber).filter(num => Number.isFinite(num))
-        console.log(`[流水线调试] 有效章节号: [${chapterNumbers.join(', ')}]`)
-        
-        const batches = buildChapterBatches(chapterNumbers, run.settings?.chapterBatchSize)
-        console.log(`[流水线调试] 章节批次数: ${batches.length}, 批次大小: ${run.settings?.chapterBatchSize || 2}`)
-        console.log(`[流水线调试] 批次详情:`, batches.map(b => ({ index: b.batchIndex, chapters: b.chapterNumbers })))
-        
-        for (const batch of batches) {
-          if (state.paused) break
-          console.log(`[流水线调试] 开始处理批次 ${batch.batchIndex + 1}/${batches.length}, 章节: [${batch.chapterNumbers.join(', ')}]`)
-          pipelineDAO.updatePipelineRun(runId, { currentStage: stage, currentBatch: batch.batchIndex })
-          await executeStep({
-            runId,
-            stage,
-            batchIndex: batch.batchIndex,
-            input: batch,
-            executor: async () => generateChapterBatch({
-              novelId: run.novelId,
-              chapterNumbers: batch.chapterNumbers,
-              systemPrompt: DEFAULT_CHAPTER_SYSTEM_PROMPT
-            })
-          })
-          console.log(`[流水线调试] 批次 ${batch.batchIndex + 1} 完成`)
-        }
-      }
-
-      if (stage === 'graph_sync') {
-        pipelineDAO.updatePipelineRun(runId, { currentStage: stage, currentBatch: 0 })
-        await executeStep({
-          runId,
-          stage,
-          batchIndex: null,
-          input: null,
-          executor: async () => syncGraph({ novelId: run.novelId })
-        })
+        break
       }
     }
 

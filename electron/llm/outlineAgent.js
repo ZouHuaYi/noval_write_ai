@@ -31,6 +31,7 @@ async function generateEventGraph({
   genre,
   synopsis,
   existingOutline,
+  knowledgeContext,
   targetChapters = 10,
   startChapter = 1,
   endChapter = null,
@@ -124,6 +125,11 @@ async function generateEventGraph({
   }
   console.log(`[事件图谱] 已有事件上下文长度: ${existingEventsContext.length} 字符`)
 
+  // 注入知识图谱摘要，强化事件生成一致性
+  const knowledgeSection = knowledgeContext
+    ? `\n【知识图谱要点】\n${knowledgeContext}\n`
+    : ''
+
   const userPrompt = `请为以下小说生成事件图谱：
 
 【小说标题】
@@ -137,9 +143,9 @@ ${synopsis || '无'}
 
 【现有大纲】
 ${existingOutline || '无'}
-${existingEventsContext}
-【目标章节范围】
-${rangeLabel}
+  ${existingEventsContext}${knowledgeSection}
+  【目标章节范围】
+  ${rangeLabel}
 
 请生成 ${Math.max(chaptersCount * 2, 6)} 个左右的事件节点，确保：
 1. 事件之间有清晰的因果关系（通过 dependencies 表示）
@@ -147,6 +153,8 @@ ${rangeLabel}
 3. 角色发展事件与情节事件交织
 4. 每个章节有 2-3 个主要事件
 5. 如果新事件需要依赖【已有事件】，请使用它们的实际 ID
+
+重要：事件描述必须体现角色的主观选择与误判，不要写成“全知因果总结”。
 
 重要：必须为每个事件填写 chapter，且 chapter 必须在 ${startChapter} 到 ${endChapter ?? (startChapter + chaptersCount - 1)} 的范围内。不能全部是第 1 章。
 
