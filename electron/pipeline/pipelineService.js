@@ -1,5 +1,6 @@
 const pipelineDAO = require('../database/pipelineDAO')
 const planningDAO = require('../database/planningDAO')
+const chapterDAO = require('../database/chapterDAO')
 const {
   analyzeInput,
   generateEventBatch,
@@ -46,14 +47,17 @@ function recoverPipelineRunsOnStartup() {
   }
 }
 
-function buildEventBatches(targetChapters, eventBatchSize) {
+function buildEventBatches(targetChapters, eventBatchSize, startChapter = 1) {
   const batches = []
   const size = Math.max(1, Number(eventBatchSize) || 5)
   const total = Math.max(1, Number(targetChapters) || 10)
+  // 从指定起始章节开始分批，避免重复生成已完成章节
+  const start = Math.max(1, Number(startChapter) || 1)
+  if (start > total) return batches
   let index = 0
-  for (let start = 1; start <= total; start += size) {
-    const end = Math.min(start + size - 1, total)
-    batches.push({ batchIndex: index, startChapter: start, endChapter: end })
+  for (let chapter = start; chapter <= total; chapter += size) {
+    const end = Math.min(chapter + size - 1, total)
+    batches.push({ batchIndex: index, startChapter: chapter, endChapter: end })
     index += 1
   }
   return batches
@@ -197,7 +201,7 @@ async function runPipeline(runId) {
         const loopBatchSize = Number.isFinite(configuredBatchSize) && configuredBatchSize > 0
           ? configuredBatchSize
           : 5
-        const batches = buildEventBatches(settings.targetChapters, loopBatchSize)
+        const batches = buildEventBatches(settings.targetChapters, loopBatchSize, settings.startChapter)
         const loopStages = ['events_batch', 'plan', 'chapter_batch', 'graph_sync']
         const resumeStageIndex = loopStages.indexOf(run.currentStage)
         const resumeBatchIndex = Number.isFinite(run.currentBatch) ? run.currentBatch : 0
@@ -316,12 +320,26 @@ async function runPipeline(runId) {
 
 // 启动新的流水线任务
 async function startPipeline(options) {
+  const targetChapters = Number(options?.settings?.targetChapters)
+  const lastCompleted = chapterDAO.getLastCompletedChapterNumber(options.novelId)
+  const resumeStartChapter = Math.max(1, lastCompleted + 1)
+  // 若已有完成章节，则从下一章续写（避免删除流水线后重头生成）
+  const normalizedSettings = {
+    ...(options.settings || {}),
+    startChapter: resumeStartChapter
+  }
+  if (Number.isFinite(targetChapters) && resumeStartChapter > targetChapters) {
+    console.log(`[pipeline:start] 已完成章节数=${lastCompleted}，目标章节=${targetChapters}，无需续写`)
+  } else if (lastCompleted > 0) {
+    console.log(`[pipeline:start] 检测到已完成章节=${lastCompleted}，将从第${resumeStartChapter}章继续`)
+  }
+
   const run = pipelineDAO.createPipelineRun({
     novelId: options.novelId,
     inputWorldview: options.inputWorldview,
     inputRules: options.inputRules,
     inputOutline: options.inputOutline,
-    settings: options.settings || {}
+    settings: normalizedSettings
   })
 
   // 异步执行流水线，捕获错误避免未处理的拒绝

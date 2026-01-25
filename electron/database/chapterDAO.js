@@ -78,6 +78,19 @@ function getChaptersByNovelAsc(novelId) {
   `).all(novelId)
 }
 
+/**
+ * 获取已完成的最大章节号
+ */
+function getLastCompletedChapterNumber(novelId) {
+  const db = getDatabase()
+  const row = db.prepare(`
+    SELECT MAX(chapterNumber) AS maxNumber
+    FROM chapter
+    WHERE novelId = ? AND status = 'completed'
+  `).get(novelId)
+  return row?.maxNumber || 0
+}
+
 function getChapterByNovelAndNumber(novelId, chapterNumber) {
   const db = getDatabase()
   return db.prepare(`
@@ -165,6 +178,7 @@ module.exports = {
   getChapterById,
   getChaptersByNovel,
   getChaptersByNovelAsc,
+  getLastCompletedChapterNumber,
   updateChapter,
   deleteChapter,
   deleteAllChaptersByNovel,
