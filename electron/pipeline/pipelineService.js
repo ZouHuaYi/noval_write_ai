@@ -418,18 +418,7 @@ function clearPipelineData(novelId) {
   for (const run of runs) {
     pipelineDAO.deletePipelineRun(run.id)
   }
-  
-  // 2. 删除规划事件
-  planningDAO.deletePlanningEventsByNovel(novelId)
-  console.log(`[流水线] 已清空规划事件`)
-  
-  // 3. 删除规划章节
-  planningDAO.deletePlanningChaptersByNovel(novelId)
-  console.log(`[流水线] 已清空规划章节`)
-  
-  // 4. 清空规划元数据
-  planningDAO.clearPlanningMeta(novelId)
-  console.log(`[流水线] 已清空规划元数据`)
+  // 说明：不再清空规划数据（事件/章节/元数据），避免历史生成内容丢失
   
   console.log(`[流水线] 数据清空完成`)
   

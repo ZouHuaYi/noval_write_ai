@@ -18,6 +18,12 @@ const routes = [
         meta: { title: '应用设置' }
       },
       {
+        path: 'about',
+        name: 'About',
+        component: () => import('@/pages/About.vue'),
+        meta: { title: '关于我们' }
+      },
+      {
         path: 'workbench/:novelId',
         name: 'Workbench',
         component: () => import('@/pages/Workbench.vue'),

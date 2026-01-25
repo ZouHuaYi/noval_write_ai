@@ -21,7 +21,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { HomeFilled, Document, Edit, Setting, Cpu } from '@element-plus/icons-vue'
+import { HomeFilled, Document, Edit, Setting, Cpu, InfoFilled } from '@element-plus/icons-vue'
 
 interface BreadcrumbItem {
   label: string
@@ -77,6 +77,8 @@ const items = computed(() => {
     breadcrumbs.push({ label: '阅读器' })
   } else if (normalizedPath.startsWith('/settings')) {
     breadcrumbs.push({ label: '设置', to: '/settings', icon: Setting })
+  } else if (normalizedPath.startsWith('/about')) {
+    breadcrumbs.push({ label: '关于我们', to: '/about', icon: InfoFilled })
   } else if (normalizedPath.startsWith('/pipeline')) {
     breadcrumbs.push({ label: '小说列表', to: '/novels', icon: Document })
     if (props.novelTitle) {

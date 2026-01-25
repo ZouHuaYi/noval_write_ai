@@ -186,7 +186,14 @@ declare global {
           suggestions: any[]
           stats: { totalChecks: number; conflictsFound: number; warningsFound: number }
         }>
-        analyzeChapter: (novelId: string, chapter: number, content: string, previousContent?: string | null, contentHash?: string | null) => Promise<{
+        analyzeChapter: (
+          novelId: string,
+          chapter: number,
+          content: string,
+          previousContent?: string | null,
+          contentHash?: string | null,
+          options?: { force?: boolean }
+        ) => Promise<{
           entities: any[]
           relations: any[]
           stateChanges: any[]

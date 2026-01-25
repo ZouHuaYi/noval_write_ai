@@ -119,7 +119,7 @@ async function callChatModel(options) {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(body)
-  }, 3, 120000)
+  }, 3, 240000)
 
   const data = await resp.json()
   const content =

@@ -96,22 +96,18 @@ ${text.slice(0, 4000)}
 
 请返回 JSON 数组格式的实体列表。`
 
-  try {
-    const response = await llmService.callChatModel({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.3,
-      maxTokens: 2000
-    })
+  // 若 LLM 调用失败，直接抛出错误，避免误判为“已分析完成”
+  const response = await llmService.callChatModel({
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    temperature: 0.3,
+    maxTokens: 4000
+  })
 
-    const entities = safeParseJSON(response)
-    return Array.isArray(entities) ? entities : []
-  } catch (error) {
-    console.error('实体提取失败:', error)
-    return []
-  }
+  const entities = safeParseJSON(response)
+  return Array.isArray(entities) ? entities : []
 }
 
 /**
@@ -165,22 +161,18 @@ ${context.chapter ? `【章节】第 ${context.chapter} 章` : ''}
 
 请返回 JSON 数组格式的关系列表。`
 
-  try {
-    const response = await llmService.callChatModel({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.3,
-      maxTokens: 2000
-    })
+  // 若 LLM 调用失败，直接抛出错误，交由上层统一处理
+  const response = await llmService.callChatModel({
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    temperature: 0.3,
+    maxTokens: 2000
+  })
 
-    const relations = safeParseJSON(response)
-    return Array.isArray(relations) ? relations : []
-  } catch (error) {
-    console.error('关系提取失败:', error)
-    return []
-  }
+  const relations = safeParseJSON(response)
+  return Array.isArray(relations) ? relations : []
 }
 
 /**
@@ -241,22 +233,18 @@ ${text.slice(0, 4000)}
 
 请返回 JSON 数组格式的状态变化列表。`
 
-  try {
-    const response = await llmService.callChatModel({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.3,
-      maxTokens: 1500
-    })
+  // 若 LLM 调用失败，直接抛出错误，避免记录错误的分析状态
+  const response = await llmService.callChatModel({
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
+    temperature: 0.3,
+    maxTokens: 1500
+  })
 
-    const changes = safeParseJSON(response)
-    return Array.isArray(changes) ? changes : []
-  } catch (error) {
-    console.error('状态变化提取失败:', error)
-    return []
-  }
+  const changes = safeParseJSON(response)
+  return Array.isArray(changes) ? changes : []
 }
 
 /**
@@ -444,46 +432,52 @@ async function analyzeChapter(text, graph, chapter, options = {}) {
     conflicts: []
   }
 
-  // 获取现有实体作为上下文
-  const existingEntities = graph.getAllNodes().map(n => n.label)
-  const existingCharacters = graph.getAllNodes('character')
+  try {
+    // 获取现有实体作为上下文
+    const existingEntities = graph.getAllNodes().map(n => n.label)
+    const existingCharacters = graph.getAllNodes('character')
 
-  // 1. 提取实体
-  result.entities = await extractEntities(text, {
-    existingEntities,
-    chapter
-  })
+    // 1. 提取实体
+    result.entities = await extractEntities(text, {
+      existingEntities,
+      chapter
+    })
 
-  // 2. 提取关系
-  if (result.entities.length > 0) {
-    result.relations = await extractRelations(text, result.entities, { chapter })
+    // 2. 提取关系
+    if (result.entities.length > 0) {
+      result.relations = await extractRelations(text, result.entities, { chapter })
+    }
+
+    // 3. 提取状态变化
+    const candidateTypes = ['character', 'item', 'location']
+    const existingNodes = []
+    candidateTypes.forEach(type => {
+        existingNodes.push(...graph.getAllNodes(type))
+    })
+    
+    const candidates = [
+      ...result.entities.filter(e => candidateTypes.includes(e.type)),
+      ...existingNodes
+    ]
+
+    if (candidates.length > 0) {
+      result.stateChanges = await extractStateChanges(text, candidates)
+    }
+
+    // 4. 更新图谱
+    if (options.updateGraph !== false) {
+      result.graphUpdates = updateGraphWithExtraction(graph, result, chapter)
+    }
+
+    // 5. 检测冲突
+    result.conflicts = graph.detectConflicts()
+
+    return result
+  } catch (error) {
+    // 统一向上抛出，避免错误时仍被当作已分析
+    console.error('章节分析失败:', error)
+    throw error
   }
-
-  // 3. 提取状态变化
-  const candidateTypes = ['character', 'item', 'location']
-  const existingNodes = []
-  candidateTypes.forEach(type => {
-      existingNodes.push(...graph.getAllNodes(type))
-  })
-  
-  const candidates = [
-    ...result.entities.filter(e => candidateTypes.includes(e.type)),
-    ...existingNodes
-  ]
-
-  if (candidates.length > 0) {
-    result.stateChanges = await extractStateChanges(text, candidates)
-  }
-
-  // 4. 更新图谱
-  if (options.updateGraph !== false) {
-    result.graphUpdates = updateGraphWithExtraction(graph, result, chapter)
-  }
-
-  // 5. 检测冲突
-  result.conflicts = graph.detectConflicts()
-
-  return result
 }
 
 /**

@@ -79,8 +79,8 @@
               </el-button>
 
               <el-popconfirm
-                title="确定要清空流水线数据吗？"
-                description="将删除所有事件、章节计划和运行记录"
+                title="确定要清空流水线记录吗？"
+                description="仅删除流水线运行记录，不会清空事件与章节计划"
                 confirm-button-text="确定清空"
                 cancel-button-text="取消"
                 @confirm="onClear"

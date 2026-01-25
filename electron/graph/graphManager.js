@@ -124,7 +124,7 @@ class GraphManager {
    * 章节更新后自动更新图谱
    * 改进版:添加内容哈希校验,全量分析前清理旧数据
    */
-  async onChapterUpdate(novelId, chapter, content, previousContent = '') {
+  async onChapterUpdate(novelId, chapter, content, previousContent = '', options = {}) {
     const graph = this.getGraph(novelId)
 
     // 计算当前内容的哈希
@@ -137,7 +137,7 @@ class GraphManager {
     }
 
     const lastAnalyzedHash = this.chapterHashes.get(`${novelId}-${chapter}`)
-    if (lastAnalyzedHash === currentHash) {
+    if (!options?.force && lastAnalyzedHash === currentHash) {
       console.log(`[图谱] 第 ${chapter} 章内容未变化,跳过分析`)
       return { skipped: true, reason: 'content_unchanged' }
     }

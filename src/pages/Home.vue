@@ -12,9 +12,9 @@
         </div>
       </div>
       <div class="flex items-center space-x-3">
-        <el-button type="primary" @click="goToSettings" class="hover-lift">
-          <el-icon class="mr-1"><Setting /></el-icon>
-          设置
+        <el-button type="primary" @click="goToAbout" class="hover-lift">
+          <el-icon class="mr-1"><InfoFilled /></el-icon>
+          关于我们
         </el-button>
       </div>
     </div>
@@ -149,7 +149,7 @@
 </template>
 
 <script setup lang="ts">
-import { Document, Edit, Plus, Setting } from '@element-plus/icons-vue'
+import { Document, Edit, Plus, Setting, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -251,6 +251,11 @@ function goToNovelDetail(id: string) {
 
 function goToSettings() {
   router.push('/settings')
+}
+
+// 跳转到关于我们页面
+function goToAbout() {
+  router.push('/about')
 }
 
 function formatDate(timestamp?: number) {

@@ -33,7 +33,16 @@
             />
             <div class="flex-1">
               <h1 class="text-3xl font-semibold mb-2">{{ novel?.title }}</h1>
-              <p class="app-muted">{{ novel?.description || '暂无描述' }}</p>
+              <p class="app-muted desc-text" :class="{ expanded: isDescExpanded }">{{ descriptionText }}</p>
+              <el-button
+                v-if="showDescToggle"
+                type="primary"
+                link
+                size="small"
+                @click="toggleDesc"
+              >
+                {{ isDescExpanded ? '收起' : '展开' }}
+              </el-button>
               <div class="mt-4 flex flex-wrap items-center gap-3">
                 <el-tag size="small" effect="plain">共 {{ chapters.length }} 章</el-tag>
                 <el-tag size="small" effect="plain">总字数 {{ totalWords }}</el-tag>
@@ -174,6 +183,8 @@ const novelStore = useNovelStore()
 const loading = ref(true)
 const novel = ref<any>(null)
 const chapters = ref<any[]>([])
+// 简介折叠状态
+const isDescExpanded = ref(false)
 
 const completedChaptersListPage = ref(1)
 const completedChaptersListPageSize = ref(10)
@@ -186,6 +197,14 @@ const handleCompletedChaptersListPageChange = (page: number) => {
 const novelId = computed(() => route.params.id as string)
 const totalWords = computed(() => {
   return chapters.value.reduce((total, chapter) => total + (chapter.wordCount || 0), 0)
+})
+// 简介文本与折叠按钮显示
+const descriptionText = computed(() => {
+  return novel.value?.description?.trim() || '暂无描述'
+})
+const showDescToggle = computed(() => {
+  const text = novel.value?.description?.trim() || ''
+  return text.length > 60
 })
 const completedChaptersList = computed(() => {
   return chapters.value.filter((chapter) => chapter.status === 'completed')
@@ -247,6 +266,8 @@ const loadData = async () => {
   try {
     novel.value = await novelStore.fetchNovelById(novelId.value)
     chapters.value = await novelStore.fetchChapters(novelId.value)
+    // 切换小说后重置简介展开状态
+    isDescExpanded.value = false
   } finally {
     loading.value = false
   }
@@ -274,4 +295,23 @@ const goToWorkbench = () => {
 const refreshPage = () => {
   window.location.reload()
 }
+
+// 切换简介展开/收起
+const toggleDesc = () => {
+  isDescExpanded.value = !isDescExpanded.value
+}
 </script>
+
+<style scoped>
+/* 简介三行折叠 */
+.desc-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.desc-text.expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+</style>

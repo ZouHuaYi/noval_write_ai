@@ -27,7 +27,7 @@
             <!-- 润色文本 -->
             <div 
               class="group bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] shadow-sm hover:shadow-md cursor-pointer overflow-hidden"
-              :class="{ 'pointer-events-none opacity-60': processing || props.editorMode === 'rich' }"
+              :class="{ 'pointer-events-none opacity-60': processing }"
               @click="handlePolish"
             >
               <div class="p-4 space-y-2">
@@ -534,6 +534,11 @@ const handlePolish = () => {
 const handleConsistency = () => {
   if (!props.novelId) {
     ElMessage.warning('请先选择小说')
+    return
+  }
+  // 检查章节内容
+  if (!props.chapterContent) {
+    ElMessage.warning('请先选择章节并输入内容')
     return
   }
   dialogType.value = 'consistency'

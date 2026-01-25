@@ -122,13 +122,13 @@
           <div class="flex-1 overflow-hidden">
             <NovelTree 
               ref="novelTreeRef"
-              v-if="leftTab === 'chapters'"
+              v-show="leftTab === 'chapters'"
               :novel-id="novelId" 
               :selected-chapter-id="currentChapterId"
               @chapter-selected="handleChapterSelected"
             />
             <div
-              v-else
+              v-show="leftTab !== 'chapters'"
               class="h-full flex items-center justify-center text-sm text-[var(--app-text-muted)]"
             >
               请在中间区域查看
@@ -139,16 +139,8 @@
 
 
       <template #center>
-        <!-- 写作统计（悬浮模式） -->
-        <WritingStats 
-          v-if="leftTab === 'chapters' && currentChapterId"
-          :content="currentChapterContent"
-          :visible="true"
-          :floating="true"
-        />
-        
         <EditorPanel 
-          v-if="leftTab === 'chapters'"
+          v-show="leftTab === 'chapters'"
           :novel-id="novelId"
           :chapter-id="currentChapterId"
           :external-content="currentChapterContent"
@@ -159,14 +151,14 @@
         />
 
         <PlanningPanel
-          v-else-if="leftTab === 'planning'"
+          v-show="leftTab === 'planning'"
           :novel-id="novelId"
           :novel-title="novel?.title"
           @start-writing="handleStartWriting"
         />
 
         <GraphPanel
-          v-else-if="leftTab === 'graph'"
+          v-show="leftTab === 'graph'"
           :novel-id="novelId"
         />
 
@@ -174,7 +166,7 @@
 
       <template #right>
         <AgentPanel 
-          v-if="leftTab === 'chapters'"
+          v-show="leftTab === 'chapters'"
           :novel-id="novelId"
           :novel-title="novel?.title"
           :chapter-id="currentChapterId"
@@ -200,7 +192,6 @@ import EditorPanel from '@/panels/EditorPanel.vue'
 import NovelTree from '@/panels/NovelTree.vue'
 import PlanningPanel from '@/panels/PlanningPanel.vue'
 import GraphPanel from '@/panels/GraphPanel.vue'
-import WritingStats from '@/components/WritingStats.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import { ArrowUp, Document, DataAnalysis, Share } from '@element-plus/icons-vue'
 

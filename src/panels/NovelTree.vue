@@ -30,8 +30,16 @@
         <el-tag size="small" effect="plain" class="workbench-count">{{ chapters.length }} 章</el-tag>
       </div>
       <div class="flex items-center justify-between">
-        <div class="text-xs app-muted">快速操作</div>
         <div class="flex items-center gap-2">
+          <el-button
+            size="small"
+            plain
+            @click="handleRefresh"
+            :loading="loading"
+          >
+            <el-icon><Refresh /></el-icon>
+            刷新
+          </el-button>
           <el-button
             type="primary"
             size="small"
@@ -93,21 +101,23 @@
         >
           <div class="flex items-start justify-between gap-3">
             <div class="flex-1 min-w-0">
-              <div class="text-xs app-muted font-medium">第 {{ chapter.chapterNumber }} 章</div>
-              <div class="font-semibold text-sm truncate mb-2 leading-tight">
-                {{ chapter.title }}
-              </div>
-              <div class="flex items-center space-x-2.5">
-                <span class="text-xs app-muted font-medium">{{ chapter.wordCount }} 字</span>
-                <el-tag 
-                  v-if="chapter.status" 
-                  :type="getStatusType(chapter.status)" 
+              <div class="flex items-center justify-between">
+                <div class="text-xs app-muted font-medium">第 {{ chapter.chapterNumber }} 章</div>
+                <div class="flex items-center space-x-2.5">
+                  <span class="text-xs app-muted font-medium">{{ chapter.wordCount }} 字</span>
+                  <el-tag 
+                    v-if="chapter.status" 
+                    :type="getStatusType(chapter.status)" 
                   size="small"
                   effect="plain"
                   class="px-2 py-0.5 text-xs workbench-count"
                 >
                   {{ getStatusText(chapter.status) }}
                 </el-tag>
+                </div>
+              </div>
+              <div class="font-semibold text-sm truncate mb-2 leading-tight">
+                {{ chapter.title }}
               </div>
             </div>
             <el-button
@@ -193,7 +203,7 @@
 </template>
 
 <script setup lang="ts">
-import { Delete, Document, Loading, Search } from '@element-plus/icons-vue'
+import { Delete, Document, Loading, Search, Refresh } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -362,6 +372,11 @@ async function loadChapters() {
   } finally {
     loading.value = false
   }
+}
+
+// 刷新章节列表
+async function handleRefresh() {
+  await loadChapters()
 }
 
 const selectChapter = (id: string) => {

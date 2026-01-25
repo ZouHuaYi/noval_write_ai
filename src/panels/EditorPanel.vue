@@ -9,8 +9,8 @@
         <span class="font-semibold">写作区</span>
         <!-- 编辑器类型切换 -->
         <el-radio-group v-model="editorMode" size="small" class="ml-4">
+           <el-radio-button value="plain">纯文本</el-radio-button>
           <el-radio-button value="rich">富文本</el-radio-button>
-          <el-radio-button value="plain">纯文本</el-radio-button>
         </el-radio-group>
       </div>
       <div class="flex items-center space-x-2">
@@ -21,14 +21,14 @@
           class="shadow-sm hover:shadow-md transition-shadow"
         >
           <el-icon class="mr-1"><MagicStick /></el-icon>
-          分析
+          已完成
         </el-button>
         <el-button 
           type="success" 
           @click="markComplete"
           class="shadow-sm hover:shadow-md transition-shadow"
         >
-          标记
+          写作中
         </el-button>
       </div>
     </div>
@@ -157,7 +157,7 @@ const emit = defineEmits<{
 }>()
 
 // 编辑器模式
-const editorMode = ref<'rich' | 'plain'>('rich')
+const editorMode = ref<'rich' | 'plain'>('plain')
 
 const richEditorRef = ref<InstanceType<typeof RichEditor> | null>(null)
 const selectedText = ref('')
@@ -195,6 +195,11 @@ const statusText = computed(() => {
     completed: '已完成'
   }
   return map[status.value]
+})
+
+// 是否允许强制重新分析（草稿/写作中允许重复分析）
+const canForceAnalyze = computed(() => {
+  return status.value === 'draft' || status.value === 'writing'
 })
 
 // 加载知识库条目
@@ -423,13 +428,16 @@ async function triggerGraphAnalysis() {
     const result = await window.electronAPI?.graph?.analyzeChapter(
       props.novelId,
       chapterNumber.value,
-      content.value
+      content.value,
+      undefined,
+      undefined,
+      { force: canForceAnalyze.value }
     )
 
     // 如果因为内容未变化而跳过分析
     if (result?.skipped) {
       ElMessage.info('内容未变化,无需重新分析')
-      return
+      return { skipped: true }
     }
 
     if (result) {
@@ -483,9 +491,11 @@ async function triggerGraphAnalysis() {
 
       console.log(`[图谱] 第 ${chapterNumber.value} 章: ${entityCount} 实体, ${relationCount} 关系, ${stateChangeCount} 状态变化`)
     }
+    return result
   } catch (error: any) {
-    // 分析失败时静默处理,不打扰用户
+    // 分析失败时抛出错误,供上层提示与重试
     console.warn('图谱分析失败:', error)
+    throw error
   }
 }
 
@@ -496,6 +506,10 @@ async function manualAnalyze() {
     ElMessage.warning('请先选择章节')
     return
   }
+  if (!content.value.trim()) {
+    ElMessage.warning('章节内容不能为空')
+    return
+  }
   
   analyzing.value = true
   try {
@@ -503,7 +517,22 @@ async function manualAnalyze() {
     await autoSave()
 
     // 2. 触发分析
-    await triggerGraphAnalysis()
+    const result = await triggerGraphAnalysis()
+    if (result?.skipped) return
+
+    // 3. 分析完成后标记为“已完成”
+    if (props.novelId && chapterNumber.value && props.chapterId) {
+      try {
+        await window.electronAPI?.planning?.updateChapterStatus(props.novelId, chapterNumber.value, 'completed')
+        await window.electronAPI?.chapter?.update(props.chapterId, { status: 'completed' })
+        status.value = 'completed'
+        statusTextOverride.value = ''
+        statusTypeOverride.value = ''
+        emit('chapter-updated', {})
+      } catch (statusError: any) {
+        console.warn('更新章节状态失败:', statusError)
+      }
+    }
     ElMessage.success('图谱分析完成')
   } catch (error: any) {
     ElMessage.error('分析失败: ' + (error.message || '未知错误'))
@@ -521,6 +550,12 @@ async function markComplete() {
     ElMessage.warning('章节信息不完整')
     return
   }
+  // 检查章节内容是否为空
+  if (!content.value.trim()) {
+    ElMessage.warning('章节内容不能为空')
+    return
+  }
+
   saving.value = true
   try {
     if (window.electronAPI?.planning?.updateChapterStatus) {

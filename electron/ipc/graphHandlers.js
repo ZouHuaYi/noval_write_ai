@@ -91,9 +91,9 @@ function registerGraphHandlers(ipcMain) {
     }
   })
 
-  ipcMain.handle('graph:analyzeChapter', async (_, novelId, chapter, content, previousContent, contentHash) => {
+  ipcMain.handle('graph:analyzeChapter', async (_, novelId, chapter, content, previousContent, contentHash, options) => {
     try {
-      return manager.onChapterUpdate(novelId, chapter, content, previousContent, contentHash)
+      return manager.onChapterUpdate(novelId, chapter, content, previousContent, options)
     } catch (error) {
       console.error('章节分析失败:', error)
       throw error

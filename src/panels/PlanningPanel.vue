@@ -15,6 +15,10 @@
         </el-radio-group>
       </div>
       <div class="flex items-center gap-2">
+        <el-button size="small" plain @click="handleRefresh" :loading="refreshing">
+          <el-icon><Refresh /></el-icon>
+          刷新
+        </el-button>
         <el-button size="small" @click="generateEventGraph" :loading="generating">
           <el-icon><MagicStick /></el-icon>
           生成图谱
@@ -361,7 +365,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Calendar, MagicStick, Share, Document, Edit, Delete, Download, Plus, Lock, Unlock, Check, ArrowDown } from '@element-plus/icons-vue'
+import { Calendar, MagicStick, Share, Document, Edit, Delete, Download, Plus, Lock, Unlock, Check, ArrowDown, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import EventGraph from '@/components/EventGraph.vue'
 
@@ -404,6 +408,7 @@ const showEventDetail = ref(false)
 // 加载状态
 const generating = ref(false)
 const planLoading = ref(false)
+const refreshing = ref(false)
 
 // 生成对话框
 const showGenerateDialog = ref(false)
@@ -1415,6 +1420,16 @@ watch(() => props.novelId, () => {
 onMounted(() => {
   loadData()
 })
+
+// 刷新规划数据
+async function handleRefresh() {
+  refreshing.value = true
+  try {
+    await loadData()
+  } finally {
+    refreshing.value = false
+  }
+}
 </script>
 
 
