@@ -181,47 +181,6 @@
           </el-form>
         </el-card>
 
-        <!-- Context Inputs -->
-        <el-card shadow="never" class="flex-1 flex flex-col min-h-[400px]">
-          <template #header>
-            <div class="flex items-center justify-between">
-              <span class="font-bold">上下文设定</span>
-              <el-icon><Document /></el-icon>
-            </div>
-          </template>
-          <el-tabs v-model="activeTab" class="h-full flex flex-col">
-            <el-tab-pane label="世界观" name="worldview" class="h-full">
-              <el-input
-                v-model="inputWorldview"
-                type="textarea"
-                :rows="12"
-                placeholder="请输入世界观设定..."
-                resize="none"
-                class="h-full"
-              />
-            </el-tab-pane>
-            <el-tab-pane label="生成规则" name="rules" class="h-full">
-              <el-input
-                v-model="inputRules"
-                type="textarea"
-                :rows="12"
-                placeholder="请输入生成规则与限制..."
-                resize="none"
-                class="h-full"
-              />
-            </el-tab-pane>
-            <el-tab-pane label="大纲" name="outline" class="h-full">
-              <el-input
-                v-model="inputOutline"
-                type="textarea"
-                :rows="12"
-                placeholder="请输入小说大纲..."
-                resize="none"
-                class="h-full"
-              />
-            </el-tab-pane>
-          </el-tabs>
-        </el-card>
       </div>
 
       <!-- Right Column: Status & History -->
@@ -270,7 +229,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
-import { VideoPlay, VideoPause, Refresh, RefreshRight, Setting, Document, Monitor, Delete } from '@element-plus/icons-vue'
+import { VideoPlay, VideoPause, Refresh, RefreshRight, Setting, Monitor, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useRoute } from 'vue-router'
 import {
@@ -284,7 +243,6 @@ import {
 } from '@/pipeline/client'
 
 const loading = ref(false)
-const activeTab = ref('worldview')
 const selectedNovelId = ref('')
 const novelOptions = ref([])
 const route = useRoute()

@@ -36,6 +36,16 @@ function getPipelineState(runId) {
   return runningPipelines.get(runId)
 }
 
+// 启动时回收异常中断的运行状态
+function recoverPipelineRunsOnStartup() {
+  const runningRuns = pipelineDAO.listPipelineRunsByStatus(RUN_STATUS.RUNNING)
+  if (!runningRuns.length) return
+  for (const run of runningRuns) {
+    pipelineDAO.updatePipelineRun(run.id, { status: RUN_STATUS.PAUSED })
+    pipelineDAO.resetRunningSteps(run.id)
+  }
+}
+
 function buildEventBatches(targetChapters, eventBatchSize) {
   const batches = []
   const size = Math.max(1, Number(eventBatchSize) || 5)
@@ -333,6 +343,7 @@ async function pausePipeline(runId) {
 async function resumePipeline(runId) {
   const state = getPipelineState(runId)
   state.paused = false
+  state.running = false
   pipelineDAO.updatePipelineRun(runId, { status: RUN_STATUS.RUNNING })
   // 异步执行流水线，捕获错误避免未处理的拒绝
   runPipeline(runId).catch((error) => {
@@ -411,6 +422,7 @@ module.exports = {
   startPipeline,
   pausePipeline,
   resumePipeline,
+  recoverPipelineRunsOnStartup,
   retryPipelineStep,
   getPipelineStatus,
   listPipelinesByNovel,

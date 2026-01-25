@@ -71,6 +71,16 @@ function listPipelineRuns(novelId) {
   }))
 }
 
+// 按状态获取流水线运行记录
+function listPipelineRunsByStatus(status) {
+  const db = getDatabase()
+  const rows = db.prepare('SELECT * FROM pipeline_run WHERE status = ? ORDER BY createdAt DESC').all(status)
+  return rows.map(row => ({
+    ...row,
+    settings: parseJson(row.settings, {})
+  }))
+}
+
 // 更新流水线运行记录
 function updatePipelineRun(id, patch = {}) {
   const db = getDatabase()
@@ -220,6 +230,17 @@ function updatePipelineStep(id, patch = {}) {
   return getPipelineStep(id)
 }
 
+// 重置运行中步骤为待执行（用于启动恢复）
+function resetRunningSteps(runId) {
+  const db = getDatabase()
+  db.prepare(`
+    UPDATE pipeline_step
+    SET status = ?, startedAt = NULL, finishedAt = NULL, error = NULL
+    WHERE runId = ? AND status = ?
+  `).run('pending', runId, 'running')
+  return { success: true }
+}
+
 // 删除流水线运行记录及其步骤
 function deletePipelineRun(runId) {
   const db = getDatabase()
@@ -234,11 +255,13 @@ module.exports = {
   createPipelineRun,
   getPipelineRun,
   listPipelineRuns,
+  listPipelineRunsByStatus,
   updatePipelineRun,
   deletePipelineRun,
   createPipelineStep,
   getPipelineStep,
   listPipelineSteps,
   getPipelineStepByStage,
-  updatePipelineStep
+  updatePipelineStep,
+  resetRunningSteps
 }

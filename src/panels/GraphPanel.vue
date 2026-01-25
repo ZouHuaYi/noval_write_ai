@@ -45,10 +45,6 @@
           <el-icon><Delete /></el-icon>
           清空图谱
         </el-button>
-        <el-button size="small" @click="showWorldSettings">
-          <el-icon><Setting /></el-icon>
-          世界观
-        </el-button>
       </div>
     </div>
 
@@ -168,49 +164,6 @@
         </div>
       </div>
     </el-drawer>
-    <!-- 世界观设定对话框 -->
-    <el-dialog
-      v-model="worldSettingsVisible"
-      title="世界观与规则设定"
-      width="800px"
-      :close-on-click-modal="false"
-      destroy-on-close
-    >
-      <div class="px-3">
-        <el-tabs v-model="activeSettingTab">
-          <el-tab-pane label="世界观设定" name="worldview">
-            <div class="flex flex-col gap-3 min-h-[300px]">
-              <div class="text-[13px] mb-1 app-muted mt-12px">设定故事的背景、基调、力量体系等宏观信息</div>
-              <el-input
-                v-model="worldSettings.worldview"
-                type="textarea"
-                :rows="12"
-                placeholder="在此输入世界观设定..."
-                resize="none"
-              />
-            </div>
-          </el-tab-pane>
-          <el-tab-pane label="规则与限制" name="rules">
-            <div class="flex flex-col gap-3 min-h-[300px]">
-              <div class="text-[13px] mb-1 app-muted mt-12px">设定故事中不可违反的客观规律、禁忌等</div>
-              <el-input
-                v-model="worldSettings.rules"
-                type="textarea"
-                :rows="12"
-                placeholder="在此输入规则与限制内..."
-                resize="none"
-              />
-            </div>
-          </el-tab-pane>
-        </el-tabs>
-      </div>
-      <template #footer>
-        <el-button @click="worldSettingsVisible = false">取消</el-button>
-        <el-button type="primary" @click="saveWorldSettings" :loading="savingSettings">
-          保存设定
-        </el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -220,7 +173,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   CircleCheckFilled, CircleClose, Connection, Delete, InfoFilled, 
   Location, MagicStick, Plus, Present, Refresh,
-  Search, Setting, User, Warning, WarnTriangleFilled 
+  Search, User, Warning, WarnTriangleFilled 
 } from '@element-plus/icons-vue'
 import KnowledgeGraphView from '@/components/KnowledgeGraphView.vue'
 
@@ -250,19 +203,6 @@ function triggerAutoSave(_event?: any) {
   }, 2000)
 }
 
-// 世界观设定状态
-const worldSettingsVisible = ref(false)
-const worldSettings = ref({
-  worldview: '',
-  rules: ''
-})
-
-// 监听数据变化触发自动保存
-watch([() => worldSettings.value.worldview, () => worldSettings.value.rules], () => {
-  if (worldSettingsVisible.value) {
-    triggerAutoSave()
-  }
-})
 
 // 一致性检查
 const consistencyResult = ref<any>(null)
@@ -277,9 +217,6 @@ const newEntity = ref({
   aliasesText: ''
 })
 
-// 世界观设定
-const activeSettingTab = ref('worldview')
-const savingSettings = ref(false)
 
 // 计算属性
 const conflictCount = computed(() => {
@@ -324,17 +261,6 @@ async function handleSave(isAuto = false) {
     }
   }
 
-  // 始终保存世界观数据
-  try {
-    await window.electronAPI.worldview.save(props.novelId, {
-      worldview: worldSettings.value.worldview,
-      rules: worldSettings.value.rules
-    })
-    if (!isAuto) ElMessage.success('世界观数据已保存')
-  } catch (error) {
-    console.error('保存世界观失败:', error)
-    if (!isAuto) ElMessage.error('保存世界观失败')
-  }
 }
 
 // 搜索
@@ -498,44 +424,6 @@ async function addEntity() {
   }
 }
 
-// 世界观设定
-async function showWorldSettings() {
-  if (!props.novelId) {
-    ElMessage.warning('请先选择小说')
-    return
-  }
-  
-  worldSettingsVisible.value = true
-  // 加载现有设定
-  try {
-    const record = await window.electronAPI?.worldview?.get(props.novelId)
-    worldSettings.value = {
-      worldview: record?.worldview || '',
-      rules: record?.rules || ''
-    }
-  } catch (error) {
-    console.error('加载世界观失败:', error)
-  }
-}
-
-async function saveWorldSettings() {
-  if (!props.novelId) return
-  
-  savingSettings.value = true
-  try {
-    await window.electronAPI?.worldview?.save(props.novelId, {
-      worldview: worldSettings.value.worldview.trim(),
-      rules: worldSettings.value.rules.trim()
-    })
-    ElMessage.success('世界观设定已保存')
-    worldSettingsVisible.value = false
-  } catch (error: any) {
-    console.error('保存设定失败:', error)
-    ElMessage.error('保存失败')
-  } finally {
-    savingSettings.value = false
-  }
-}
 
 // 清空图谱
 async function handleClearGraph() {
@@ -571,7 +459,6 @@ async function handleClearGraph() {
 watch(() => props.novelId, () => {
   loadStats()
   consistencyResult.value = null
-  worldSettingsVisible.value = false
 }, { immediate: true })
 
 onMounted(() => {

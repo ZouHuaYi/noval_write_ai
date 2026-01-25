@@ -12,16 +12,16 @@ const routes = [
         meta: { title: '小说助手' }
       },
       {
-        path: 'workbench/:novelId',
-        name: 'Workbench',
-        component: () => import('@/pages/Workbench.vue'),
-        meta: { title: '写作工作台' }
-      },
-      {
         path: 'settings',
         name: 'Settings',
         component: () => import('@/pages/Settings.vue'),
         meta: { title: '应用设置' }
+      },
+      {
+        path: 'workbench/:novelId',
+        name: 'Workbench',
+        component: () => import('@/pages/Workbench.vue'),
+        meta: { title: '写作工作台' }
       },
       {
         path: 'novels',

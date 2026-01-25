@@ -220,7 +220,7 @@ async function handleCreateNovel() {
       
       // 跳转到工作台
       if (novel?.id) {
-        router.push(`/workbench/${novel.id}`)
+        router.push(`/novels`)
       }
     } else {
       ElMessage.error('Electron API 未加载')

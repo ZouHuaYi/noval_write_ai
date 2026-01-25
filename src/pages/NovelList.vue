@@ -20,7 +20,7 @@
           </el-radio-button>
         </el-radio-group>
       </div>
-      <el-button type="primary" @click="showAddDialog = true">
+      <el-button type="primary" @click="openAddDialog">
         <el-icon class="mr-1"><Plus /></el-icon>
         添加小说
       </el-button>
@@ -50,7 +50,6 @@
           v-loading="loading"
           :data="filteredNovels"
           style="width: 100%"
-          @row-click="handleRowClick"
         >
           <el-table-column prop="title" label="标题" width="200" />
           <el-table-column prop="genre" label="类型" width="150" />
@@ -60,16 +59,16 @@
               {{ formatDate(row.updatedAt) }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="360" fixed="right">
+          <el-table-column label="操作" width="450" fixed="right">
             <template #default="{ row }">
-              <el-button size="small"  type="primary" @click.stop="goToWorkbench(row.id)">
-                工作台
-              </el-button>
-              <el-button size="small"  type="primary" @click.stop="goToPipeline(row.id)">
-                流水线
+              <el-button size="small"  type="info" @click.stop="handleRowClick(row.id)">
+                详情
               </el-button>
               <el-button size="small"  type="primary" @click.stop="editNovel(row)">
                 编辑
+              </el-button>
+              <el-button size="small" type="warning" @click.stop="openWorldviewDialog(row)">
+                设置
               </el-button>
               <el-button size="small"  type="success" @click.stop="handleExportNovel(row.id)">
                 <el-icon class="mr-1"><Download /></el-icon>
@@ -87,7 +86,7 @@
             description="点击上方按钮创建你的第一部作品"
             action-text="添加小说"
             :icon="Document"
-            @action="showAddDialog = true"
+            @action="openAddDialog"
           />
         </div>
       </div>
@@ -99,7 +98,7 @@
           :key="novel.id"
           shadow="hover"
           class="cursor-pointer transition-shadow app-card"
-          @click="goToNovelDetail(novel.id)"
+          @click="handleRowClick(novel.id)"
         >
           <div class="mb-3">
             <h3 class="text-lg font-semibold mb-2">{{ novel?.title }}</h3>
@@ -110,14 +109,11 @@
             </div>
           </div>
           <div class="flex space-x-2 pt-3 border-t border-[color:var(--app-border)]">
-            <el-button size="small" type="primary" text @click.stop="goToWorkbench(novel.id)">
-              工作台
-            </el-button>
-            <el-button size="small" type="primary" text @click.stop="goToPipeline(novel.id)">
-              流水线
-            </el-button>
             <el-button size="small" text @click.stop="editNovel(novel)">
               编辑
+            </el-button>
+            <el-button size="small" text type="warning" @click.stop="openWorldviewDialog(novel)">
+              设置
             </el-button>
             <el-button size="small" type="success" text @click.stop="handleExportNovel(novel.id)">
               <el-icon class="mr-1"><Download /></el-icon>
@@ -136,19 +132,19 @@
             action-text="添加小说"
             :icon="Document"
             size="large"
-            @action="showAddDialog = true"
+            @action="openAddDialog"
           />
         </div>
       </div>
     </div>
 
-
     <!-- 添加/编辑对话框 -->
-    <el-dialog
-      v-model="showAddDialog"
-      :title="editingNovel ? '编辑小说' : '添加小说'"
-      width="600px"
-    >
+      <el-dialog
+        v-model="showAddDialog"
+        :title="editingNovel ? '编辑小说' : '添加小说'"
+        width="600px"
+        @closed="resetDialogState"
+      >
       <el-form :model="novelForm" label-width="80px">
         <el-form-item label="标题" required>
           <el-input v-model="novelForm.title" placeholder="请输入小说标题" />
@@ -172,6 +168,61 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 世界观/规则/大纲 对话框 -->
+    <el-dialog
+      v-model="showWorldviewDialog"
+      :title="`世界观/规则/大纲 - ${worldviewForm.title || '未命名'}`"
+      width="720px"
+      @closed="resetWorldviewDialog"
+    >
+      <div v-loading="worldviewLoading">
+        <el-tabs v-model="worldviewActiveTab" class="min-h-[320px]">
+          <el-tab-pane label="世界观" name="worldview">
+            <el-form label-position="top">
+              <el-form-item label="世界观">
+                <el-input
+                  v-model="worldviewForm.worldview"
+                  type="textarea"
+                  :rows="10"
+                  placeholder="请输入世界观设定..."
+                />
+              </el-form-item>
+            </el-form>
+          </el-tab-pane>
+          <el-tab-pane label="规则" name="rules">
+            <el-form label-position="top">
+              <el-form-item label="规则">
+                <el-input
+                  v-model="worldviewForm.rules"
+                  type="textarea"
+                  :rows="10"
+                  placeholder="请输入生成规则与限制..."
+                />
+              </el-form-item>
+            </el-form>
+          </el-tab-pane>
+          <el-tab-pane label="大纲" name="outline">
+            <el-form label-position="top">
+              <el-form-item label="大纲">
+                <el-input
+                  v-model="worldviewForm.outline"
+                  type="textarea"
+                  :rows="12"
+                  placeholder="请输入小说大纲..."
+                />
+              </el-form-item>
+            </el-form>
+          </el-tab-pane>
+        </el-tabs>
+      </div>
+      <template #footer>
+        <el-button @click="showWorldviewDialog = false">取消</el-button>
+        <el-button type="primary" :loading="worldviewSaving" @click="saveWorldviewForm">
+          保存
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -182,7 +233,6 @@ import Breadcrumb from '@/components/Breadcrumb.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-
 
 type Novel = {
   id: string
@@ -202,11 +252,25 @@ const showAddDialog = ref(false)
 const editingNovel = ref<Novel | null>(null)
 const searchKeyword = ref('')
 const sortBy = ref('updated')
-const novelForm = ref({
+// 世界观/规则/大纲 弹窗状态
+const showWorldviewDialog = ref(false)
+const worldviewLoading = ref(false)
+const worldviewSaving = ref(false)
+const worldviewActiveTab = ref('worldview')
+const draftKeyPrefix = 'pipeline:draft:'
+const worldviewForm = ref({
+  novelId: '',
+  title: '',
+  worldview: '',
+  rules: '',
+  outline: ''
+})
+const emptyNovelForm = {
   title: '',
   genre: '',
   description: ''
-})
+}
+const novelForm = ref({ ...emptyNovelForm })
 
 const filteredNovels = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase()
@@ -256,23 +320,9 @@ async function loadNovels() {
   }
 }
 
-function handleRowClick(row: Novel) {
-  goToNovelDetail(row.id)
-}
-
-function goToNovelDetail(id: string) {
+function handleRowClick(id: string) {
   router.push(`/novel/${id}`)
 }
-
-function goToWorkbench(id: string) {
-  router.push(`/workbench/${id}`)
-}
-
-function goToPipeline(id: string) {
-  router.push({ path: '/pipeline', query: { novelId: id } })
-}
-
-
 
 function formatDate(timestamp?: number) {
   if (!timestamp) return '-'
@@ -288,6 +338,97 @@ function editNovel(novel: Novel) {
     description: novel?.description || ''
   }
   showAddDialog.value = true
+}
+
+function resetDialogState() {
+  editingNovel.value = null
+  novelForm.value = { ...emptyNovelForm }
+}
+
+function openAddDialog() {
+  resetDialogState()
+  showAddDialog.value = true
+}
+
+// 打开世界观/规则/大纲弹窗并加载数据
+async function openWorldviewDialog(novel: Novel) {
+  if (!novel?.id) {
+    ElMessage.warning('请先选择一本小说')
+    return
+  }
+  if (!window.electronAPI?.worldview || !window.electronAPI?.settings) {
+    ElMessage.error('Electron API 未加载')
+    return
+  }
+  worldviewLoading.value = true
+  showWorldviewDialog.value = true
+  worldviewActiveTab.value = 'worldview'
+  worldviewForm.value = {
+    novelId: novel.id,
+    title: novel.title || '未命名',
+    worldview: '',
+    rules: '',
+    outline: ''
+  }
+  try {
+    const [worldview, draft] = await Promise.all([
+      window.electronAPI.worldview.get(novel.id),
+      window.electronAPI.settings.get(`${draftKeyPrefix}${novel.id}`)
+    ])
+    worldviewForm.value.worldview = draft?.worldview ?? worldview?.worldview ?? ''
+    worldviewForm.value.rules = draft?.rules ?? worldview?.rules ?? ''
+    worldviewForm.value.outline = draft?.outline ?? ''
+  } catch (error: any) {
+    console.error('加载世界观失败:', error)
+    ElMessage.error('加载失败: ' + (error.message || '未知错误'))
+  } finally {
+    worldviewLoading.value = false
+  }
+}
+
+// 保存世界观/规则/大纲到数据库与草稿
+async function saveWorldviewForm() {
+  if (!worldviewForm.value.novelId) return
+  if (!window.electronAPI?.worldview || !window.electronAPI?.settings) {
+    ElMessage.error('Electron API 未加载')
+    return
+  }
+  worldviewSaving.value = true
+  try {
+    await window.electronAPI.worldview.save(worldviewForm.value.novelId, {
+      worldview: worldviewForm.value.worldview.trim(),
+      rules: worldviewForm.value.rules.trim()
+    })
+    await window.electronAPI.settings.set(
+      `${draftKeyPrefix}${worldviewForm.value.novelId}`,
+      {
+        worldview: worldviewForm.value.worldview,
+        rules: worldviewForm.value.rules,
+        outline: worldviewForm.value.outline,
+        updatedAt: Date.now()
+      },
+      '流水线输入草稿'
+    )
+    ElMessage.success('保存成功')
+    showWorldviewDialog.value = false
+  } catch (error: any) {
+    console.error('保存世界观失败:', error)
+    ElMessage.error('保存失败: ' + (error.message || '未知错误'))
+  } finally {
+    worldviewSaving.value = false
+  }
+}
+
+// 重置世界观弹窗状态
+function resetWorldviewDialog() {
+  worldviewActiveTab.value = 'worldview'
+  worldviewForm.value = {
+    novelId: '',
+    title: '',
+    worldview: '',
+    rules: '',
+    outline: ''
+  }
 }
 
 async function saveNovel() {
@@ -316,8 +457,7 @@ async function saveNovel() {
       }
       
       showAddDialog.value = false
-      editingNovel.value = null
-      novelForm.value = { title: '', genre: '', description: '' }
+      resetDialogState()
       await loadNovels()
     } else {
       ElMessage.error('Electron API 未加载')

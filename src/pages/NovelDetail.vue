@@ -10,10 +10,15 @@
     <div v-else-if="novel" class="flex-1 p-6 overflow-auto">
       <div class="max-w-4xl mx-auto">
         <div class="mb-6 flex items-center justify-end space-x-2">
+          <!-- 刷新页面按钮 -->
+          <el-button :icon="Refresh" circle @click="refreshPage" title="刷新页面" />
+          <el-button type="success" @click="goToPipeline">
+            进入流水线
+          </el-button>
           <el-button type="primary" @click="goToWorkbench">
             进入工作台
           </el-button>
-          <el-button :disabled="chapters.length === 0" @click="readFirstChapter">
+          <el-button type="warning" :disabled="chapters.length === 0" @click="readFirstChapter">
             开始阅读
           </el-button>
         </div>
@@ -158,7 +163,7 @@
 <script setup lang="ts">
 import { useNovelStore } from '@/stores/novel'
 import Breadcrumb from '@/components/Breadcrumb.vue'
-import { Loading } from '@element-plus/icons-vue'
+import { Loading, Refresh } from '@element-plus/icons-vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -256,7 +261,17 @@ const readFirstChapter = () => {
   readChapter(chapters.value[chapters.value.length - 1].id)
 }
 
+// 进入流水线页面并带上当前小说上下文
+const goToPipeline = () => {
+  router.push({ name: 'Pipeline', query: { novelId: novelId.value } })
+}
+
 const goToWorkbench = () => {
   router.push(`/workbench/${novelId.value}`)
+}
+
+// 刷新当前页面
+const refreshPage = () => {
+  window.location.reload()
 }
 </script>

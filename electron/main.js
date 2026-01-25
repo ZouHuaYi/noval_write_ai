@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, Menu } = require('electron')
 const { join } = require('path')
 const { initDatabase } = require('./database/index.js')
 const { registerIpcHandlers } = require('./ipcHandlers.js')
+const pipelineService = require('./pipeline/pipelineService')
 
 let mainWindow = null
 
@@ -62,6 +63,13 @@ function registerWindowHandlers() {
 app.whenReady().then(() => {
   // 初始化数据库（同步）
   initDatabase()
+
+  // 启动时回收流水线运行状态
+  try {
+    pipelineService.recoverPipelineRunsOnStartup()
+  } catch (error) {
+    console.error('流水线启动恢复失败:', error?.message || String(error))
+  }
 
   // 注册所有数据库相关的 IPC 处理器
   registerIpcHandlers()
