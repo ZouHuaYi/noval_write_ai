@@ -21,10 +21,6 @@ function updateChapter(id, data) {
   return chapterDAO.updateChapter(id, data)
 }
 
-function updateChapterContent(id, content, chapterNumber) {
-  return chapterDAO.updateChapterContent(id, content, chapterNumber)
-}
-
 function deleteChapter(id) {
   const chapter = chapterDAO.getChapterById(id)
   if (chapter) {
@@ -61,7 +57,6 @@ module.exports = {
   getChapter,
   createChapter,
   updateChapter,
-  updateChapterContent,
   deleteChapter,
   deleteAllChapters,
   getChapterByNovelAndNumber

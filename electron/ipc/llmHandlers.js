@@ -9,15 +9,6 @@ function registerLlmHandlers(ipcMain) {
       throw error
     }
   })
-
-  ipcMain.handle('llm:embed', async (_, options) => {
-    try {
-      return await llmService.embed(options)
-    } catch (error) {
-      console.error('调用向量模型失败:', error)
-      throw error
-    }
-  })
 }
 
 module.exports = {

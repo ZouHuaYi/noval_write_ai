@@ -22,24 +22,6 @@ function registerSettingsHandlers(ipcMain) {
       throw error
     }
   })
-
-  ipcMain.handle('settings:getAll', async () => {
-    try {
-      return settingsDAO.getAllSettings()
-    } catch (error) {
-      console.error('获取所有设置失败:', error)
-      throw error
-    }
-  })
-
-  ipcMain.handle('settings:delete', async (_, key) => {
-    try {
-      return settingsDAO.deleteSetting(key)
-    } catch (error) {
-      console.error('删除设置失败:', error)
-      throw error
-    }
-  })
 }
 
 module.exports = {

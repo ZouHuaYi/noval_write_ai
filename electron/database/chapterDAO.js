@@ -78,16 +78,6 @@ function getChaptersByNovelAsc(novelId) {
   `).all(novelId)
 }
 
-/**
- * 获取指定状态的章节
- */
-function getChaptersByNovelAndStatus(novelId, status) {
-  const db = getDatabase()
-  return db.prepare(`
-    SELECT * FROM chapter WHERE novelId = ? AND status = ? ORDER BY chapterNumber ASC
-  `).all(novelId, status)
-}
-
 function getChapterByNovelAndNumber(novelId, chapterNumber) {
   const db = getDatabase()
   return db.prepare(`
@@ -95,33 +85,6 @@ function getChapterByNovelAndNumber(novelId, chapterNumber) {
   `).get(novelId, chapterNumber)
 }
 
-
-/**
- * 更新章节内容
- */
-function updateChapterContent(chapterId, content, chapterNumber) {
-  const db = getDatabase()
-  const now = Date.now()
-  const wordCount = content.replace(/[\s\p{P}]/gu, '').length
-  const contentHash = calculateContentHash(content)
-
-  if (chapterNumber === undefined) {
-    db.prepare(`
-      UPDATE chapter
-      SET content = ?, wordCount = ?, contentHash = ?, updatedAt = ?
-      WHERE id = ?
-    `).run(content, wordCount, contentHash, now, chapterId)
-    return getChapterById(chapterId)
-  }
-
-  db.prepare(`
-    UPDATE chapter
-    SET content = ?, wordCount = ?, contentHash = ?, updatedAt = ?, chapterNumber = ?
-    WHERE id = ?
-  `).run(content, wordCount, contentHash, now, chapterNumber, chapterId)
-
-  return getChapterById(chapterId)
-}
 
 
 /**
@@ -202,11 +165,8 @@ module.exports = {
   getChapterById,
   getChaptersByNovel,
   getChaptersByNovelAsc,
-  getChaptersByNovelAndStatus,
-  updateChapterContent,
   updateChapter,
   deleteChapter,
   deleteAllChaptersByNovel,
-  getChapterByNovelAndNumber,
-  calculateContentHash
+  getChapterByNovelAndNumber
 }

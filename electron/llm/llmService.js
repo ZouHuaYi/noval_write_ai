@@ -81,23 +81,6 @@ async function getDefaultChatConfig() {
 }
 
 
-// 向量模型相关
-async function getAllVectorConfigs() {
-  const configs = settingsDAO.getSetting('vector_configs')
-  if (Array.isArray(configs)) {
-    return sortConfigs(configs)
-  }
-  return []
-}
-
-async function getDefaultVectorConfig() {
-  const configs = await getAllVectorConfigs()
-  if (!configs.length) return null
-  const def = configs.find(c => c.isDefault)
-  return def || configs[0]
-}
-
-
 async function callChatModel(options) {
   const baseConfig = await getDefaultChatConfig()
   if (!baseConfig) {
@@ -147,53 +130,8 @@ async function callChatModel(options) {
   return content
 }
 
-async function callEmbeddingModel(options) {
-  const baseConfig = await getDefaultVectorConfig()
-  if (!baseConfig) {
-    throw new Error('未找到向量模型配置，请在设置中添加并设为默认')
-  }
-
-
-  const config = {
-    ...baseConfig,
-    ...(options.configOverride || {})
-  }
-
-  const model = config.model
-
-  if (!config.apiBase || !config.apiKey || !model) {
-    throw new Error('向量模型配置不完整，请检查 API 地址、Key 和模型名称')
-  }
-
-  const url = config.apiBase.replace(/\/$/, '') + '/embeddings'
-
-  const body = {
-    model,
-    input: options.input
-  }
-
-  // 30s timeout for embeddings
-  const resp = await fetchWithRetry(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${config.apiKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(body)
-  }, 3, 30000)
-
-  const data = await resp.json()
-  const embeddings =
-    Array.isArray(data?.data) ? data.data.map(item => item.embedding) : []
-
-  return embeddings
-}
-
 module.exports = {
   getAllLLMConfigs,
-  getAllVectorConfigs,
   getDefaultChatConfig,
-  getDefaultVectorConfig,
-  callChatModel,
-  callEmbeddingModel
+  callChatModel
 }

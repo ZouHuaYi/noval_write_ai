@@ -194,7 +194,6 @@ function registerPlanningHandlers(ipcMain) {
     }
   })
 
-
   // ===== Planning Agent =====
 
   ipcMain.handle('planning:getChapterPlan', async (_, novelId, chapterNumber) => {
@@ -329,7 +328,6 @@ function registerPlanningHandlers(ipcMain) {
     }
   })
 
-
   // 生成章节计划
   ipcMain.handle('planning:generatePlan', async (_, options) => {
     try {
@@ -425,7 +423,6 @@ function registerPlanningHandlers(ipcMain) {
     }
   })
 
-
   // 创建看板
   ipcMain.handle('planning:createKanban', async (_, chapters) => {
     try {
@@ -437,35 +434,7 @@ function registerPlanningHandlers(ipcMain) {
     }
   })
 
-  // 推荐下一个任务
-  ipcMain.handle('planning:recommendTask', async (_, { novelId, events, chapters }) => {
-    try {
-      // 如果前端没有传数据，尝试从数据库加载
-      let currentEvents = events
-      let currentChapters = chapters
 
-      if (!currentEvents || !currentChapters) {
-        currentEvents = planningDAO.listPlanningEvents(novelId) || []
-        currentChapters = planningDAO.listPlanningChapters(novelId) || []
-      }
-
-      // 构建进度映射 (章节号 -> 状态)
-      const currentProgress = {}
-      currentChapters.forEach(ch => {
-        if (ch.status === 'completed') {
-          currentProgress[ch.chapterNumber] = 'completed'
-        }
-      })
-
-      const recommendation = planningAgent.recommendNextTask(currentEvents, currentChapters, currentProgress)
-      return recommendation
-    } catch (error) {
-      console.error('获取推荐任务失败:', error)
-      throw error
-    }
-  })
-
-  // 保存规划数据 (事件图谱 + 章节计划 + 看板状态)
   ipcMain.handle('planning:saveData', async (_, novelId, data) => {
     try {
       const { PlanningEventListSchema, PlanningChapterListSchema, PlanningMetaSchema } = require('../validation/planningSchemas')

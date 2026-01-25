@@ -46,15 +46,6 @@ function registerChapterHandlers(ipcMain) {
     }
   })
 
-  ipcMain.handle('chapter:updateContent', (_, id, content, chapterNumber) => {
-    try {
-      return chapterService.updateChapterContent(id, content, chapterNumber)
-    } catch (error) {
-      console.error('更新章节内容失败:', error)
-      throw error
-    }
-  })
-
   ipcMain.handle('chapter:delete', (_, id) => {
     try {
       return chapterService.deleteChapter(id)

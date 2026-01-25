@@ -1,8 +1,6 @@
 /**
- * ReIO 输出重写模块
- * 实现 StoryWriter 的自检机制：AI 生成后自动检查逻辑一致性
- * 
- * 核心流程：Generate → Check → Rewrite (if needed) → Output
+ * ReIO 输出检查模块
+ * 实现 StoryWriter 的自检机制：生成后做一致性检查
  */
 
 const llmService = require('./llmService')
@@ -42,23 +40,6 @@ function getReIOStats() {
 }
 
 /**
- * 重置 ReIO 统计
- */
-function resetReIOStats() {
-  reioStats.totalChecks = 0
-  reioStats.passedChecks = 0
-  reioStats.failedChecks = 0
-  reioStats.totalRewrites = 0
-  reioStats.lastCheckTime = null
-  reioStats.lastCheckResult = null
-  try {
-    reioStatsDAO.resetReioStats()
-  } catch (error) {
-    console.error('重置 ReIO 统计失败:', error)
-  }
-}
-
-/**
  * 从记忆上下文中提取活跃角色
  * @param {string} memoryContext - 记忆上下文
  * @returns {string[]} 角色名列表
@@ -67,8 +48,8 @@ function extractActiveCharacters(memoryContext) {
   if (!memoryContext) return []
 
   const characters = []
-  // 匹配 【人物当前状态】 部分的角色名
-  const charMatch = memoryContext.match(/【人物当前状态[^】]*】([\s\S]*?)(?=【|$)/)
+  // 解析“人物当前状态”段落中的角色名
+  const charMatch = memoryContext.match(/【人物当前状态】([\s\S]*?)(?=【|$)/)
   if (charMatch) {
     const lines = charMatch[1].split('\n')
     for (const line of lines) {
@@ -79,7 +60,7 @@ function extractActiveCharacters(memoryContext) {
     }
   }
 
-  return characters.slice(0, 10) // 限制数量
+  return characters.slice(0, 10)
 }
 
 /**
@@ -96,7 +77,6 @@ async function extractWorldRules(novelId) {
 
     if (!worldview || !worldview.rules) return []
 
-    // 解析规则文本
     const rulesText = worldview.rules
     const rules = rulesText
       .split(/[\n。；;]/)
@@ -106,7 +86,7 @@ async function extractWorldRules(novelId) {
 
     return rules
   } catch (error) {
-    console.error('提取世界规则失败:', error)
+    console.error('提取世界观规则失败:', error)
     return []
   }
 }
@@ -114,13 +94,12 @@ async function extractWorldRules(novelId) {
 /**
  * ReIO Checker - 检查 AI 生成的内容是否符合要求
  * @param {Object} options
- * @param {string} options.generatedText - AI 生成的文本
+ * @param {string} options.generatedText - AI 生成文本
  * @param {string} options.eventGoal - 当前事件/章节目标
- * @param {string} options.memoryContext - 记忆上下文（人物状态、历史事件等）
- * @param {string[]} options.activeCharacters - 当前场景活跃角色
+ * @param {string} options.memoryContext - 记忆上下文
+ * @param {string[]} options.activeCharacters - 当前活跃角色
  * @param {string[]} options.worldRules - 世界规则约束
  * @param {string} options.novelId - 小说 ID（用于自动提取规则）
- * @returns {Promise<{passed: boolean, issues: string[], suggestion?: string}>}
  */
 async function checkContent({
   generatedText,
@@ -130,12 +109,12 @@ async function checkContent({
   worldRules = [],
   novelId
 }) {
-  reioStats.totalChecks++
+  reioStats.totalChecks += 1
   reioStats.lastCheckTime = Date.now()
 
   if (!generatedText || generatedText.length < 50) {
     const result = { passed: false, issues: ['生成内容过短'], suggestion: '需要更多内容' }
-    reioStats.failedChecks++
+    reioStats.failedChecks += 1
     reioStats.lastCheckResult = result
     try {
       reioStatsDAO.upsertReioStats(reioStats)
@@ -145,24 +124,22 @@ async function checkContent({
     return result
   }
 
-  // 自动提取活跃角色
+  // 自动提取活跃角色与世界规则
   if (activeCharacters.length === 0 && memoryContext) {
     activeCharacters = extractActiveCharacters(memoryContext)
   }
-
-  // 自动提取世界规则
   if (worldRules.length === 0 && novelId) {
     worldRules = await extractWorldRules(novelId)
   }
 
-  const systemPrompt = `你是一个专业的小说内容审核员，负责检查 AI 生成的小说内容是否符合要求。
+  const systemPrompt = `你是一个专业的小说内容审查员，负责检查 AI 生成的小说内容是否符合要求。
 
 你需要从以下几个维度进行检查：
 
-1. **目标一致性**: 内容是否围绕事件/章节目标展开，是否偏题
-2. **逻辑连贯性**: 情节发展是否合理，是否存在前后矛盾
+1. **目标一致性**: 内容是否围绕事件/章节目标展开，是否偏题？
+2. **逻辑连贯性**: 情节发展是否合理，是否存在前后矛盾？
 3. **角色一致性**: 角色行为是否符合其性格设定，是否突兀
-4. **世界观一致性**: 是否违反了已建立的世界规则
+4. **世界观一致性**: 是否违反了已建立的世界规则？
 
 请以 JSON 格式返回检查结果：
 {
@@ -209,9 +186,9 @@ ${generatedText}
     const result = parseCheckResult(response)
 
     if (result.passed) {
-      reioStats.passedChecks++
+      reioStats.passedChecks += 1
     } else {
-      reioStats.failedChecks++
+      reioStats.failedChecks += 1
     }
 
     reioStats.lastCheckResult = result
@@ -239,13 +216,11 @@ ${generatedText}
  */
 function parseCheckResult(response) {
   try {
-    // 提取 JSON 块
     let jsonStr = response
     const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/)
     if (jsonMatch) {
       jsonStr = jsonMatch[1].trim()
     } else {
-      // 尝试找到 JSON 对象
       const jsonObjMatch = response.match(/\{[\s\S]*\}/)
       if (jsonObjMatch) {
         jsonStr = jsonObjMatch[0]
@@ -266,7 +241,6 @@ function parseCheckResult(response) {
       highlights: Array.isArray(parsed.highlights) ? parsed.highlights : []
     }
   } catch (e) {
-    // 解析失败时，尝试从文本中提取关键信息
     const lowerResponse = response.toLowerCase()
     const hasIssues = lowerResponse.includes('问题') ||
       lowerResponse.includes('冲突') ||
@@ -283,204 +257,9 @@ function parseCheckResult(response) {
   }
 }
 
-/**
- * 请求 AI 重写内容
- */
-async function rewriteContent({
-  originalText,
-  issues,
-  suggestion,
-  eventGoal,
-  memoryContext,
-  systemPrompt
-}) {
-  reioStats.totalRewrites++
-  try {
-    reioStatsDAO.upsertReioStats(reioStats)
-  } catch (error) {
-    console.error('保存 ReIO 统计失败:', error)
-  }
-
-
-  const rewritePrompt = `你之前生成的内容经过审核，发现以下问题需要修正：
-
-【发现的问题】
-${issues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}
-
-【修改建议】
-${suggestion || '请根据问题进行修正，保持故事连贯性'}
-
-【事件目标】
-${eventGoal || '保持情节连贯'}
-
-【记忆约束（不可违反）】
-${memoryContext || '无'}
-
-【原始内容】
-${originalText}
-
-请重写这段内容，务必：
-1. 修正上述所有问题
-2. 保持与前文的连贯性
-3. 保留原文的精彩之处
-4. 只输出修正后的正文，不要任何解释`
-
-  const rewritten = await llmService.callChatModel({
-    messages: [
-      { role: 'system', content: systemPrompt || '你是一位专业的小说作家，擅长在保持故事连贯性的同时修正问题。' },
-      { role: 'user', content: rewritePrompt }
-    ],
-    temperature: 0.7
-  })
-
-  return rewritten?.trim() || originalText
-}
-
-/**
- * 完整的 ReIO 流程：生成 -> 检查 -> 重写（如需要）
- */
-async function generateWithReIO({
-  generate,
-  context,
-  maxRetries = 2,
-  onCheck,
-  onRewrite
-}) {
-  const {
-    eventGoal,
-    memoryContext,
-    activeCharacters,
-    worldRules,
-    systemPrompt,
-    novelId
-  } = context
-
-  let content = await generate()
-  let rewriteCount = 0
-  let checkResult = { passed: true }
-  const checkHistory = []
-
-  for (let i = 0; i < maxRetries; i++) {
-    checkResult = await checkContent({
-      generatedText: content,
-      eventGoal,
-      memoryContext,
-      activeCharacters,
-      worldRules,
-      novelId
-    })
-
-    checkHistory.push({
-      attempt: i + 1,
-      result: checkResult,
-      contentLength: content.length
-    })
-
-    // 回调通知
-    if (onCheck) {
-      onCheck(checkResult, i + 1)
-    }
-
-    if (checkResult.passed) {
-      break
-    }
-
-    console.log(`ReIO 检查未通过 (第 ${i + 1} 次)，分数: ${checkResult.score}，问题:`, checkResult.issues)
-
-    const previousContent = content
-    content = await rewriteContent({
-      originalText: content,
-      issues: checkResult.issues,
-      suggestion: checkResult.rewriteSuggestion,
-      eventGoal,
-      memoryContext,
-      systemPrompt
-    })
-
-    rewriteCount++
-
-    // 回调通知
-    if (onRewrite) {
-      onRewrite(previousContent, content, rewriteCount)
-    }
-  }
-
-  return {
-    content,
-    checkResult,
-    rewriteCount,
-    checkHistory,
-    stats: getReIOStats()
-  }
-}
-
-/**
- * 快速一致性检查（轻量级，只检查关键问题）
- */
-async function quickConsistencyCheck(generatedText, constraints) {
-  if (!constraints || constraints.length === 0) {
-    return { passed: true, reason: '无约束条件' }
-  }
-
-  const systemPrompt = `你是一个快速审核员。判断以下内容是否违反约束条件。
-只回答 YES（符合）或 NO（违反）。
-如果回答 NO，在第二行简述违反了哪条约束。`
-
-  const userPrompt = `【约束条件】
-${constraints.map((c, i) => `${i + 1}. ${c}`).join('\n')}
-
-【待检查内容】
-${generatedText}
-
-是否符合所有约束条件？`
-
-  try {
-    const response = await llmService.callChatModel({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      temperature: 0.1,
-      maxTokens: 150
-    })
-
-    const lines = response.trim().split('\n')
-    const firstLine = lines[0].toUpperCase()
-    const passed = firstLine.includes('YES') || firstLine.startsWith('是')
-
-    return {
-      passed,
-      reason: passed ? '' : (lines[1] || '未说明具体原因')
-    }
-  } catch (error) {
-    return { passed: true, error: error.message }
-  }
-}
-
-/**
- * 批量检查多段内容
- */
-async function batchCheck(contents, context) {
-  const results = []
-  for (const content of contents) {
-    const result = await checkContent({
-      generatedText: content,
-      ...context
-    })
-    results.push(result)
-  }
-  return results
-}
-
 module.exports = {
   checkContent,
-  rewriteContent,
-  generateWithReIO,
-  quickConsistencyCheck,
-  batchCheck,
   getReIOStats,
-  resetReIOStats,
   extractActiveCharacters,
   extractWorldRules
 }
-
