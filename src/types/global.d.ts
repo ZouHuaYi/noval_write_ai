@@ -33,6 +33,7 @@ declare global {
           maxChunks?: number
           extraPrompt?: string
           systemPrompt: string
+          targetWords?: number
         }) => Promise<{
           chapter: any
           status: string

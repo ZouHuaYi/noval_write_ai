@@ -40,7 +40,6 @@
           未选择章节
         </el-tag>
         <el-button text @click="goToNovels">小说列表</el-button>
-        <el-button text @click="goToSettings">设置</el-button>
       </div>
 
     </div>
@@ -397,11 +396,6 @@ function goBack() {
 function goToNovels() {
   router.push('/novels')
 }
-
-function goToSettings() {
-  router.push('/settings')
-}
-
 </script>
 
 <style scoped>

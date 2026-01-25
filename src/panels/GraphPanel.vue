@@ -45,10 +45,6 @@
           <el-icon><Delete /></el-icon>
           清空图谱
         </el-button>
-        <el-button size="small" type="primary" @click="handleSave" :loading="saving">
-          <el-icon><Checked /></el-icon>
-          保存图谱
-        </el-button>
         <el-button size="small" @click="showWorldSettings">
           <el-icon><Setting /></el-icon>
           世界观
@@ -223,7 +219,7 @@ import { ref, onMounted, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   CircleCheckFilled, CircleClose, Connection, Delete, InfoFilled, 
-  Location, MagicStick, Plus, Present, Refresh, Checked,
+  Location, MagicStick, Plus, Present, Refresh,
   Search, Setting, User, Warning, WarnTriangleFilled 
 } from '@element-plus/icons-vue'
 import KnowledgeGraphView from '@/components/KnowledgeGraphView.vue'

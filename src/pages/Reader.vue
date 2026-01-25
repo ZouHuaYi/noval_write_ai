@@ -5,10 +5,11 @@
 
     <div class="app-header p-4 flex justify-between items-center">
       <div class="flex items-center space-x-2">
-        <span class="text-lg font-bold">{{ chapter?.title || '加载中...' }}</span>
+        <span class="text-lg font-bold">
+          {{`第${chapter?.chapterNumber}章`}}-{{ chapter?.title || '加载中...' }}</span>
       </div>
       <div class="flex items-center gap-3">
-        <div class="text-sm app-muted">第 {{ currentIndexDisplay }} / {{ chapters.length || 0 }} 章</div>
+        <div class="text-sm app-muted">总 {{ chapters.length || 0 }} 章</div>
         <el-progress
           v-if="chapters.length"
           :percentage="readingProgress"
@@ -22,12 +23,10 @@
           <span class="text-xs">{{ fontSize }}px</span>
           <el-button size="small" text @click="increaseFont">A+</el-button>
         </div>
-        <div class="flex items-center gap-2 app-section px-3 py-1">
-          <span class="text-xs app-muted">行距</span>
-          <el-button size="small" text @click="decreaseLineHeight">-</el-button>
-          <span class="text-xs">{{ lineHeight.toFixed(1) }}</span>
-          <el-button size="small" text @click="increaseLineHeight">+</el-button>
-        </div>
+
+        <el-select v-model="chapterId" class="w-24" placeholder="选择章节" clearable filterable>
+          <el-option v-for="chapter in chapters" :key="chapter.id" :label="chapter.chapterNumber" :value="chapter.id" />
+        </el-select>
         
         <el-button-group>
           <el-button @click="prevChapter" :disabled="!prevChapterId">
@@ -48,7 +47,7 @@
       <div
         v-else-if="chapter"
         class="max-w-4xl mx-auto app-card p-8 prose prose-lg"
-        :style="{ fontSize: fontSize + 'px', lineHeight: lineHeight.toString() }"
+        :style="{ fontSize: fontSize + 'px' }"
         v-html="formatContent(chapter.content)"
       ></div>
     </div>
@@ -71,10 +70,14 @@ const novel = ref(null)
 const chapter = ref(null)
 const chapters = ref([])
 const fontSize = ref(18)
-const lineHeight = ref(2.1)
 
 const novelId = computed(() => route.params.novelId)
-const chapterId = computed(() => route.params.chapterId)
+const chapterId = computed({
+  get: () => route.params.chapterId,
+  set: (value) => {
+    router.replace(`/reader/${novelId.value}/${value}`)
+  }
+})
 
 // 监听路由变化，重新加载数据
 watch(() => route.params.chapterId, () => {
@@ -125,15 +128,15 @@ const readingProgress = computed(() => {
 })
 
 const prevChapterId = computed(() => {
-  if (currentIndex.value > 0) {
-    return chapters.value[currentIndex.value - 1].id
+  if (currentIndex.value < chapters.value.length - 1) {
+    return chapters.value[currentIndex.value + 1].id
   }
   return null
 })
 
 const nextChapterId = computed(() => {
-  if (currentIndex.value < chapters.value.length - 1) {
-    return chapters.value[currentIndex.value + 1].id
+  if (currentIndex.value > 0) {
+    return chapters.value[currentIndex.value - 1].id
   }
   return null
 })

@@ -48,7 +48,7 @@
                 <div class="text-sm">暂无 LLM 配置，请添加后开始创作</div>
               </div>
 
-              <div v-else class="grid grid-cols-1 gap-4">
+              <div v-else class="grid grid-cols-1 gap-4 pb-10">
                 <div
                   v-for="(config, index) in sortedLLMConfigs"
                   :key="config.id"
@@ -153,7 +153,7 @@
                 <div class="text-sm">暂无向量模型配置，推荐配置与 LLM 同厂商服务</div>
               </div>
 
-              <div v-else class="grid grid-cols-1 gap-4">
+              <div v-else class="grid grid-cols-1 gap-4 pb-10">
                 <div
                   v-for="(config, index) in sortedVectorConfigs"
                   :key="config.id"

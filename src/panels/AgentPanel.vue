@@ -72,29 +72,6 @@
               </div>
             </div>
 
-            <div 
-              class="group bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] shadow-sm hover:shadow-md cursor-pointer overflow-hidden"
-              :class="{ 'pointer-events-none opacity-60': processing }"
-              @click="handleRegenerateChapter"
-            >
-              <div class="p-4 space-y-2">
-                <div class="flex items-center justify-between">
-                  <div class="p-2 rounded-lg bg-amber-100 group-hover:bg-amber-200 transition-colors">
-                    <el-icon class="text-amber-600 text-lg"><Refresh /></el-icon>
-                  </div>
-                  <el-icon 
-                    v-if="processing" 
-                    class="is-loading text-[var(--app-text-muted)] text-sm"
-                  >
-                    <Loading />
-                  </el-icon>
-                </div>
-                <div class="text-sm font-semibold">重新生成</div>
-                <div class="text-xs text-[var(--app-text-muted)]">重置后再生成</div>
-              </div>
-            </div>
-
-
             <!-- 一致性检查 -->
             <div 
               class="group bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] shadow-sm hover:shadow-md cursor-pointer overflow-hidden"
@@ -116,62 +93,6 @@
                 <div class="text-sm font-semibold">一致性检查</div>
                 <div class="text-xs text-[var(--app-text-muted)]">检查内容一致性</div>
               </div>
-            </div>
-          </div>
-        </el-collapse-item>
-        <el-collapse-item name="reio">
-          <template #title>
-            <span class="text-xs font-semibold">ReIO 质量检查</span>
-            <el-tag v-if="reioStats.totalChecks > 0" size="small" type="success" class="ml-2">
-              {{ reioStats.passRate }}%
-            </el-tag>
-          </template>
-          <div class="p-3 space-y-3">
-            <!-- 统计概览 -->
-            <div class="grid grid-cols-3 gap-2 text-center">
-              <div class="bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] hover:shadow-[0_10px_24px_rgba(32,30,25,0.08)] p-2 rounded-lg">
-                <div class="text-lg font-bold text-blue-500">{{ reioStats.totalChecks }}</div>
-                <div class="text-xs text-[var(--app-text-muted)]">检查次数</div>
-              </div>
-              <div class="bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] hover:shadow-[0_10px_24px_rgba(32,30,25,0.08)] p-2 rounded-lg">
-                <div class="text-lg font-bold text-green-500">{{ reioStats.passCount }}</div>
-                <div class="text-xs text-[var(--app-text-muted)]">通过</div>
-              </div>
-              <div class="bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] hover:shadow-[0_10px_24px_rgba(32,30,25,0.08)] p-2 rounded-lg">
-                <div class="text-lg font-bold text-orange-500">{{ reioStats.rewriteCount }}</div>
-                <div class="text-xs text-[var(--app-text-muted)]">重写</div>
-              </div>
-            </div>
-            
-            <!-- 最近检查 -->
-            <div v-if="reioStats.lastCheck" class="bg-[var(--app-surface-muted)] border border-[var(--app-border)] rounded-[var(--app-radius)] transition-all duration-200 hover:border-[rgba(79,138,118,0.28)] hover:shadow-[0_10px_24px_rgba(32,30,25,0.08)] p-3 rounded-lg">
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-xs font-semibold">最近检查</span>
-                <el-tag :type="reioStats.lastCheck.passed ? 'success' : 'warning'" size="small">
-                  {{ reioStats.lastCheck.passed ? '通过' : '需改进' }}
-                </el-tag>
-              </div>
-              <div class="text-xs text-[var(--app-text-muted)]">
-                得分: {{ reioStats.lastCheck.score }}/100
-              </div>
-              <div v-if="reioStats.lastCheck.issues?.length" class="mt-2 space-y-1">
-                <div v-for="(issue, i) in reioStats.lastCheck.issues.slice(0, 3)" :key="i" 
-                     class="text-xs text-orange-600 flex items-start gap-1">
-                  <el-icon class="mt-0.5"><Warning /></el-icon>
-                  {{ issue }}
-                </div>
-              </div>
-            </div>
-
-            <!-- 操作按钮 -->
-            <div class="flex gap-2">
-              <el-button size="small" @click="runReioCheck" :loading="reioChecking" :disabled="!props.chapterId" class="flex-1">
-                <el-icon><Refresh /></el-icon>
-                执行检查
-              </el-button>
-              <el-button size="small" @click="resetReioStats" type="info" plain>
-                重置
-              </el-button>
             </div>
           </div>
         </el-collapse-item>
@@ -620,39 +541,6 @@ const handleConsistency = () => {
   dialogPrompt.value = ''
   showDialog.value = true
 }
-
-const handleRegenerateChapter = async () => {
-  if (!props.chapterId) {
-    ElMessage.warning('请先选择章节')
-    return
-  }
-
-  try {
-    await ElMessageBox.confirm(
-      '将清除本次生成记录并基于当前内容重新生成，是否继续？',
-      '重新生成确认',
-      {
-        confirmButtonText: '重新生成',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
-  } catch {
-    return
-  }
-
-  try {
-    await window.electronAPI?.chapter?.update(props.chapterId, {
-      content: ''
-    })
-    emit('content-updated', '')
-    await window.electronAPI?.chapter?.generateReset(props.chapterId)
-    await handleGenerateNextChapter()
-  } catch (error: any) {
-    ElMessage.error('重新生成失败: ' + (error.message || '未知错误'))
-  }
-}
-
 
 const confirmAction = async () => {
   processing.value = true

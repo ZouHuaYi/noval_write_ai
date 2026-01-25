@@ -86,15 +86,15 @@
                 </el-table-column>
               </el-table>
             </el-collapse-item>
-            <el-collapse-item name="draft">
+            <el-collapse-item name="completed">
               <template #title>
-                <span class="font-semibold">草稿（{{ draftChaptersList.length }}）</span>
+                <span class="font-semibold">已完成（{{ completedChaptersList.length }}）</span>
               </template>
               <el-table
-                :data="draftChaptersList"
+                :data="completedChaptersListPageData"
                 style="width: 100%"
                 size="small"
-                empty-text="暂无草稿章节"
+                empty-text="暂无已完成章节"
               >
                 <el-table-column prop="chapterNumber" label="序号" width="80" />
                 <el-table-column prop="title" label="标题" />
@@ -112,16 +112,24 @@
                   </template>
                 </el-table-column>
               </el-table>
+              <!-- 分页 -->
+               <el-pagination
+                v-model:currentPage="completedChaptersListPage"
+                :page-size="completedChaptersListPageSize"
+                layout="total, prev, pager, next"
+                :total="completedChaptersList.length"
+                @current-change="handleCompletedChaptersListPageChange"
+              />
             </el-collapse-item>
-            <el-collapse-item name="completed">
+                  <el-collapse-item name="draft">
               <template #title>
-                <span class="font-semibold">已完成（{{ completedChaptersList.length }}）</span>
+                <span class="font-semibold">草稿（{{ draftChaptersList.length }}）</span>
               </template>
               <el-table
-                :data="completedChaptersList"
+                :data="draftChaptersList"
                 style="width: 100%"
                 size="small"
-                empty-text="暂无已完成章节"
+                empty-text="暂无草稿章节"
               >
                 <el-table-column prop="chapterNumber" label="序号" width="80" />
                 <el-table-column prop="title" label="标题" />
@@ -151,7 +159,7 @@
 import { useNovelStore } from '@/stores/novel'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import { Loading } from '@element-plus/icons-vue'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
@@ -162,6 +170,14 @@ const loading = ref(true)
 const novel = ref<any>(null)
 const chapters = ref<any[]>([])
 
+const completedChaptersListPage = ref(1)
+const completedChaptersListPageSize = ref(10)
+const completedChaptersListPageData = ref<any[]>([])
+const handleCompletedChaptersListPageChange = (page: number) => {
+  completedChaptersListPage.value = page
+  completedChaptersListPageData.value = completedChaptersList.value.slice((page - 1) * completedChaptersListPageSize.value, page * completedChaptersListPageSize.value)
+}
+
 const novelId = computed(() => route.params.id as string)
 const totalWords = computed(() => {
   return chapters.value.reduce((total, chapter) => total + (chapter.wordCount || 0), 0)
@@ -169,6 +185,16 @@ const totalWords = computed(() => {
 const completedChaptersList = computed(() => {
   return chapters.value.filter((chapter) => chapter.status === 'completed')
 })
+
+watch(() => completedChaptersList.value, (val) => { 
+  if (val && val.length) {
+    handleCompletedChaptersListPageChange(1)
+  }
+}, {
+  immediate: true,
+  deep: true
+})
+
 const writingChaptersList = computed(() => {
   return chapters.value.filter((chapter) => chapter.status === 'writing')
 })
@@ -192,7 +218,7 @@ const lastUpdatedAt = computed(() => {
   return new Date(latest).toLocaleDateString('zh-CN')
 })
 
-const activeGroups = ref(['writing', 'draft'])
+const activeGroups = ref(['writing', 'completed'])
 
 const getStatusText = (status?: string) => {
   if (status === 'completed') return '已完成'
@@ -227,7 +253,7 @@ const readChapter = (chapterId: string) => {
 
 const readFirstChapter = () => {
   if (chapters.value.length === 0) return
-  readChapter(chapters.value[0].id)
+  readChapter(chapters.value[chapters.value.length - 1].id)
 }
 
 const goToWorkbench = () => {

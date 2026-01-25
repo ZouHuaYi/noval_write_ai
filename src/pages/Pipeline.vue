@@ -16,7 +16,6 @@
         <div class="flex justify-between items-center mb-4">
           <div class="flex items-center gap-4">
             <div class="flex flex-col">
-              <span class="text-xs text-gray-500 mb-1">选择小说</span>
               <el-select
                 v-model="selectedNovelId"
                 placeholder="请选择小说"
@@ -110,17 +109,6 @@
             </div>
           </div>
         </div>
-
-        <!-- Global Progress -->
-        <div v-if="currentRun" class="mt-2">
-          <el-progress
-            :percentage="currentRun.progress"
-            :status="currentRun.status === 'failed' ? 'exception' : (currentRun.status === 'completed' ? 'success' : '')"
-            :stroke-width="8"
-            striped
-            striped-flow
-          />
-        </div>
       </el-card>
 
     <!-- Main Content Area -->
@@ -146,12 +134,6 @@
                 <el-input-number v-model="settings.targetChapters" :min="1" class="w-full" />
               </el-form-item>
             </div>
-            <el-form-item label="单章字数限制">
-              <el-slider v-model="settings.wordsPerChapter" :min="1000" :max="10000" :step="500" show-input />
-            </el-form-item>
-            <el-form-item label="模型温度 (Temperature)">
-              <el-slider v-model="settings.temperature" :min="0" :max="1" :step="0.1" show-stops />
-            </el-form-item>
               <el-form-item label="事件生成模型">
                 <el-select v-model="settings.eventModelConfigId" placeholder="跟随系统默认" class="w-full">
                   <el-option label="跟随系统默认" value="" />
@@ -246,7 +228,7 @@
       <div class="w-2/3 flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-1">
         
         <!-- Execution Steps -->
-        <el-card shadow="never" class="flex-none flex flex-col h-96" body-class="flex-1 flex flex-col overflow-hidden">
+        <el-card shadow="never" class="flex-none flex flex-col h-full" body-class="flex-1 flex flex-col overflow-hidden">
           <template #header>
             <div class="flex items-center justify-between">
               <span class="font-bold">执行详情</span>
@@ -257,7 +239,7 @@
           <div class="flex-1 overflow-y-auto custom-scrollbar p-2">
             <el-timeline v-if="steps.length > 0">
               <el-timeline-item
-                v-for="(step, index) in steps"
+                v-for="(step, index) in sortedSteps"
                 :key="index"
                 :type="getStepStatusType(step.status)"
                 :timestamp="step.timestamp"
@@ -270,9 +252,6 @@
                     <el-tag size="small" :type="getStepStatusType(step.status)">{{ step.status }}</el-tag>
                   </div>
                   <p class="text-xs text-gray-500 mb-2">Stage: {{ step.stage }} | Batch: {{ step.batch }}</p>
-                  <div class="text-sm bg-gray-50 dark:bg-gray-900 p-2 rounded text-gray-700 dark:text-gray-300 font-mono whitespace-pre-wrap max-h-32 overflow-y-auto">
-                    {{ step.log }}
-                  </div>
                 </el-card>
               </el-timeline-item>
             </el-timeline>
@@ -282,61 +261,6 @@
             </div>
           </div>
         </el-card>
-
-        <!-- Graph Visualization -->
-        <el-card shadow="never" class="flex-none flex flex-col h-100" body-class="flex-1 p-0 overflow-hidden">
-          <template #header>
-            <div class="flex items-center justify-between">
-              <span class="font-bold">可视化图谱</span>
-              <el-radio-group v-model="activeGraphTab" size="small">
-                <el-radio-button label="event">事件图谱</el-radio-button>
-                <el-radio-button label="knowledge">知识图谱</el-radio-button>
-              </el-radio-group>
-            </div>
-          </template>
-          <div class="h-full w-full relative">
-            <EventGraph 
-              v-if="activeGraphTab === 'event'"
-              :events="graphEvents"
-              layout-direction="LR"
-              :show-mini-map="true"
-            />
-            <KnowledgeGraphView
-              v-else-if="activeGraphTab === 'knowledge'"
-              :novel-id="selectedNovelId"
-              :hide-toolbar="false"
-            />
-          </div>
-        </el-card>
-
-        <!-- Run History -->
-        <el-card shadow="never" class="flex-none flex flex-col h-80" body-class="flex-1 overflow-hidden p-0">
-          <template #header>
-            <div class="flex items-center justify-between">
-              <span class="font-bold">运行历史</span>
-              <el-button link size="small">查看全部</el-button>
-            </div>
-          </template>
-          <div class="h-full overflow-y-auto custom-scrollbar">
-            <el-table :data="runs" style="width: 100%" size="small" :row-class-name="tableRowClassName">
-              <el-table-column prop="id" label="ID" width="80" />
-              <el-table-column prop="startTime" label="开始时间" width="160" />
-              <el-table-column prop="novelName" label="小说" />
-              <el-table-column prop="stage" label="最终阶段" width="120" />
-              <el-table-column prop="status" label="状态" width="100">
-                <template #default="scope">
-                  <el-tag :type="getStatusType(scope.row.status)" size="small">{{ getStatusLabel(scope.row.status) }}</el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="120" align="right">
-                <template #default>
-                  <el-button link type="primary" size="small">详情</el-button>
-                  <el-button link type="danger" size="small">删除</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </div>
-        </el-card>
       </div>
     </div>
   </div>
@@ -344,10 +268,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onBeforeUnmount, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
-import EventGraph from '@/components/EventGraph.vue'
-import KnowledgeGraphView from '@/components/KnowledgeGraphView.vue'
 import { VideoPlay, VideoPause, Refresh, RefreshRight, Setting, Document, Monitor, Delete } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useRoute } from 'vue-router'
@@ -372,8 +294,8 @@ const inputRules = ref('')
 const inputOutline = ref('')
 
 const settings = reactive({
-  batchSize: 2,
-  targetChapters: 10,
+  batchSize: 5,
+  targetChapters: 100,
   wordsPerChapter: 1200,
   temperature: 0.7,
   modelConfigId: '',
@@ -397,6 +319,11 @@ let draftSaveTimer = null
 let settingsSaveTimer = null
 
 let refreshTimer = null
+
+// steps 按照时间逆序排序
+const sortedSteps = computed(() => {
+  return [...steps.value].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+})
 
 const stageLabelMap = {
   analyze: '分析评估',

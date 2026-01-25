@@ -8,10 +8,6 @@
             <el-icon><Share /></el-icon>
             事件图谱
           </el-radio-button>
-          <el-radio-button value="kanban">
-            <el-icon><List /></el-icon>
-            看板
-          </el-radio-button>
           <el-radio-button value="list">
             <el-icon><Document /></el-icon>
             列表
@@ -26,10 +22,6 @@
         <el-button size="small" @click="openGeneratePlanDialog" :loading="planLoading" :disabled="!events.length">
           <el-icon><Calendar /></el-icon>
           生成计划
-        </el-button>
-        <el-button size="small" @click="getRecommendation" :disabled="!chapters.length">
-          <el-icon><Aim /></el-icon>
-          智能推荐
         </el-button>
         <el-button size="small" type="primary" plain @click="openAddEventDialog">
           <el-icon><Plus /></el-icon>
@@ -90,22 +82,6 @@
         @node-select="handleEventSelect"
       />
 
-      <!-- 看板视图 -->
-      <KanbanBoard
-        v-else-if="viewMode === 'kanban'"
-        :key="'kanban-' + planRefreshKey"
-        :board="kanbanBoard"
-        :recommendation="recommendation"
-        @task-select="handleTaskSelect"
-        @task-move="handleTaskMove"
-        @start-writing="handleStartWriting"
-        @refresh="loadData"
-        @request-recommendation="getRecommendation"
-        @add-chapter="handleManualAddChapter"
-        @delete-chapter="handleDeleteChapter"
-        @toggle-lock="handleToggleLock"
-      />
-
       <!-- 列表视图 (大纲模式) -->
       <div v-else :key="'list-' + planRefreshKey" class="h-full overflow-y-auto p-4 max-w-4xl mx-auto">
         <div v-if="chapters.length === 0" class="flex flex-col items-center justify-center h-full text-[var(--app-text-muted)]">
@@ -113,7 +89,7 @@
         </div>
         <div v-else class="space-y-4">
           <div 
-            v-for="chapter in chapters" 
+            v-for="chapter in chaptersArray" 
             :key="chapter.chapterNumber"
             class="bg-white border border-[var(--app-border)] rounded-lg p-4 hover:shadow-md transition-shadow"
           >
@@ -385,10 +361,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Aim, Calendar, List, MagicStick, Share, Document, Edit, Delete, Download, Plus, Lock, Unlock, Check, ArrowDown } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
+import { Calendar, MagicStick, Share, Document, Edit, Delete, Download, Plus, Lock, Unlock, Check, ArrowDown } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import EventGraph from '@/components/EventGraph.vue'
-import KanbanBoard from '@/components/KanbanBoard.vue'
 
 // 章节计划字数配置（默认与上限）
 const DEFAULT_WORDS_PER_CHAPTER = 1800
@@ -412,14 +387,12 @@ const emit = defineEmits<{
 }>()
 
 // 视图状态
-const viewMode = ref<'graph' | 'kanban' | 'list'>('graph')
+const viewMode = ref<'graph' | 'list'>('graph')
 const graphLayout = ref<'horizontal' | 'vertical'>('horizontal')
 
 // 数据
 const events = ref<any[]>([])
 const chapters = ref<any[]>([])
-const kanbanBoard = ref<any>(null)
-const recommendation = ref<any>(null)
 const graphRefreshKey = ref(0)
 const planRefreshKey = ref(0)
 
@@ -463,6 +436,14 @@ const eventForm = ref({
 // 可用的依赖事件列表（排除当前编辑的事件）
 const availableDependencyEvents = computed(() => {
   return events.value.filter(e => e.id !== editingEventId.value)
+})
+
+// 章节逆序
+const chaptersArray = computed(() => {
+  return chapters.value.map(chapter => ({
+    ...chapter,
+    chapterNumber: Number(chapter.chapterNumber)
+  })).reverse()
 })
 
 // 打开新增事件对话框
@@ -670,8 +651,8 @@ watch(
 
 // 计算属性
 const completedCount = computed(() => {
-  if (!kanbanBoard.value?.columns) return 0
-  const completedCol = kanbanBoard.value.columns.find((c: any) => c.id === 'completed')
+  if (!chapters.value) return 0
+  const completedCol = chapters.value.find((c: any) => c.id === 'completed')
   return completedCol?.tasks?.length || 0
 })
 
@@ -716,18 +697,20 @@ async function syncPlanWithEvents() {
       events: chapterEvents
     }
   })
-
-  if (kanbanBoard.value) {
-    const serializedChapters = JSON.parse(JSON.stringify(chapters.value))
-    const board = await window.electronAPI?.planning?.createKanban(serializedChapters)
-    if (board) {
-      kanbanBoard.value = board
-      planRefreshKey.value += 1
-    }
-  }
 }
 
 async function handleDeleteEvent(eventId: string) {
+  // 二次确认
+  const confirm = await ElMessageBox.confirm(
+    '确定要删除该事件吗？',
+    '提示',
+    {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning',
+    }
+  )
+  if (!confirm) return
   events.value = events.value.filter(e => e.id !== eventId)
   graphRefreshKey.value += 1
   planRefreshKey.value += 1
@@ -736,7 +719,6 @@ async function handleDeleteEvent(eventId: string) {
   showEventDetail.value = false
   ElMessage.success('事件已删除')
 }
-
 
 // 加载数据
 async function loadData() {
@@ -747,18 +729,12 @@ async function loadData() {
     if (savedData) {
       events.value = savedData.events || []
       chapters.value = savedData.chapters || []
-      kanbanBoard.value = savedData.kanbanBoard || null
       if (savedData.generateOptions) {
         generateOptions.value = savedData.generateOptions
       }
     } else {
       events.value = []
       chapters.value = []
-      kanbanBoard.value = null
-    }
-
-    if (!kanbanBoard.value && chapters.value.length) {
-      kanbanBoard.value = await window.electronAPI?.planning?.createKanban(chapters.value)
     }
 
     console.log('已加载规划数据:', {  
@@ -770,7 +746,6 @@ async function loadData() {
   }
 }
 
-
 // 保存数据
 async function saveData() {
   if (!props.novelId) return
@@ -780,8 +755,7 @@ async function saveData() {
     const dataToSave = JSON.parse(JSON.stringify({
       events: events.value,
       chapters: chapters.value,
-      kanbanBoard: kanbanBoard.value,
-      generateOptions: generateOptions.value
+        generateOptions: generateOptions.value
     }))
     
     await window.electronAPI?.planning?.saveData(props.novelId, dataToSave)
@@ -793,7 +767,6 @@ async function saveData() {
     await loadData()
   }
 }
-
 
 // 清空数据
 async function handleClearData() {
@@ -813,79 +786,12 @@ async function handleClearData() {
     await window.electronAPI?.planning?.clearData(props.novelId)
     events.value = []
     chapters.value = []
-    kanbanBoard.value = null
     ElMessage.success('规划数据已清空')
   } catch (error) {
     if (error !== 'cancel') {
       console.error('清空数据失败:', error)
       ElMessage.error('清空数据失败')
     }
-  }
-}
-
-
-// 智能推荐
-async function getRecommendation() {
-  if (!props.novelId || chapters.value.length === 0) {
-    ElMessage.warning('请先生成章节于事件数据')
-    return
-  }
-  
-  try {
-    const serializedEvents = JSON.parse(JSON.stringify(events.value))
-    const serializedChapters = JSON.parse(JSON.stringify(chapters.value))
-    
-    // 显示加载中
-    const loadingInstance = ElLoading.service({
-      target: '.planning-panel',
-      text: '正在智能分析剧情走向...'
-    })
-
-    const result = await window.electronAPI?.planning?.recommendTask({
-      novelId: props.novelId,
-      events: serializedEvents,
-      chapters: serializedChapters
-    })
-    
-    loadingInstance.close()
-    
-    if (!result) {
-      ElMessage.info('暂时没有推荐的任务，请先完成现有章节或添加更多事件')
-      return
-    }
-    
-    const { chapter, reason, blockedBy } = result
-    
-    // 构建提示内容
-    const title = `推荐任务：第 ${chapter.chapterNumber} 章 ${chapter.title || '未命名'}`
-    let message = `<div style="text-align: left;">`
-    
-    if (reason && reason.length > 0) {
-      message += `<p><strong>推荐理由：</strong></p><ul>`
-      reason.forEach((r: string) => message += `<li>${r}</li>`)
-      message += `</ul>`
-    }
-    
-    if (blockedBy && blockedBy.length > 0) {
-      message += `<p style="color: var(--el-color-warning); margin-top: 10px;"><strong>阻碍因素：</strong></p>`
-      message += `<p>以下依赖事件尚未完成，建议先处理：</p><ul>`
-      blockedBy.forEach((dep: any) => {
-        message += `<li>${dep.label || dep.id} (第 ${dep.chapter} 章)</li>`
-      })
-      message += `</ul>`
-    }
-    
-    message += `</div>`
-    
-    ElMessageBox.alert(message, title, {
-      dangerouslyUseHTMLString: true,
-      confirmButtonText: '收到',
-      customClass: 'recommendation-dialog'
-    })
-    
-  } catch (error) {
-    console.error('获取推荐失败:', error)
-    ElMessage.error('获取智能推荐失败')
   }
 }
 
@@ -1006,7 +912,6 @@ async function runConsistencyCheck() {
     const dataToSave = JSON.parse(JSON.stringify({
       events: events.value,
       chapters: chapters.value,
-      kanbanBoard: kanbanBoard.value,
       generateOptions: generateOptions.value
     }))
     await window.electronAPI?.planning?.saveData(props.novelId, dataToSave)
@@ -1029,7 +934,6 @@ async function handleExportCommand(command: string | undefined) {
         meta: generateOptions.value,
         events: events.value,
         chapters: chapters.value,
-        kanbanBoard: kanbanBoard.value,
         exportedAt: new Date().toISOString()
       }, null, 2)
       title = `${props.novelTitle || 'novel'}_backup`
@@ -1312,9 +1216,7 @@ async function generatePlan() {
       const serializedChapters = JSON.parse(JSON.stringify(chapters.value))
       const board = await window.electronAPI?.planning?.createKanban(serializedChapters)
       if (board) {
-        kanbanBoard.value = board
         planRefreshKey.value += 1
-        viewMode.value = 'kanban'
         ElMessage.success(`章节计划生成完成，共 ${nextChapters.length} 章`)
         // 自动保存
         await saveData()
@@ -1328,65 +1230,10 @@ async function generatePlan() {
   }
 }
 
-
-
-
 // 事件处理
 function handleEventSelect(event: any) {
   selectedEvent.value = event
   showEventDetail.value = true
-}
-
-function handleTaskSelect(task: any) {
-  // 可以显示任务详情
-  console.log('选中任务:', task)
-}
-
-async function handleTaskMove(taskId: string, targetStatus: string) {
-  // 更新看板状态
-  if (!kanbanBoard.value) return
-
-  const columns = kanbanBoard.value.columns
-  let movedTask: any = null
-
-  // 从原列移除
-  for (const col of columns) {
-    const idx = col.tasks.findIndex((t: any) => t.id === taskId)
-    if (idx !== -1) {
-      movedTask = col.tasks.splice(idx, 1)[0]
-      break
-    }
-  }
-
-  // 添加到目标列
-  if (movedTask) {
-    movedTask.status = targetStatus
-    const targetCol = columns.find((c: any) => c.id === targetStatus)
-    if (targetCol) {
-      targetCol.tasks.push(movedTask)
-    }
-    
-    // 深度绑定：同步状态到规划（主进程投影到章节）
-    try {
-      if (props.novelId && window.electronAPI?.planning?.updateChapterStatus) {
-        await window.electronAPI.planning.updateChapterStatus(props.novelId, movedTask.chapterNumber, targetStatus)
-        console.log(`已同步章节 ${movedTask.chapterNumber} 状态至规划: ${targetStatus}`)
-        ElMessage.success(`已同步章节 ${movedTask.chapterNumber} 状态: ${targetStatus === 'completed' ? '已完成' : '写作中'}`)
-      }
-    } catch (error) {
-      console.error('状态同步失败:', error)
-    }
-
-
-    // 更新 chapters 列表中的状态
-    const chapterIdx = chapters.value.findIndex(ch => ch.chapterNumber === movedTask.chapterNumber)
-    if (chapterIdx !== -1) {
-      chapters.value[chapterIdx].status = targetStatus
-    }
-
-    // 自动保存看板状态
-    saveData()
-  }
 }
 
 // 锁定/解锁章节目标
@@ -1397,16 +1244,6 @@ async function handleToggleLock(chapter: any) {
   
   // 乐观更新
   chapter.lockWritingTarget = newLockState
-  
-  // 同步到看板
-  if (kanbanBoard.value?.columns) {
-    kanbanBoard.value.columns.forEach((col: any) => {
-      const task = col.tasks.find((t: any) => t.chapterNumber === chapter.chapterNumber)
-      if (task) {
-        task.lockWritingTarget = newLockState
-      }
-    })
-  }
 
   try {
     if (window.electronAPI?.planning?.updateChapterStatus) {
@@ -1422,46 +1259,9 @@ async function handleToggleLock(chapter: any) {
   } catch (error) {
     // 失败回滚
     chapter.lockWritingTarget = !newLockState
-    // 回滚看板
-    if (kanbanBoard.value?.columns) {
-      kanbanBoard.value.columns.forEach((col: any) => {
-        const task = col.tasks.find((t: any) => t.chapterNumber === chapter.chapterNumber)
-        if (task) {
-          task.lockWritingTarget = !newLockState
-        }
-      })
-    }
     console.error('更新锁定状态失败:', error)
     ElMessage.error('操作失败')
   }
-}
-
-// 手动新增章节
-async function handleManualAddChapter(chapterData: any) {
-  const newChapter = {
-    ...chapterData,
-    id: `ch_${Date.now()}`,
-    eventCount: 0,
-    focus: [],
-    writingHints: [],
-    lockWritingTarget: generateOptions.value.lockWritingTarget,
-    progress: 0
-  }
-  
-  // 更新列表
-  chapters.value = [...chapters.value, newChapter].sort((a, b) => a.chapterNumber - b.chapterNumber)
-  
-  // 更新看板
-  if (!kanbanBoard.value) {
-    kanbanBoard.value = await window.electronAPI?.planning?.createKanban(chapters.value)
-  } else {
-    const targetCol = kanbanBoard.value.columns.find((c: any) => c.id === chapterData.status)
-    if (targetCol) {
-      targetCol.tasks.push(newChapter)
-    }
-  }
-  
-  saveData()
 }
 
 // 根据事件ID获取事件标签
@@ -1493,13 +1293,6 @@ async function handleDeleteChapter(chapterId: string) {
     
     // 从列表中移除
     chapters.value = chapters.value.filter(c => c.id !== chapterId)
-    
-    // 从看板中移除
-    if (kanbanBoard.value?.columns) {
-      kanbanBoard.value.columns.forEach((col: any) => {
-        col.tasks = col.tasks.filter((t: any) => t.id !== chapterId)
-      })
-    }
     
     saveData()
     ElMessage.success('章节计划已移除')
@@ -1558,12 +1351,6 @@ async function handleUpdateChapter() {
   }
 
   await syncPlanWithEvents()
-
-  // 重构看板（因为章节号变了，看板需要重新生成以保证逻辑正确，或者手动更新任务）
-  // 简单起见，如果看板存在，直接重新生成或刷新
-  if (kanbanBoard.value) {
-    kanbanBoard.value = await window.electronAPI?.planning?.createKanban(chapters.value)
-  }
 
   await saveData()
   showEditChapterDialog.value = false
