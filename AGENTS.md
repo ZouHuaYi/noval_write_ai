@@ -39,7 +39,7 @@
 ### 5) 规划/看板/大纲工作流
 
 - 目标: 扩展 planning/outline 流程能力
-- 关键路径: electron/ipc/planningHandlers.js, src/panels/PlanningPanel.vue, src/components/KanbanBoard.vue
+- 关键路径: electron/ipc/planningHandlers.js, src/panels/PlanningPanel.vue
 - 适用任务: 看板状态、规划生成、导入导出
 
 ### 6) 知识图谱与一致性检查
