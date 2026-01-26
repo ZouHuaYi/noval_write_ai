@@ -7,8 +7,9 @@ const { safeParseJSON } = require('../utils/helpers')
 
 // 章节计划字数配置（默认与上限）
 // 统一收敛为 1200 左右，避免计划与生成不一致
-const DEFAULT_WORDS_PER_CHAPTER = 1200
-const MAX_WORDS_PER_CHAPTER = 1200
+// 流水线计划目标上调到 1500-2000，默认取中值 1800
+const DEFAULT_WORDS_PER_CHAPTER = 1800
+const MAX_WORDS_PER_CHAPTER = 2000
 
 function normalizeWordsPerChapter(value) {
   const numeric = Number(value)

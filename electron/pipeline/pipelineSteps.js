@@ -27,7 +27,8 @@ function normalizeAnalysis(result, fallback = {}) {
   return {
     synopsis: result?.synopsis || fallback.synopsis || '',
     targetChapters: pickNumber(fallback.targetChapters, result?.targetChapters, 10),
-    wordsPerChapter: pickNumber(fallback.wordsPerChapter, result?.wordsPerChapter, 1200),
+    // 默认每章目标字数上调到 1800，避免低字数误导后续计划
+    wordsPerChapter: pickNumber(fallback.wordsPerChapter, result?.wordsPerChapter, 1800),
     pacing: result?.pacing || fallback.pacing || 'medium',
     eventBatchSize: pickNumber(fallback.eventBatchSize, result?.eventBatchSize, 5),
     chapterBatchSize: pickNumber(fallback.chapterBatchSize, result?.chapterBatchSize, 2),
@@ -93,8 +94,8 @@ async function resolvePipelineConfig(settings = {}, stage = 'default') {
 // 分析评估输入
 async function analyzeInput({ novelId, inputWorldview, inputRules, inputOutline, settings, configOverride }) {
   const novel = novelDAO.getNovelById(novelId)
-  const systemPrompt = '你是小说策划评估助手，请根据输入的世界观、规则与章节大纲，估算章节数、每章字数、节奏与分批策略。必须输出 JSON。'
-  const userPrompt = `【小说标题】\n${novel?.title || '未命名'}\n\n【世界观设定】\n${inputWorldview || '无'}\n\n【规则设定】\n${inputRules || '无'}\n\n【章节大纲】\n${inputOutline || '无'}\n\n请输出 JSON：\n{\n  "synopsis": "一句话梗概",\n  "targetChapters": 预计章节数(数字),\n  "wordsPerChapter": 每章目标字数(数字),\n  "pacing": "fast|medium|slow",\n  "eventBatchSize": 事件生成每批覆盖章节数(数字),\n  "chapterBatchSize": 章节生成每批章节数(数字),\n  "notes": "可选备注"\n}`
+  const systemPrompt = '你是小说策划评估助手，请根据输入的世界观、规则与章节大纲，估算章节数、每章字数、节奏与分批策略。每章目标字数建议在 1500-2000 之间。必须输出 JSON。'
+  const userPrompt = `【小说标题】\n${novel?.title || '未命名'}\n\n【世界观设定】\n${inputWorldview || '无'}\n\n【规则设定】\n${inputRules || '无'}\n\n【章节大纲】\n${inputOutline || '无'}\n\n请输出 JSON：\n{\n  "synopsis": "一句话梗概",\n  "targetChapters": 预计章节数(数字),\n  "wordsPerChapter": 每章目标字数(数字，建议 1500-2000),\n  "pacing": "fast|medium|slow",\n  "eventBatchSize": 事件生成每批覆盖章节数(数字),\n  "chapterBatchSize": 章节生成每批章节数(数字),\n  "notes": "可选备注"\n}`
 
   const response = await llmService.callChatModel({
     messages: [
@@ -166,7 +167,8 @@ async function generateEventBatch({
 async function generatePlan({ novelId, settings, startChapter, endChapter, configOverride }) {
   const events = planningDAO.listPlanningEvents(novelId) || []
   const targetChapters = Number(settings?.targetChapters) || 10
-  const wordsPerChapter = Number(settings?.wordsPerChapter) || 1200
+  // 章节计划字数默认上调到 1800
+  const wordsPerChapter = Number(settings?.wordsPerChapter) || 1800
   const rangeStart = Number(startChapter) || 1
   const rangeEnd = Number(endChapter) || targetChapters
 
@@ -273,7 +275,8 @@ async function generateChapterBatch({ novelId, chapterNumbers, systemPrompt, con
       status: 'in_progress'
     }])
 
-    const targetWords = plan.targetWords || meta?.wordsPerChapter || 1200
+    // 章节生成目标字数默认上调到 1800
+    const targetWords = plan.targetWords || meta?.wordsPerChapter || 1800
     console.log(`[章节批次] 开始生成内容, 目标字数: ${targetWords}`)
 
     try {

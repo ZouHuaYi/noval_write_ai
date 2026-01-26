@@ -287,15 +287,16 @@ import PolishDiffViewer from '@/components/PolishDiffViewer.vue'
 
 // 章节字数默认值与上限
 // 统一章节目标字数，避免生成水字
-const DEFAULT_TARGET_WORDS = 1200
-const MAX_TARGET_WORDS = 1200
+  const DEFAULT_TARGET_WORDS = 1800
+  const MAX_TARGET_WORDS = 2000
 
 function normalizeTargetWords(value?: number | null) {
   const numeric = Number(value)
   if (!Number.isFinite(numeric) || numeric <= 0) {
     return DEFAULT_TARGET_WORDS
   }
-  return Math.min(Math.round(numeric), MAX_TARGET_WORDS)
+    // 统一收敛到 1500-2000 区间
+    return Math.min(Math.max(Math.round(numeric), 1500), MAX_TARGET_WORDS)
 }
 
 onMounted(() => {

@@ -26,6 +26,7 @@
           <div class="mt-4 flex flex-wrap gap-3">
             <el-tag size="small" effect="plain">包名：{{ packageName }}</el-tag>
             <el-tag size="small" effect="plain">许可证：{{ license }}</el-tag>
+            <el-tag size="small" effect="plain">作者：{{ author }}</el-tag>
           </div>
         </el-card>
 
@@ -60,6 +61,7 @@ const version = computed(() => pkg?.version || '-')
 const packageName = computed(() => pkg?.name || '-')
 const license = computed(() => pkg?.license || '-')
 const descriptionText = computed(() => pkg?.description || '暂无描述')
+const author = computed(() => pkg?.author || '-')
 
 // 简易 Markdown 渲染：覆盖标题/列表/代码块/行内样式，满足手册展示需求
 const manualHtml = computed(() => renderMarkdown(manualText || ''))

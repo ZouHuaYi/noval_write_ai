@@ -12,8 +12,9 @@ const formatSection = (title, content) => `【${title}】\n${content || '无'}\n
 
 // 章节字数与分块配置（默认与上限）
 // 统一收敛为 1200 左右，强制控制章节总字数
-const DEFAULT_TARGET_WORDS = 1200
-const MAX_TARGET_WORDS = 1200
+// 流水线目标字数上调到 1500-2000，默认取中值 1800
+const DEFAULT_TARGET_WORDS = 1800
+const MAX_TARGET_WORDS = 2000
 
 /**
  * 统计中文字数（包括标点）
@@ -37,8 +38,9 @@ function normalizeTargetWords(value) {
 function resolveParagraphConfig(targetWords, overrides = {}) {
   const normalizedTargetWords = normalizeTargetWords(targetWords)
   // 段落字数固定区间，避免出现冗长水字
-  const minParagraphWords = 200
-  const maxParagraphWords = 400
+  // 提升段落区间以匹配 1500-2000 总字数
+  const minParagraphWords = 250
+  const maxParagraphWords = 500
 
   const overrideMin = Number(overrides.minParagraphWords)
   const overrideMax = Number(overrides.maxParagraphWords)
@@ -53,9 +55,10 @@ function resolveParagraphConfig(targetWords, overrides = {}) {
   const avgParagraphWords = (effectiveMin + safeMax) / 2
   const computedMaxParagraphs = Math.ceil(normalizedTargetWords / avgParagraphWords)
   const overrideParagraphs = Number(overrides.maxParagraphs)
+  // 允许更多段落，保证总字数能达到目标区间
   const effectiveMaxParagraphs = Number.isFinite(overrideParagraphs) && overrideParagraphs > 0
-    ? Math.min(Math.max(Math.round(overrideParagraphs), 3), 6)
-    : Math.min(Math.max(computedMaxParagraphs, 3), 6)
+    ? Math.min(Math.max(Math.round(overrideParagraphs), 3), 8)
+    : Math.min(Math.max(computedMaxParagraphs, 3), 8)
 
   return {
     normalizedTargetWords,
@@ -220,7 +223,8 @@ function buildParagraphPrompt({
   extraPrompt,
   worldRules,
   lastChapterContentEnd,
-  targetWords = [300, 500]
+  // 单段目标字数区间与段落配置保持一致
+  targetWords = [250, 500]
 }) {
   return [
     formatSection('小说信息', `标题：${novelTitle || '未命名'}\n章节：第 ${chapterNumber ?? '?'} 章 · ${chapterTitle || '未命名'}`),
@@ -287,7 +291,8 @@ async function generateParagraph({
   systemPrompt,
   worldRules,
   lastChapterContentEnd,
-  targetWords = [300, 500],
+  // 单段目标字数区间与段落配置保持一致
+  targetWords = [250, 500],
   configOverride
 }) {
   const userPrompt = buildParagraphPrompt({
@@ -310,7 +315,8 @@ async function generateParagraph({
       { role: 'user', content: userPrompt }
     ],
     temperature: 0.75, // 高温度，保持创意和灵性
-    maxTokens: 1000,
+    // 适配更长段落输出，避免提前截断
+    maxTokens: 1500,
     configOverride
   })
 

@@ -120,6 +120,11 @@
                   </template>
                 </el-table-column>
                 <el-table-column prop="wordCount" label="字数" width="100" />
+                 <el-table-column prop="createdAt" label="新建时间" width="160">
+                  <template #default="{ row }">
+                    {{ formatTimestamp(row.createdAt) }}
+                  </template>
+                 </el-table-column>
                 <el-table-column label="操作" width="150">
                   <template #default="{ row }">
                     <el-button size="small" type="primary" @click="readChapter(row.id)">阅读</el-button>
@@ -198,6 +203,14 @@ const novelId = computed(() => route.params.id as string)
 const totalWords = computed(() => {
   return chapters.value.reduce((total, chapter) => total + (chapter.wordCount || 0), 0)
 })
+
+function formatTimestamp(timestamp: number) {
+  if (!timestamp) return ''
+  const date = new Date(timestamp)
+  return date.toLocaleString()
+}
+
+
 // 简介文本与折叠按钮显示
 const descriptionText = computed(() => {
   return novel.value?.description?.trim() || '暂无描述'
