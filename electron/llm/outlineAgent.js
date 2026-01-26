@@ -246,6 +246,7 @@ ${JSON.stringify(chapterBeats, null, 2)}
 
 【语言要求】
 - label/description/summary/mainCharacters/mainConflicts 必须为中文
+- label 必须为中文短标题，不得为空或仅空白
 
 输出 JSON：
 {
@@ -404,9 +405,11 @@ async function generateEventGraph({
         idMapping.set(oldId, newId)
       }
 
+      // 生成阶段强制保证 label 非空，避免后续章节标题为空
+      const trimmedLabel = typeof event.label === 'string' ? event.label.trim() : ''
       return {
         id: newId,
-        label: event.label || `事件 ${index + 1}`,
+        label: trimmedLabel || `事件 ${index + 1}`,
         eventType: event.eventType || 'plot',
         description: event.description || '',
         chapter: Number.isFinite(chapterNum) ? chapterNum : null,

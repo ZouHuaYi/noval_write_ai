@@ -82,7 +82,11 @@ async function resolvePipelineConfig(settings = {}, stage = 'default') {
       review: 'reviewModelConfigId'
     }
     const stageKey = stageKeyMap[stage]
-    const selectedId = (stageKey && settings[stageKey]) || settings.modelConfigId
+    let selectedId = (stageKey && settings[stageKey]) || settings.modelConfigId
+    // 分析评估默认跟随事件生成模型，避免走系统默认
+    if (stage === 'analyze' && !selectedId && settings.eventModelConfigId) {
+      selectedId = settings.eventModelConfigId
+    }
     if (!selectedId) return null
     return allConfigs.find(cfg => cfg.id === selectedId) || null
   } catch (error) {
