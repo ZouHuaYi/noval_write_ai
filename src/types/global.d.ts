@@ -152,6 +152,7 @@ declare global {
         resume: (runId: string) => Promise<any>
         status: (runId: string) => Promise<{ run: any; steps: any[] } | null>
         retryStep: (options: { runId: string; stage: string; batchIndex?: number | null }) => Promise<any>
+        updateSettings: (options: { runId: string; settings: Record<string, any> }) => Promise<any>
         listByNovel: (novelId: string) => Promise<any[]>
         clear: (novelId: string) => Promise<{ success: boolean }>
       }

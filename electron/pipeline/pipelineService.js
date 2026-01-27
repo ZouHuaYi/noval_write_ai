@@ -75,6 +75,17 @@ function buildChapterBatches(chapterNumbers = [], chapterBatchSize) {
   return batches
 }
 
+// 获取最新的流水线运行记录（用于热更新配置）
+function getLatestRun(runId) {
+  return pipelineDAO.getPipelineRun(runId)
+}
+
+// 获取最新设置，避免运行中模型切换不生效
+function getLatestSettings(runId, fallback = {}) {
+  const latestRun = getLatestRun(runId)
+  return latestRun?.settings || fallback
+}
+
 async function executeStep({ runId, stage, batchIndex, input, executor }) {
   console.log(`[流水线步骤] 开始执行: stage=${stage}, batchIndex=${batchIndex}`)
   
@@ -158,7 +169,9 @@ async function runPipeline(runId) {
 
       if (stage === 'analyze') {
         pipelineDAO.updatePipelineRun(runId, { currentStage: stage, currentBatch: 0 })
-        const analysisConfig = await resolvePipelineConfig(run.settings || {}, 'analyze')
+        const latestRun = getLatestRun(runId) || run
+        const analysisSettings = getLatestSettings(runId, latestRun.settings || {})
+        const analysisConfig = await resolvePipelineConfig(analysisSettings || {}, 'analyze')
         const analysisStep = await executeStep({
           runId,
           stage,
@@ -173,7 +186,7 @@ async function runPipeline(runId) {
             inputWorldview: run.inputWorldview,
             inputRules: run.inputRules,
             inputOutline: run.inputOutline,
-            settings: run.settings,
+            settings: analysisSettings,
             configOverride: analysisConfig
           })
         })
@@ -184,19 +197,17 @@ async function runPipeline(runId) {
           break
         }
 
+        const currentRun = getLatestRun(runId) || run
         run = pipelineDAO.updatePipelineRun(runId, {
-          settings: { ...run.settings, ...analysisStep.output },
+          settings: { ...(currentRun.settings || {}), ...analysisStep.output },
           currentStage: stage,
           currentBatch: 0
         })
       }
 
       if (stage !== 'analyze') {
-        const settings = run.settings || {}
-        const eventConfig = await resolvePipelineConfig(settings, 'events_batch')
-        const planConfig = await resolvePipelineConfig(settings, 'plan')
-        const chapterConfig = await resolvePipelineConfig(settings, 'chapter_batch')
-        const reviewConfig = await resolvePipelineConfig(settings, 'review')
+        const latestRun = getLatestRun(runId) || run
+        const settings = latestRun.settings || {}
         const configuredBatchSize = Number(settings.cycleBatchSize || settings.batchSize)
         const loopBatchSize = Number.isFinite(configuredBatchSize) && configuredBatchSize > 0
           ? configuredBatchSize
@@ -221,6 +232,8 @@ async function runPipeline(runId) {
             pipelineDAO.updatePipelineRun(runId, { currentStage: loopStage, currentBatch: batch.batchIndex })
 
             if (loopStage === 'events_batch') {
+              const refreshedSettings = getLatestSettings(runId, settings)
+              const refreshedEventConfig = await resolvePipelineConfig(refreshedSettings, 'events_batch')
               const eventStep = await executeStep({
                 runId,
                 stage: loopStage,
@@ -230,15 +243,17 @@ async function runPipeline(runId) {
                   novelId: run.novelId,
                   startChapter: batch.startChapter,
                   endChapter: batch.endChapter,
-                  targetChapters: settings.targetChapters,
+                  targetChapters: refreshedSettings.targetChapters,
                   inputOutline: run.inputOutline,
-                  configOverride: eventConfig
+                  configOverride: refreshedEventConfig
                 })
               })
               if (eventStep === null) break
             }
 
             if (loopStage === 'plan') {
+              const refreshedSettings = getLatestSettings(runId, settings)
+              const refreshedPlanConfig = await resolvePipelineConfig(refreshedSettings, 'plan')
               const planStep = await executeStep({
                 runId,
                 stage: loopStage,
@@ -246,10 +261,10 @@ async function runPipeline(runId) {
                 input: batch,
                 executor: async () => generatePlan({
                   novelId: run.novelId,
-                  settings: run.settings,
+                  settings: refreshedSettings,
                   startChapter: batch.startChapter,
                   endChapter: batch.endChapter,
-                  configOverride: planConfig
+                  configOverride: refreshedPlanConfig
                 })
               })
               if (planStep === null) break
@@ -264,6 +279,9 @@ async function runPipeline(runId) {
               const chapterBatches = buildChapterBatches(chapterNumbers, loopBatchSize)
               for (const chapterBatch of chapterBatches) {
                 if (state.paused) break
+                const refreshedSettings = getLatestSettings(runId, settings)
+                const refreshedChapterConfig = await resolvePipelineConfig(refreshedSettings, 'chapter_batch')
+                const refreshedReviewConfig = await resolvePipelineConfig(refreshedSettings, 'review')
                 const chapterStep = await executeStep({
                   runId,
                   stage: loopStage,
@@ -273,8 +291,8 @@ async function runPipeline(runId) {
                     novelId: run.novelId,
                     chapterNumbers: chapterBatch.chapterNumbers,
                     systemPrompt: DEFAULT_CHAPTER_SYSTEM_PROMPT,
-                    configOverride: chapterConfig,
-                    reviewConfigOverride: reviewConfig
+                    configOverride: refreshedChapterConfig,
+                    reviewConfigOverride: refreshedReviewConfig
                   })
                 })
                 if (chapterStep === null) break
@@ -347,6 +365,14 @@ async function startPipeline(options) {
     console.error('流水线执行失败:', error)
   })
   return run
+}
+
+// 运行中更新流水线配置（模型切换等）
+async function updatePipelineRunSettings(runId, patch = {}) {
+  const run = pipelineDAO.getPipelineRun(runId)
+  if (!run) return null
+  const merged = { ...(run.settings || {}), ...(patch || {}) }
+  return pipelineDAO.updatePipelineRun(runId, { settings: merged })
 }
 
 // 暂停流水线任务（当前执行完成后生效）
@@ -427,6 +453,7 @@ function clearPipelineData(novelId) {
 
 module.exports = {
   startPipeline,
+  updatePipelineRunSettings,
   pausePipeline,
   resumePipeline,
   recoverPipelineRunsOnStartup,

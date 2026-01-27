@@ -47,6 +47,15 @@ function registerPipelineHandlers(ipcMain) {
     }
   })
 
+  ipcMain.handle('pipeline:updateSettings', async (_, { runId, settings }) => {
+    try {
+      return await pipelineService.updatePipelineRunSettings(runId, settings || {})
+    } catch (error) {
+      console.error('更新流水线配置失败:', error)
+      throw error
+    }
+  })
+
   ipcMain.handle('pipeline:listByNovel', async (_, novelId) => {
     try {
       return pipelineService.listPipelinesByNovel(novelId)

@@ -238,6 +238,7 @@ import {
   resumePipeline,
   retryPipelineStep,
   getPipelineStatus,
+  updatePipelineSettings,
   listPipelinesByNovel,
   clearPipelineData
 } from '@/pipeline/client'
@@ -275,6 +276,7 @@ const settingsKeyPrefix = 'pipeline:settings:'
 const isDraftLoading = ref(false)
 let draftSaveTimer = null
 let settingsSaveTimer = null
+let modelSyncTimer = null
 
 let refreshTimer = null
 
@@ -373,6 +375,10 @@ async function savePipelineSettings(novelId) {
   try {
     const payload = normalizeSettings(settings)
     await window.electronAPI.settings.set(`${settingsKeyPrefix}${novelId}`, payload, '流水线生成参数')
+    // 运行中同步更新配置，确保模型切换实时生效
+    if (currentRun.value?.id && ['running', 'paused'].includes(currentRun.value.status)) {
+      await updatePipelineSettings({ runId: currentRun.value.id, settings: payload })
+    }
   } catch (error) {
     console.error('保存生成参数失败:', error)
   }
@@ -384,6 +390,21 @@ function scheduleSettingsSave() {
   settingsSaveTimer = window.setTimeout(() => {
     savePipelineSettings(selectedNovelId.value)
   }, 800)
+}
+
+// 模型选择变更时，优先同步到运行中的流水线
+function scheduleModelSync() {
+  if (!currentRun.value?.id) return
+  if (!['running', 'paused'].includes(currentRun.value.status)) return
+  if (modelSyncTimer) window.clearTimeout(modelSyncTimer)
+  modelSyncTimer = window.setTimeout(async () => {
+    try {
+      const payload = normalizeSettings(settings)
+      await updatePipelineSettings({ runId: currentRun.value.id, settings: payload })
+    } catch (error) {
+      console.error('同步运行中模型配置失败:', error)
+    }
+  }, 200)
 }
 
 // 读取流水线输入草稿（用于恢复离开页面前的内容）
@@ -730,6 +751,13 @@ watch(settings, () => {
   scheduleSettingsSave()
 }, { deep: true })
 
+watch(
+  () => [settings.eventModelConfigId, settings.planModelConfigId, settings.chapterModelConfigId, settings.reviewModelConfigId],
+  () => {
+    scheduleModelSync()
+  }
+)
+
 onMounted(async () => {
   await loadNovels()
   await loadLLMConfigs()
@@ -743,6 +771,7 @@ onBeforeUnmount(() => {
   clearAutoRefresh()
   if (draftSaveTimer) window.clearTimeout(draftSaveTimer)
   if (settingsSaveTimer) window.clearTimeout(settingsSaveTimer)
+  if (modelSyncTimer) window.clearTimeout(modelSyncTimer)
 })
 </script>
 

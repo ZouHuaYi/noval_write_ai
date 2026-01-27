@@ -35,6 +35,14 @@ export async function retryPipelineStep(options: {
   return await window.electronAPI.pipeline.retryStep(options)
 }
 
+// 运行中更新流水线配置
+export async function updatePipelineSettings(options: {
+  runId: string
+  settings: Record<string, any>
+}): Promise<PipelineRun | null> {
+  return await window.electronAPI.pipeline.updateSettings(options)
+}
+
 // 获取小说的流水线运行历史
 export async function listPipelinesByNovel(novelId: string): Promise<PipelineRun[]> {
   return await window.electronAPI.pipeline.listByNovel(novelId)
