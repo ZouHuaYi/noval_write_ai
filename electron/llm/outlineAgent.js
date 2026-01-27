@@ -272,10 +272,11 @@ ${JSON.stringify(chapterBeats, null, 2)}
 1) 每章 2-4 个事件（允许少数章只有 1 个关键事件）
 2) 每个事件 description 必须写出：目标/行动/代价/误判（用一句话串起来也行）
 3) 至少 25% 事件为 character 或 transition
-4) 至少 1 个事件为“主角主动布局/反击”
-5) 至少 1 个事件为“错误线索/误导导致走弯路”
-6) dependencies 只写因果依赖，不要写“上一章”
-7) chapter 必须严格落在 ChapterBeats 给出的范围内
+4) 每个事件 description 里都要包含一段“无关/喘息”描写（与主线推进无关，作为节奏缓冲）
+5) 至少 1 个事件为“主角主动布局/反击”
+6) 至少 1 个事件为“错误线索/误导导致走弯路”
+7) dependencies 只写因果依赖，不要写“上一章”
+8) chapter 必须严格落在 ChapterBeats 给出的范围内
 
 只输出 JSON。`
 
@@ -407,11 +408,32 @@ async function generateEventGraph({
 
       // 生成阶段强制保证 label 非空，避免后续章节标题为空
       const trimmedLabel = typeof event.label === 'string' ? event.label.trim() : ''
+      // 为每个事件补充“无关/喘息”描写，保证节奏缓冲
+      const baseDesc = typeof event.description === 'string' ? event.description.trim() : ''
+      // 随机喘息描写模板池（用于缓冲节奏，避免千篇一律）
+      const breathTemplates = [
+        '喘息描写：角色处理一件与主线无关的琐事，顺带交代生活质感。',
+        '喘息描写：角色短暂停下观察环境细节，氛围形成停顿。',
+        '喘息描写：角色与同伴进行轻松对话，缓冲紧张情节。',
+        '喘息描写：角色回想一个无关的小片段，带出情感余韵。',
+        '喘息描写：角色整理物品或路线，节奏轻轻降速。',
+        '喘息描写：角色处理一段日常互动，不推进主线。',
+        '喘息描写：角色在等待/移动中留意身边变化，作为过渡。'
+      ]
+      // 使用事件索引做可复现选择，避免随机导致结果不可复现
+      const templateIndex = Math.abs(Number.isFinite(index) ? index : 0) % breathTemplates.length
+      const breathDesc = breathTemplates[templateIndex]
+      // 兜底：缺失时补齐“目标/行动/代价/误判 + 喘息描写”，保证每个事件可写
+      const fallbackDesc = '目标：角色当下想要一个小而明确的结果；行动：做出一个具体动作；代价：付出时间/暴露破绽或消耗资源；误判：以为这个决定不会影响后续。'
+      const mergedDesc = baseDesc
+        ? (baseDesc.includes('喘息描写') ? baseDesc : `${baseDesc}；${breathDesc}`)
+        : `${fallbackDesc}；${breathDesc}`
+
       return {
         id: newId,
         label: trimmedLabel || `事件 ${index + 1}`,
         eventType: event.eventType || 'plot',
-        description: event.description || '',
+        description: mergedDesc,
         chapter: Number.isFinite(chapterNum) ? chapterNum : null,
         characters: Array.isArray(event.characters) ? event.characters : [],
         preconditions: Array.isArray(event.preconditions) ? event.preconditions : [],
