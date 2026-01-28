@@ -7,16 +7,16 @@
       <div class="flex items-center space-x-2">
         <span class="text-lg font-bold">
           {{`第${chapter?.chapterNumber}章`}}-{{ chapter?.title || '加载中...' }}</span>
+          <!-- 复制按钮 -->
+           <el-icon class="cursor-pointer" @click="copyChapterTitle"><CopyDocument/></el-icon>
       </div>
       <div class="flex items-center gap-3">
-        <div class="text-sm app-muted">总 {{ chapters.length || 0 }} 章</div>
-        <el-progress
-          v-if="chapters.length"
-          :percentage="readingProgress"
-          :stroke-width="6"
-          :show-text="false"
-          class="w-32"
-        />
+         <el-button size="small" type="success"  @click="copyChapterContent">
+          <el-icon><CopyDocument/></el-icon>
+        </el-button>
+        <el-button size="small" type="primary"  @click="refresh">
+          <el-icon><Refresh/></el-icon>
+        </el-button>
         <div class="flex items-center gap-2 app-section px-3 py-1">
           <span class="text-xs app-muted">字体</span>
           <el-button size="small" text @click="decreaseFont">A-</el-button>
@@ -57,9 +57,10 @@
 <script setup>
 import { useNovelStore } from '@/stores/novel'
 import Breadcrumb from '@/components/Breadcrumb.vue'
-import { Loading } from '@element-plus/icons-vue'
+import { CopyDocument, Loading, Refresh } from '@element-plus/icons-vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 
 const route = useRoute()
 const router = useRouter()
@@ -88,6 +89,20 @@ onMounted(async () => {
   await loadNovelInfo()
   await loadData()
 })
+
+const refresh = () => {
+  loadData()
+}
+
+const copyChapterTitle = () => {
+  navigator.clipboard.writeText(chapter.value.title)
+  ElMessage.success('复制成功')
+}
+
+const copyChapterContent = () => {
+  navigator.clipboard.writeText(chapter.value.content)
+  ElMessage.success('复制成功')
+}
 
 const loadNovelInfo = async () => {
   try {
