@@ -21,7 +21,7 @@ function createWindow() {
 
   mainWindow = new BrowserWindow({
     width: 1200,
-    height: 800,
+    height: 700,
     frame: false, // 完全移除原生边框和标题栏
     webPreferences: {
       preload: preloadPath,

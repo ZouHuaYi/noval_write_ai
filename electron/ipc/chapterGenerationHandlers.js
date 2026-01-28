@@ -4,7 +4,10 @@ function registerChapterGenerationHandlers(ipcMain) {
 
   ipcMain.handle('chapter:generateChunks', async (_, payload) => {
     try {
-      const result = await chapterGenerator.generateChapterChunks(payload)
+      const result = await chapterGenerator.generateChapterChunks({
+        ...payload,
+        modelSource: payload?.modelSource || 'workbench'
+      })
       if (result?.chapter?.chapterNumber != null) {
         try {
           const planningDAO = require('../database/planningDAO')

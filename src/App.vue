@@ -1,12 +1,14 @@
 <template>
   <el-config-provider :locale="zhCn">
     <router-view />
+    <PipelineIndicator />
   </el-config-provider>
 </template>
 
 <script setup>
 import { ElConfigProvider } from 'element-plus'
 import zhCn from 'element-plus/dist/locale/zh-cn.mjs'
+import PipelineIndicator from '@/components/PipelineIndicator.vue'
 </script>
 
 <style>

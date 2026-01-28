@@ -29,6 +29,7 @@ declare global {
           extraPrompt?: string
           systemPrompt: string
           targetWords?: number
+          modelSource?: 'pipeline' | 'workbench'
         }) => Promise<{
           chapter: any
           status: string
@@ -154,6 +155,7 @@ declare global {
         retryStep: (options: { runId: string; stage: string; batchIndex?: number | null }) => Promise<any>
         updateSettings: (options: { runId: string; settings: Record<string, any> }) => Promise<any>
         listByNovel: (novelId: string) => Promise<any[]>
+        listByStatus: (status: string) => Promise<any[]>
         clear: (novelId: string) => Promise<{ success: boolean }>
       }
 

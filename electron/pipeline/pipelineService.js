@@ -430,6 +430,11 @@ function listPipelinesByNovel(novelId) {
   return pipelineDAO.listPipelineRuns(novelId)
 }
 
+// ??????????
+function listPipelinesByStatus(status) {
+  return pipelineDAO.listPipelineRunsByStatus(status)
+}
+
 // 清空小说的流水线相关数据
 function clearPipelineData(novelId) {
   if (!novelId) {
@@ -460,5 +465,6 @@ module.exports = {
   retryPipelineStep,
   getPipelineStatus,
   listPipelinesByNovel,
+  listPipelinesByStatus,
   clearPipelineData
 }

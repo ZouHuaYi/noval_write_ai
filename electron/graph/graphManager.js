@@ -23,7 +23,7 @@ class GraphManager {
   }
 
   /**
-   * 解析风格审查模型配置（用于图谱抽取/一致性校验）
+   * 解析风格审查模型配置（用于流水线内的图谱抽取/一致性校验）
    */
   async resolveReviewModelConfig(novelId) {
     const settings = settingsDAO.getSetting(`pipeline:settings:${novelId}`)
@@ -139,8 +139,10 @@ class GraphManager {
    */
   async onChapterUpdate(novelId, chapter, content, previousContent = '', options = {}) {
     const graph = this.getGraph(novelId)
-    // 统一使用风格审查模型进行图谱抽取
-    const reviewConfig = await this.resolveReviewModelConfig(novelId)
+    // 仅流水线场景使用风格审查模型，工作台使用系统默认模型
+    const reviewConfig = options?.modelSource === 'pipeline'
+      ? await this.resolveReviewModelConfig(novelId)
+      : null
 
     // 计算当前内容的哈希
     const crypto = require('crypto')
@@ -191,11 +193,13 @@ class GraphManager {
   /**
    * 验证新内容
    */
-  async validateContent(novelId, content, chapter) {
+  async validateContent(novelId, content, chapter, options = {}) {
     const graph = this.getGraph(novelId)
     const checker = createChecker(graph)
-    // 统一使用风格审查模型进行一致性校验
-    const reviewConfig = await this.resolveReviewModelConfig(novelId)
+    // 仅流水线场景使用风格审查模型，工作台使用系统默认模型
+    const reviewConfig = options?.modelSource === 'pipeline'
+      ? await this.resolveReviewModelConfig(novelId)
+      : null
     return checker.validateNewContent(content, chapter, { configOverride: reviewConfig })
   }
 

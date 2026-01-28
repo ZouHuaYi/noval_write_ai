@@ -195,11 +195,11 @@ async function getGraphContext(novelId, contextText = '') {
  * @param {string} content - 当前完整内容
  * @param {string} previousContent - 上一次的内容（用于增量更新）
  */
-async function updateGraph(novelId, chapterNumber, content, previousContent = '') {
+async function updateGraph(novelId, chapterNumber, content, previousContent = '', options = {}) {
   try {
     const manager = getGraphManager()
     // 传递章节号和 previousContent，让 graphManager 判断是否增量更新
-    await manager.onChapterUpdate(novelId, chapterNumber, content, previousContent)
+    await manager.onChapterUpdate(novelId, chapterNumber, content, previousContent, { modelSource: options?.modelSource })
     console.log(`[分块生成] 段落已更新到图谱 (第 ${chapterNumber} 章)`)
   } catch (error) {
     console.error('更新图谱失败:', error)
@@ -567,7 +567,8 @@ async function generateChapterChunks({
   maxParagraphWords,
   maxParagraphs, // 最大段落数
   maxRetries = 2, // 每段最大重试次数
-  configOverride
+  configOverride,
+  modelSource
 }) {
   if (!novelId || !chapterId) {
     throw new Error('生成章节需要 novelId 与 chapterId')
@@ -719,7 +720,7 @@ async function generateChapterChunks({
 
     // 5. 更新图谱（增量抽取）
     // 传递章节号、当前累计内容、上一次内容（用于增量更新）
-    await updateGraph(novelId, chapterNumber, chapterSoFar, previousChapterContent)
+    await updateGraph(novelId, chapterNumber, chapterSoFar, previousChapterContent, { modelSource })
 
     // 6. 更新图谱上下文供下一段使用 (加入新生成的内容作为上下文)
     graphContext = await getGraphContext(novelId, `${planningContext}\n${chapterSoFar}`)

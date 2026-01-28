@@ -73,6 +73,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     retryStep: (options) => ipcRenderer.invoke('pipeline:retryStep', options),
     updateSettings: (options) => ipcRenderer.invoke('pipeline:updateSettings', options),
     listByNovel: (novelId) => ipcRenderer.invoke('pipeline:listByNovel', novelId),
+    listByStatus: (status) => ipcRenderer.invoke('pipeline:listByStatus', status),
     clear: (novelId) => ipcRenderer.invoke('pipeline:clear', novelId)
   },
 

@@ -291,7 +291,8 @@ async function generateChapterBatch({ novelId, chapterNumbers, systemPrompt, con
       extraPrompt: '',
       systemPrompt: systemPrompt || DEFAULT_CHAPTER_SYSTEM_PROMPT,
       targetWords,
-      configOverride
+      configOverride,
+      modelSource: 'pipeline'
     })
 
     // 章节生成后进行反 AI 清洗（仅流水线使用）

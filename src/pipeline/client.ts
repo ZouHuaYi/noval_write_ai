@@ -48,6 +48,11 @@ export async function listPipelinesByNovel(novelId: string): Promise<PipelineRun
   return await window.electronAPI.pipeline.listByNovel(novelId)
 }
 
+// ????????????
+export async function listPipelinesByStatus(status: string): Promise<PipelineRun[]> {
+  return await window.electronAPI.pipeline.listByStatus(status)
+}
+
 // 清空小说的流水线相关数据
 export async function clearPipelineData(novelId: string): Promise<{ success: boolean }> {
   return await window.electronAPI.pipeline.clear(novelId)

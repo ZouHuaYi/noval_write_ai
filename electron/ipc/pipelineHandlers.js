@@ -65,6 +65,16 @@ function registerPipelineHandlers(ipcMain) {
     }
   })
 
+  // ??????????????
+  ipcMain.handle('pipeline:listByStatus', async (_, status) => {
+    try {
+      return pipelineService.listPipelinesByStatus(status)
+    } catch (error) {
+      console.error('???????????:', error)
+      throw error
+    }
+  })
+
   ipcMain.handle('pipeline:clear', async (_, novelId) => {
     try {
       return pipelineService.clearPipelineData(novelId)
