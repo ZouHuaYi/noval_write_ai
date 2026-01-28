@@ -202,8 +202,12 @@ async function updateGraph(novelId, chapterNumber, content, previousContent = ''
     await manager.onChapterUpdate(novelId, chapterNumber, content, previousContent, { modelSource: options?.modelSource })
     console.log(`[分块生成] 段落已更新到图谱 (第 ${chapterNumber} 章)`)
   } catch (error) {
-    console.error('更新图谱失败:', error)
-    // 图谱更新失败不阻塞生成流程
+    console.error('??????:', error)
+    // ??????????????????????
+    if (options?.modelSource === 'pipeline') {
+      throw error
+    }
+    // ???/??????????
   }
 }
 
