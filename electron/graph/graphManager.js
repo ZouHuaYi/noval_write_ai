@@ -8,6 +8,8 @@ const { app } = require('electron')
 const { KnowledgeGraph } = require('./knowledgeGraph')
 const { analyzeChapter, incrementalUpdate } = require('./relationExtractor')
 const { createChecker } = require('./consistencyChecker')
+const settingsDAO = require('../database/settingsDAO')
+const llmService = require('../llm/llmService')
 
 class GraphManager {
   constructor() {
@@ -18,6 +20,17 @@ class GraphManager {
     if (!fs.existsSync(this.dataDir)) {
       fs.mkdirSync(this.dataDir, { recursive: true })
     }
+  }
+
+  /**
+   * 解析风格审查模型配置（用于图谱抽取/一致性校验）
+   */
+  async resolveReviewModelConfig(novelId) {
+    const settings = settingsDAO.getSetting(`pipeline:settings:${novelId}`)
+    const reviewModelConfigId = settings?.reviewModelConfigId
+    if (!reviewModelConfigId) return null
+    const configs = await llmService.getAllLLMConfigs()
+    return configs.find(cfg => cfg.id === reviewModelConfigId) || null
   }
 
   /**
@@ -126,6 +139,8 @@ class GraphManager {
    */
   async onChapterUpdate(novelId, chapter, content, previousContent = '', options = {}) {
     const graph = this.getGraph(novelId)
+    // 统一使用风格审查模型进行图谱抽取
+    const reviewConfig = await this.resolveReviewModelConfig(novelId)
 
     // 计算当前内容的哈希
     const crypto = require('crypto')
@@ -145,14 +160,14 @@ class GraphManager {
     let result
     if (previousContent && content.startsWith(previousContent)) {
       // 增量更新
-      result = await incrementalUpdate(content, previousContent, graph, chapter)
+      result = await incrementalUpdate(content, previousContent, graph, chapter, { configOverride: reviewConfig })
     } else {
       // 全量分析前,先清理该章节的旧数据
       const cleanupResult = graph.cleanupChapter(chapter)
       console.log(`[图谱] 清理第 ${chapter} 章旧数据:`, cleanupResult)
 
       // 全量分析
-      result = await analyzeChapter(content, graph, chapter)
+      result = await analyzeChapter(content, graph, chapter, { configOverride: reviewConfig })
     }
 
     // 保存更新后的图谱
@@ -179,7 +194,9 @@ class GraphManager {
   async validateContent(novelId, content, chapter) {
     const graph = this.getGraph(novelId)
     const checker = createChecker(graph)
-    return checker.validateNewContent(content, chapter)
+    // 统一使用风格审查模型进行一致性校验
+    const reviewConfig = await this.resolveReviewModelConfig(novelId)
+    return checker.validateNewContent(content, chapter, { configOverride: reviewConfig })
   }
 
   /**

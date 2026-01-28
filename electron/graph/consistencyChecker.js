@@ -412,7 +412,7 @@ class GraphConsistencyChecker {
    * @param {string} content - 新内容
    * @param {number} chapter - 章节号
    */
-  async validateNewContent(content, chapter) {
+  async validateNewContent(content, chapter, options = {}) {
     const issues = []
 
     // 使用 LLM 提取内容中的实体和关系
@@ -451,7 +451,8 @@ ${content.slice(0, 3000)}`
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.3,
-        maxTokens: 1500
+        maxTokens: 1500,
+        configOverride: options?.configOverride
       })
 
       const result = safeParseJSON(response)

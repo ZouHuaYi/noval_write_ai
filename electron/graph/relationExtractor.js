@@ -62,7 +62,7 @@ const RELATION_TYPES = {
  * @param {Object} context - 上下文信息
  * @returns {Promise<Array>}
  */
-async function extractEntities(text, context = {}) {
+async function extractEntities(text, context = {}, configOverride) {
   const systemPrompt = `你是一个专业的命名实体识别专家，负责从小说文本中提取实体。
 
 请识别以下类型的实体：
@@ -103,7 +103,8 @@ ${text.slice(0, 4000)}
       { role: 'user', content: userPrompt }
     ],
     temperature: 0.3,
-    maxTokens: 4000
+    maxTokens: 4000,
+    configOverride
   })
 
   const entities = safeParseJSON(response)
@@ -117,7 +118,7 @@ ${text.slice(0, 4000)}
  * @param {Object} context - 上下文信息
  * @returns {Promise<Array>}
  */
-async function extractRelations(text, entities = [], context = {}) {
+async function extractRelations(text, entities = [], context = {}, configOverride) {
   if (entities.length < 2) {
     return []
   }
@@ -168,7 +169,8 @@ ${context.chapter ? `【章节】第 ${context.chapter} 章` : ''}
       { role: 'user', content: userPrompt }
     ],
     temperature: 0.3,
-    maxTokens: 2000
+    maxTokens: 2000,
+    configOverride
   })
 
   const relations = safeParseJSON(response)
@@ -181,7 +183,7 @@ ${context.chapter ? `【章节】第 ${context.chapter} 章` : ''}
  * @param {Array} entities - 相关实体列表
  * @returns {Promise<Array>}
  */
-async function extractStateChanges(text, entities = []) {
+async function extractStateChanges(text, entities = [], configOverride) {
   if (entities.length === 0) {
     return []
   }
@@ -240,7 +242,8 @@ ${text.slice(0, 4000)}
       { role: 'user', content: userPrompt }
     ],
     temperature: 0.3,
-    maxTokens: 1500
+    maxTokens: 1500,
+    configOverride
   })
 
   const changes = safeParseJSON(response)
@@ -433,6 +436,8 @@ async function analyzeChapter(text, graph, chapter, options = {}) {
   }
 
   try {
+                                                                                                                                                                                                                            // 使用外部传入的模型配置（如风格审查模型）
+    const configOverride = options?.configOverride
     // 获取现有实体作为上下文
     const existingEntities = graph.getAllNodes().map(n => n.label)
     const existingCharacters = graph.getAllNodes('character')
@@ -441,11 +446,11 @@ async function analyzeChapter(text, graph, chapter, options = {}) {
     result.entities = await extractEntities(text, {
       existingEntities,
       chapter
-    })
+    }, configOverride)
 
     // 2. 提取关系
     if (result.entities.length > 0) {
-      result.relations = await extractRelations(text, result.entities, { chapter })
+      result.relations = await extractRelations(text, result.entities, { chapter }, configOverride)
     }
 
     // 3. 提取状态变化
@@ -461,7 +466,7 @@ async function analyzeChapter(text, graph, chapter, options = {}) {
     ]
 
     if (candidates.length > 0) {
-      result.stateChanges = await extractStateChanges(text, candidates)
+      result.stateChanges = await extractStateChanges(text, candidates, configOverride)
     }
 
     // 4. 更新图谱
@@ -483,7 +488,7 @@ async function analyzeChapter(text, graph, chapter, options = {}) {
 /**
  * 增量更新 - 只分析新增内容
  */
-async function incrementalUpdate(newText, previousText, graph, chapter) {
+async function incrementalUpdate(newText, previousText, graph, chapter, options = {}) {
   // 简单实现：比较新旧文本，只处理差异部分
   const newPart = newText.slice(previousText.length)
 
@@ -491,7 +496,7 @@ async function incrementalUpdate(newText, previousText, graph, chapter) {
     return null // 内容太少，跳过
   }
 
-  return analyzeChapter(newPart, graph, chapter, { updateGraph: true })
+  return analyzeChapter(newPart, graph, chapter, { updateGraph: true, configOverride: options?.configOverride })
 }
 
 module.exports = {
