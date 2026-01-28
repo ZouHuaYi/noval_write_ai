@@ -413,6 +413,7 @@ body {
 
 .el-dialog {
   border-radius: var(--app-radius-lg);
+  margin: 8vh auto;
 }
 
 .el-dialog__header {
