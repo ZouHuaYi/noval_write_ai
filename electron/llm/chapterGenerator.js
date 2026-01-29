@@ -49,6 +49,72 @@ function hashText(text) {
   return String(hash)
 }
 
+/**
+ * 构建“场景去重”约束（重点解决：同地点反复出现相似情节，读者产生复制感）
+ * 说明：这里只做“主场景禁区”提示，允许旧地点路过/点到为止，但不允许承载主要冲突。
+ * @param {Object} params
+ * @param {string} params.novelId
+ * @param {number} params.chapterNumber
+ * @param {number} params.recentWindow 最近 N 章作为参考窗口
+ * @param {number} params.maxLocations 最多列出多少个“高频地点”
+ * @returns {string}
+ */
+function buildSceneDiversityPrompt({ novelId, chapterNumber, recentWindow = 5, maxLocations = 8 }) {
+  const numericChapter = Number(chapterNumber)
+  if (!novelId || !Number.isFinite(numericChapter) || numericChapter <= 1) return ''
+
+  try {
+    const manager = getGraphManager()
+    const graph = manager.getGraph(novelId)
+    if (!graph) return ''
+
+    const start = Math.max(1, numericChapter - Number(recentWindow))
+    const recentChapters = []
+    for (let ch = start; ch <= numericChapter - 1; ch += 1) recentChapters.push(ch)
+    if (recentChapters.length === 0) return ''
+
+    const locationNodes = graph.getAllNodes('location') || []
+    if (!locationNodes.length) return ''
+
+    // 统计最近窗口内“出现过的地点”，优先挑选：出现章数多、最近出现过的地点
+    const candidates = locationNodes
+      .map(node => {
+        const mentioned = Array.isArray(node.mentionedInChapters) ? node.mentionedInChapters : []
+        const inRecentCount = recentChapters.filter(ch => mentioned.includes(ch)).length
+        // 兼容旧数据：lastMention 缺失时，用 mentionedInChapters 取最大值兜底
+        const fallbackLast = mentioned.length ? Math.max(...mentioned.map(ch => Number(ch) || 0)) : 0
+        const lastMention = Number.isFinite(Number(node.lastMention)) ? Number(node.lastMention) : fallbackLast
+        return {
+          label: (node.label || '').trim(),
+          inRecentCount,
+          lastMention
+        }
+      })
+      // 只屏蔽“最近窗口”内出现过的地点（哪怕只出现一次，也不建议连续/隔章复用为主场景）
+      .filter(item => item.label && item.lastMention >= start && item.lastMention <= numericChapter - 1)
+      .sort((a, b) => {
+        if (b.lastMention !== a.lastMention) return b.lastMention - a.lastMention
+        return b.inRecentCount - a.inRecentCount
+      })
+      .slice(0, Math.max(1, Number(maxLocations)))
+
+    if (candidates.length === 0) return ''
+
+    const labels = candidates.map((c, idx) => `${idx + 1}. ${c.label}`).join('\n')
+
+    return [
+      '【反复制硬约束（非常重要）】',
+      `- 最近${recentWindow}章高频地点（禁止作为本章“主场景/开场/高潮场景”，可以路过但不能承载主要冲突）：`,
+      labels,
+      '- 本章必须选择一个“最近窗口内未高频出现”的新主场景，让核心冲突/关键线索/交易发生在新地点。',
+      '- 如果剧情必须回到旧地点：必须发生不可逆变化，且冲突形态要变（例如偷听→公开对峙，搜索→交易，躲藏→追逐），避免“同地点不同台词”的复制感。'
+    ].join('\n')
+  } catch (error) {
+    console.error('构建场景去重约束失败:', error)
+    return ''
+  }
+}
+
 
 // 章节字数与分块配置（默认与上限）
 // 统一收敛为 1200 左右，强制控制章节总字数
@@ -569,13 +635,22 @@ async function buildGenerationContext({ novelId, chapterId }) {
     }
   }
 
+  // 场景去重约束：尽量避免“同地点重复演类似戏”，降低读者的复制感
+  const sceneDiversityPrompt = buildSceneDiversityPrompt({
+    novelId,
+    chapterNumber,
+    recentWindow: 5,
+    maxLocations: 8
+  })
+
   return {
     chapter,
     chapterNumber,
     planningContext,
     worldRules,
     lastChapterContentEnd,
-    emotionNode
+    emotionNode,
+    sceneDiversityPrompt
   }
 }
 
@@ -642,7 +717,12 @@ async function generateChapterChunks({
     console.error(`[分块生成] ❌ 构建生成上下文失败:`, error)
     throw error
   }
-  const { chapter, chapterNumber, planningContext, worldRules, lastChapterContentEnd, emotionNode } = generationContext
+  const { chapter, chapterNumber, planningContext, worldRules, lastChapterContentEnd, emotionNode, sceneDiversityPrompt } = generationContext
+
+  // 将“反复制”约束合并进 extraPrompt（避免改动 prompt 模板，且 pipeline/workbench 都能生效）
+  const finalExtraPrompt = [extraPrompt, sceneDiversityPrompt].filter(Boolean).join('\n\n')
+  // 兼容旧代码路径：后续若继续读取 extraPrompt，这里统一指向合并后的版本
+  extraPrompt = finalExtraPrompt
   console.log(`[分块生成] 章节号: ${chapterNumber}, 标题: ${chapter.title}`)
   console.log(`[分块生成] 规划上下文长度: ${planningContext?.length || 0} 字符`)
   console.log(`[分块生成] 世界规则长度: ${worldRules?.length || 0} 字符`)
@@ -697,7 +777,7 @@ async function generateChapterChunks({
       knowledgeContext,
       planningContext,
       graphContext,
-      extraPrompt,
+      extraPrompt: finalExtraPrompt,
       systemPrompt,
       worldRules,
       emotionNode,
@@ -720,7 +800,7 @@ async function generateChapterChunks({
         paragraph,
         chapterSoFar,
         graphContext,
-        extraPrompt,
+        extraPrompt: finalExtraPrompt,
         configOverride
       })
 
@@ -755,7 +835,7 @@ async function generateChapterChunks({
             paragraph,
             chapterSoFar,
             graphContext,
-            extraPrompt,
+            extraPrompt: finalExtraPrompt,
             configOverride
           })
 
@@ -796,7 +876,7 @@ async function generateChapterChunks({
       paragraph: newContent,
       chapterSoFar: '',
       graphContext: finalGraphContext,
-      extraPrompt,
+      extraPrompt: finalExtraPrompt,
       configOverride
     })
 

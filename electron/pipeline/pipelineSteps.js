@@ -177,14 +177,66 @@ function buildProgressSummary({ novelId, existingEvents = [], startChapter }) {
   ].join('\n')
 }
 
-function buildRepeatBans(existingEvents = []) {
+function buildRepeatBans(existingEvents = [], options = {}) {
+  const { novelId, recentWindow = 6, maxLocations = 8 } = options || {}
+
+  const parts = []
+
+  // 1) 事件模式去重：避免生成“同一类冲突/线索套路”的事件
   const recent = existingEvents.slice(-12)
-  if (!recent.length) return '无'
-  const labels = recent
-    .map(evt => evt.label || '')
-    .filter(Boolean)
-    .slice(0, 8)
-  return labels.length ? `避免重复以下事件模式：\n${labels.map((label, idx) => `${idx + 1}. ${label}`).join('\n')}` : '无'
+  if (recent.length) {
+    const labels = recent
+      .map(evt => evt.label || '')
+      .filter(Boolean)
+      .slice(0, 8)
+    if (labels.length) {
+      parts.push(`避免重复以下事件模式：\n${labels.map((label, idx) => `${idx + 1}. ${label}`).join('\n')}`)
+    }
+  }
+
+  // 2) 地点去重：避免“同地点重复演类似戏”，提升场景多样性
+  if (novelId) {
+    try {
+      const manager = getGraphManager()
+      const graph = manager.getGraph(novelId)
+      const locationNodes = graph?.getAllNodes?.('location') || []
+      if (locationNodes.length) {
+        const chapters = chapterDAO.getChaptersByNovel(novelId) || []
+        const maxChapter = chapters.length ? Math.max(...chapters.map(ch => Number(ch.chapterNumber) || 0)) : 0
+        const start = Math.max(1, maxChapter - Number(recentWindow) + 1)
+        const recentChapters = []
+        for (let ch = start; ch <= maxChapter; ch += 1) recentChapters.push(ch)
+
+        const candidates = locationNodes
+          .map(node => {
+            const mentioned = Array.isArray(node.mentionedInChapters) ? node.mentionedInChapters : []
+            const inRecentCount = recentChapters.filter(ch => mentioned.includes(ch)).length
+            const fallbackLast = mentioned.length ? Math.max(...mentioned.map(ch => Number(ch) || 0)) : 0
+            const lastMention = Number.isFinite(Number(node.lastMention)) ? Number(node.lastMention) : fallbackLast
+            return { label: (node.label || '').trim(), inRecentCount, lastMention }
+          })
+          // 最近窗口内出现过的地点都不建议继续作为“主场景”复用
+          .filter(item => item.label && item.lastMention >= start && item.lastMention <= maxChapter)
+          .sort((a, b) => {
+            if (b.lastMention !== a.lastMention) return b.lastMention - a.lastMention
+            return b.inRecentCount - a.inRecentCount
+          })
+          .slice(0, Math.max(1, Number(maxLocations)))
+
+        if (candidates.length) {
+          parts.push(
+            `避免把以下高频地点当作“主场景/开场/高潮场景”（可路过但不要承载主要冲突）：\n${candidates
+              .map((c, idx) => `${idx + 1}. ${c.label}`)
+              .join('\n')}`
+          )
+        }
+      }
+    } catch (error) {
+      console.warn('[buildRepeatBans] 构建地点禁区失败:', error?.message || error)
+    }
+  }
+
+  return parts.length ? parts.join('\n\n') : '无'
 }
 
 function checkEventRepeat({ existingEvents = [], newEvents = [], threshold = 0.48 }) {
@@ -225,10 +277,98 @@ function checkEventRepeat({ existingEvents = [], newEvents = [], threshold = 0.4
   }
 }
 
+/**
+ * 统计子串出现次数（用于粗略识别“主场景地点”是否复用）
+ * @param {string} text
+ * @param {string} needle
+ * @returns {number}
+ */
+function countOccurrences(text, needle) {
+  if (!text || !needle) return 0
+  let count = 0
+  let index = 0
+  while (true) {
+    index = text.indexOf(needle, index)
+    if (index === -1) break
+    count += 1
+    index += needle.length
+  }
+  return count
+}
+
+/**
+ * 检测当前章节是否“主场景地点复用”（解决：隔章/多章反复在同地点演类似戏）
+ * 说明：这是启发式检测，不追求完全准确，目的仅是触发重写提示。
+ */
+function detectLocationRepeat({ novelId, chapterNumber, content, recentChapters = [], recentWindow = 5 }) {
+  const numericChapter = Number(chapterNumber)
+  if (!novelId || !content || !Number.isFinite(numericChapter) || numericChapter <= 1) {
+    return { locationRepeat: false, dominantLocation: '', repeatedIn: [], retryHint: '' }
+  }
+
+  try {
+    const manager = getGraphManager()
+    const graph = manager.getGraph(novelId)
+    const locationNodes = graph?.getAllNodes?.('location') || []
+    if (!locationNodes.length) return { locationRepeat: false, dominantLocation: '', repeatedIn: [], retryHint: '' }
+
+    const start = Math.max(1, numericChapter - Number(recentWindow))
+
+    // 仅从“最近窗口出现过的地点”里选候选，避免全量扫描带来开销
+    const recentCandidates = locationNodes
+      .map(node => {
+        const mentioned = Array.isArray(node.mentionedInChapters) ? node.mentionedInChapters : []
+        const fallbackLast = mentioned.length ? Math.max(...mentioned.map(ch => Number(ch) || 0)) : 0
+        const lastMention = Number.isFinite(Number(node.lastMention)) ? Number(node.lastMention) : fallbackLast
+        return { label: (node.label || '').trim(), lastMention }
+      })
+      .filter(item => item.label && item.lastMention >= start && item.lastMention <= numericChapter - 1)
+      .sort((a, b) => b.lastMention - a.lastMention)
+      .slice(0, 30)
+      .map(item => item.label)
+
+    if (!recentCandidates.length) return { locationRepeat: false, dominantLocation: '', repeatedIn: [], retryHint: '' }
+
+    let dominantLocation = ''
+    let dominantCount = 0
+    recentCandidates.forEach(label => {
+      const count = countOccurrences(content, label)
+      if (count > dominantCount) {
+        dominantLocation = label
+        dominantCount = count
+      }
+    })
+
+    // 主场景判定：同一地点至少出现 3 次（避免把“一笔带过”误判为主场景）
+    if (!dominantLocation || dominantCount < 3) {
+      return { locationRepeat: false, dominantLocation: '', repeatedIn: [], retryHint: '' }
+    }
+
+    const repeatedIn = []
+    recentChapters.forEach(ch => {
+      const count = countOccurrences(ch.content || '', dominantLocation)
+      if (count >= 3) repeatedIn.push(ch.chapterNumber)
+    })
+
+    if (!repeatedIn.length) {
+      return { locationRepeat: false, dominantLocation: '', repeatedIn: [], retryHint: '' }
+    }
+
+    return {
+      locationRepeat: true,
+      dominantLocation,
+      repeatedIn,
+      retryHint: `【场景重复警告】本章疑似把“${dominantLocation}”当作主场景复用（最近章节也多次以此为主场景）。请更换新的主场景；若必须出现旧地点，只能路过并让主要冲突发生在新地点。`
+    }
+  } catch (error) {
+    return { locationRepeat: false, dominantLocation: '', repeatedIn: [], retryHint: '' }
+  }
+}
+
 // 正文推进度检查（对比最近章节相似度与新信息比例）
 function checkChapterProgress({ novelId, chapterNumber, content, recentCount = 5 }) {
   if (!content) {
-    return { shouldRetry: false, maxSimilarity: 0, novelty: 1, compared: [] }
+    return { shouldRetry: false, maxSimilarity: 0, novelty: 1, compared: [], locationRepeat: false, retryHint: '' }
   }
 
   const chapters = chapterDAO.getChaptersByNovel(novelId) || []
@@ -238,7 +378,7 @@ function checkChapterProgress({ novelId, chapterNumber, content, recentCount = 5
 
   const recent = history.slice(-recentCount)
   if (!recent.length) {
-    return { shouldRetry: false, maxSimilarity: 0, novelty: 1, compared: [] }
+    return { shouldRetry: false, maxSimilarity: 0, novelty: 1, compared: [], locationRepeat: false, retryHint: '' }
   }
 
   const currentGrams = buildNgrams(content, 2)
@@ -257,13 +397,25 @@ function checkChapterProgress({ novelId, chapterNumber, content, recentCount = 5
   const intersectionSize = calcIntersectionSize(currentGrams, historyUnion)
   const novelty = currentGrams.size > 0 ? 1 - (intersectionSize / currentGrams.size) : 1
 
-  const shouldRetry = maxSimilarity >= 0.38 || novelty < 0.35
+  const locationCheck = detectLocationRepeat({
+    novelId,
+    chapterNumber,
+    content,
+    recentChapters: recent,
+    recentWindow: recentCount
+  })
+
+  const shouldRetry = maxSimilarity >= 0.38 || novelty < 0.35 || locationCheck.locationRepeat
 
   return {
     shouldRetry,
     maxSimilarity: Number(maxSimilarity.toFixed(2)),
     novelty: Number(novelty.toFixed(2)),
-    compared
+    compared,
+    locationRepeat: locationCheck.locationRepeat,
+    dominantLocation: locationCheck.dominantLocation,
+    repeatedLocationChapters: locationCheck.repeatedIn,
+    retryHint: locationCheck.retryHint
   }
 }
 
@@ -418,7 +570,7 @@ async function generateEventBatch({
     existingEvents,
     startChapter
   })
-  const repeatBans = buildRepeatBans(existingEvents)
+  const repeatBans = buildRepeatBans(existingEvents, { novelId })
 
   let result = await outlineAgent.generateEventGraph({
     novelTitle: novel?.title || '未命名',
@@ -642,9 +794,12 @@ async function generateChapterBatch({ novelId, chapterNumbers, systemPrompt, con
           existingEvents: planningDAO.listPlanningEvents(novelId),
           startChapter: numChapterNumber
         })
+        const retryHint = attempt > 0 && progressCheck?.retryHint
+          ? `\n\n${progressCheck.retryHint}`
+          : ''
         const extraPrompt = attempt === 0
           ? ''
-          : `【推进度拦截：请强制推进】\n${progressSummary}\n\n必须引入不可逆变化（身份暴露/关系决裂/关键证据获取或损失/关键地点或资源发生变化），并避免复用最近章节的冲突与场景套路。`
+          : `【推进度拦截：请强制推进】\n${progressSummary}\n\n必须引入不可逆变化（身份暴露/关系决裂/关键证据获取或损失/关键地点或资源发生变化），并避免复用最近章节的冲突与场景套路。${retryHint}`
 
         generationResult = await chapterGenerator.generateChapterChunks({
           novelId,
