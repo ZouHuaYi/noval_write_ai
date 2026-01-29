@@ -65,12 +65,12 @@ function registerPipelineHandlers(ipcMain) {
     }
   })
 
-  // ??????????????
+  // 按状态查询流水线
   ipcMain.handle('pipeline:listByStatus', async (_, status) => {
     try {
       return pipelineService.listPipelinesByStatus(status)
     } catch (error) {
-      console.error('???????????:', error)
+      console.error('按状态获取流水线失败:', error)
       throw error
     }
   })

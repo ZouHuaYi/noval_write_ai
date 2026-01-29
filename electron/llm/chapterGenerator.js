@@ -314,14 +314,14 @@ async function updateGraph(novelId, chapterNumber, content, previousContent = ''
     const manager = getGraphManager()
     // 传递章节号和 previousContent，让 graphManager 判断是否增量更新
     await manager.onChapterUpdate(novelId, chapterNumber, content, previousContent, { modelSource: options?.modelSource })
-    console.log(`[分块生成] 段落已更新到图谱 (第 ${chapterNumber} 章)`)
+    console.log(`[分块生成] 段落已更新到图谱 (第${chapterNumber}章)` )
   } catch (error) {
-    console.error('??????:', error)
-    // ??????????????????????
+    console.error('更新图谱失败:', error)
+    // 流水线模式下直接抛出，避免吞错
     if (options?.modelSource === 'pipeline') {
       throw error
     }
-    // ???/??????????
+    // 非流水线模式下允许继续
   }
 }
 

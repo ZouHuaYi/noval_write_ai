@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="h-full flex flex-col app-shell">
     <Breadcrumb :novel-title="getNovelTitle(selectedNovelId)" />
 
@@ -181,6 +181,35 @@
           </el-form>
         </el-card>
 
+        <!-- Emotion Arc Preview -->
+        <el-card shadow="never" class="flex-none">
+          <template #header>
+            <div class="flex items-center justify-between">
+              <span class="font-bold">全书情绪曲线</span>
+              <div class="flex items-center gap-2">
+                <el-button size="small" type="primary" plain :disabled="!selectedNovelId" @click="saveEmotionArc">
+                  保存情绪曲线
+                </el-button>
+                <el-tag size="small" type="info" effect="plain">来自规划工作台</el-tag>
+              </div>
+            </div>
+          </template>
+          <div class="text-xs text-[var(--el-text-color-secondary)] mb-2">
+            说明：这里可直接调整情绪强度与缓冲章，保存后会写入规划元数据。
+          </div>
+          <div v-if="emotionArc.length === 0" class="text-sm text-[var(--app-text-muted)]">
+            暂无情绪曲线，请先在规划工作台生成并保存。
+          </div>
+          <div v-else class="space-y-3 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+            <div v-for="node in emotionArc" :key="node.chapter" class="flex items-center gap-3">
+              <div class="w-16 text-sm text-[var(--el-text-color-secondary)]">第 {{ node.chapter }} 章</div>
+              <el-slider v-model="node.level" :min="0" :max="100" :step="5" class="flex-1" @change="updateEmotionLabel(node)" />
+              <el-tag size="small" type="info">{{ node.label }}</el-tag>
+              <el-checkbox v-model="node.isBreath">缓冲</el-checkbox>
+            </div>
+          </div>
+        </el-card>
+
       </div>
 
       <!-- Right Column: Status & History -->
@@ -268,6 +297,8 @@ const currentRun = ref(null)
 const steps = ref([])
 const runs = ref([])
 const graphEvents = ref([])
+const emotionArc = ref([])
+const isEmotionLoading = ref(false)
 const activeGraphTab = ref('event')
 const llmConfigs = ref([])
 
@@ -277,10 +308,11 @@ const isDraftLoading = ref(false)
 let draftSaveTimer = null
 let settingsSaveTimer = null
 let modelSyncTimer = null
+let emotionSaveTimer = null
 
 let refreshTimer = null
 
-// steps 按照时间逆序排序
+// steps 鎸夌収鏃堕棿閫嗗簭鎺掑簭
 const sortedSteps = computed(() => {
   return [...steps.value].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 })
@@ -401,7 +433,7 @@ function scheduleModelSync() {
     try {
       const payload = normalizeSettings(settings)
       await updatePipelineSettings({ runId: currentRun.value.id, settings: payload })
-    } catch (error) {
+  } catch (error) {
       console.error('同步运行中模型配置失败:', error)
     }
   }, 200)
@@ -434,7 +466,6 @@ async function loadLLMConfigs() {
   }
 }
 
-// 保存流水线输入草稿（离开页面仍可恢复）
 async function saveDraft(novelId) {
   if (!novelId) return
   const payload = {
@@ -450,7 +481,7 @@ async function saveDraft(novelId) {
       rules: inputRules.value
     })
   } catch (error) {
-    console.error('保存流水线草稿失败:', error)
+    console.error('淇濆瓨娴佹按绾胯崏绋垮け璐?', error)
   }
 }
 
@@ -510,8 +541,7 @@ function applyPipelineStatus(run, stepList) {
   const totalBatches = computeTotalBatches(stepList, run.currentStage)
   currentRun.value = {
     ...run,
-    stage: stageLabelMap[run.currentStage] || run.currentStage || '准备就绪',
-    currentBatch: run.currentBatch ?? 0,
+    stage: stageLabelMap[run.currentStage] || run.currentStage || '未知',
     progress,
     totalBatches
   }
@@ -541,11 +571,49 @@ async function loadGraphData(novelId) {
     const data = await window.electronAPI.planning.loadData(novelId)
     graphEvents.value = data?.events || []
   } catch (error) {
-    console.error('加载图谱数据失败:', error)
+    console.error('鍔犺浇鍥捐氨鏁版嵁澶辫触:', error)
     graphEvents.value = []
   }
 }
 
+function normalizeEmotionLabel(level) {
+  if (level >= 85) return '高潮'
+  if (level >= 70) return '高压'
+  if (level >= 55) return '紧张'
+  if (level >= 40) return '平稳'
+  return '缓冲'
+}
+
+function updateEmotionLabel(node) {
+  if (!node) return
+  node.label = normalizeEmotionLabel(Number(node.level) || 0)
+}
+
+// 加载规划中的情绪曲线，用于流水线页面展示
+async function loadEmotionArc(novelId) {
+  if (!novelId) return
+  isEmotionLoading.value = true
+  try {
+    const meta = await window.electronAPI.planning.getMeta(novelId)
+    const arc = Array.isArray(meta?.emotionArc) ? meta.emotionArc : []
+    emotionArc.value = arc.map((node, index) => {
+      const level = Number(node?.level)
+      const normalizedLevel = Number.isFinite(level) ? level : 0
+      const chapter = Number(node?.chapter)
+      return {
+        chapter: Number.isFinite(chapter) && chapter > 0 ? chapter : index + 1,
+        level: normalizedLevel,
+        label: typeof node?.label === 'string' && node.label ? node.label : normalizeEmotionLabel(normalizedLevel),
+        isBreath: Boolean(node?.isBreath)
+      }
+    })
+  } catch (error) {
+    console.error('加载情绪曲线失败:', error)
+    emotionArc.value = []
+  } finally {
+    isEmotionLoading.value = false
+  }
+}
 function getNovelTitle(novelId) {
   const novel = novelOptions.value.find(item => item.id === novelId)
   return novel?.title || '未命名'
@@ -565,6 +633,50 @@ async function refreshStatus(runId) {
   } catch (error) {
     console.error('刷新流水线状态失败:', error)
   }
+}
+
+// 保存情绪曲线到规划元数据
+async function saveEmotionArc(silent = false) {
+  if (!selectedNovelId.value) {
+    ElMessage.warning('请先选择一本小说')
+    return
+  }
+  try {
+    const payload = emotionArc.value.map((node, index) => {
+      const level = Number(node?.level)
+      const normalizedLevel = Number.isFinite(level) ? level : 0
+      const chapter = Number(node?.chapter)
+      const normalizedNode = {
+        chapter: Number.isFinite(chapter) && chapter > 0 ? chapter : index + 1,
+        level: normalizedLevel,
+        label: typeof node?.label === 'string' && node.label ? node.label : normalizeEmotionLabel(normalizedLevel),
+        isBreath: Boolean(node?.isBreath)
+      }
+      updateEmotionLabel(normalizedNode)
+      return normalizedNode
+    })
+    await window.electronAPI.planning.updateMeta(selectedNovelId.value, {
+      emotionArc: payload
+    })
+    emotionArc.value = payload
+    if (!silent) {
+      ElMessage.success('情绪曲线已保存')
+    }
+  } catch (error) {
+    console.error('保存情绪曲线失败:', error)
+    if (!silent) {
+      ElMessage.error('保存情绪曲线失败')
+    }
+  }
+}
+
+// 情绪曲线变更后自动保存，避免忘记点击保存
+function scheduleEmotionSave() {
+  if (!selectedNovelId.value || isEmotionLoading.value) return
+  if (emotionSaveTimer) window.clearTimeout(emotionSaveTimer)
+  emotionSaveTimer = window.setTimeout(() => {
+    saveEmotionArc(true)
+  }, 1200)
 }
 
 function ensureAutoRefresh() {
@@ -739,6 +851,7 @@ watch(selectedNovelId, async (novelId) => {
   await loadWorldview(novelId)
   await loadRuns(novelId)
   await loadGraphData(novelId)
+  await loadEmotionArc(novelId)
   await loadDraft(novelId)
   await loadPipelineSettings(novelId)
 })
@@ -749,6 +862,10 @@ watch([inputWorldview, inputRules, inputOutline], () => {
 
 watch(settings, () => {
   scheduleSettingsSave()
+}, { deep: true })
+
+watch(emotionArc, () => {
+  scheduleEmotionSave()
 }, { deep: true })
 
 watch(
@@ -764,6 +881,7 @@ onMounted(async () => {
   if (selectedNovelId.value) {
     await loadRuns(selectedNovelId.value)
     await loadGraphData(selectedNovelId.value)
+    await loadEmotionArc(selectedNovelId.value)
   }
 })
 
@@ -772,6 +890,7 @@ onBeforeUnmount(() => {
   if (draftSaveTimer) window.clearTimeout(draftSaveTimer)
   if (settingsSaveTimer) window.clearTimeout(settingsSaveTimer)
   if (modelSyncTimer) window.clearTimeout(modelSyncTimer)
+  if (emotionSaveTimer) window.clearTimeout(emotionSaveTimer)
 })
 </script>
 

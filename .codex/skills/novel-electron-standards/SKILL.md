@@ -5,14 +5,15 @@ description: 小说管理桌面应用项目通用开发规范、调试方式与�
 
 # 通用开发规范与调试
 
-## 必遵约束
+## 必须遵守
 
 - 代码功能完成必须加注释，使用中文简体。
 - 一段代码功能完成先做局部校验，再进入下一段。
 - 前端仅用 `<script setup>`，不使用 Class 组件。
-- 布局问题优先检查父容器 `flex`、`h-full`、`overflow`，避免滥用 `position: absolute`。
+- 布局问题优先检查父容器 `flex`、`h-full`、`overflow`，避免整体布局使用 `position: absolute`。
 - 滚动条复用 `.custom-scrollbar`。
 - IPC Handler 必须 `async`，内部 `try/catch` 并记录日志，错误抛回前端处理。
+- 文字与提示必须为可读中文，禁止提交乱码；文件需 UTF-8 编码。
 
 ## 入口与路径
 
@@ -29,20 +30,20 @@ description: 小说管理桌面应用项目通用开发规范、调试方式与�
 
 ## 常用命令
 
-- `npm run dev`：启动开发环境（Vite + Electron）。
-- `npm run rebuild`：重编原生依赖，解决 `better-sqlite3` 不匹配。
-- `npm run build`：打包生产版本，输出到 `release`。
+- `npm run dev`：启动开发环境（Vite + Electron）
+- `npm run rebuild`：重编原生依赖，解决 `better-sqlite3` 版本不匹配
+- `npm run build`：打包生产版本，输出到 `release`
 
 ## 调试定位
 
-- 前端：Electron DevTools（自动打开或 `Ctrl+Shift+I`）。
-- 后端：启动 Electron 的终端输出。
-- 数据库：`AppData/Roaming/novel-electron/novels.db` 或开发时 `userData`。
+- 前端：Electron DevTools（自动打开或 `Ctrl+Shift+I`）
+- 后端：Electron 终端输出
+- 数据库：`AppData/Roaming/novel-electron/novels.db` 或开发时 `userData`
 
 ## 检索建议
 
 - 优先使用 `rg` 搜索关键字/文件。
-- 需要具体领域细节时，读取对应技能：
+- 需要具体领域细节时读取对应技能：
 - `novel-electron-app-startup`
 - `novel-electron-ipc-bridge`
 - `novel-electron-database-dao`

@@ -447,7 +447,7 @@ function listPipelinesByNovel(novelId) {
   return pipelineDAO.listPipelineRuns(novelId)
 }
 
-// ??????????
+// 按状态查询流水线
 function listPipelinesByStatus(status) {
   return pipelineDAO.listPipelineRunsByStatus(status)
 }
@@ -457,23 +457,23 @@ async function clearPipelineData(novelId) {
   if (!novelId) {
     throw new Error('清空流水线数据需要 novelId')
   }
-  
-  console.log(`[流水线] 开始清空小说数据: ${novelId}`)
-  
+
+  console.log(`[流水线] 开始清空小说数据 ${novelId}`)
+
   // 1. 删除流水线运行记录和步骤
   const runs = pipelineDAO.listPipelineRuns(novelId)
   console.log(`[流水线] 找到 ${runs.length} 条流水线运行记录`)
   for (const run of runs) {
     if (run.status === RUN_STATUS.RUNNING) {
-      console.warn(`[流水线] 检测到运行中任务，先暂停: runId=${run.id}`)
+      console.warn(`[流水线] 检测到运行中任务，先暂停 runId=${run.id}`)
       await stopRunningPipeline(run.id)
     }
     pipelineDAO.deletePipelineRun(run.id)
   }
   // 说明：不再清空规划数据（事件/章节/元数据），避免历史生成内容丢失
-  
+
   console.log(`[流水线] 数据清空完成`)
-  
+
   return { success: true }
 }
 
