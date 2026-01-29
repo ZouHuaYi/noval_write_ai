@@ -27,6 +27,8 @@ function buildPlanningSummary({ novelId, chapterNumber }) {
     const chapterBeats = Array.isArray(planningMeta?.chapterBeats) ? planningMeta.chapterBeats : []
     const chapterBeat = chapterBeats.find(beat => Number(beat.chapter) === Number(chapterNumber))
     console.log(`[buildPlanningSummary] 章级骨架读取: ${chapterBeats.length} 条, 命中=${Boolean(chapterBeat)}, novelId=${novelId}, chapter=${chapterNumber}`)
+    const emotionArc = Array.isArray(planningMeta?.emotionArc) ? planningMeta.emotionArc : []
+    const emotionNode = emotionArc.find(item => Number(item.chapter) === Number(chapterNumber))
 
     // 读取全量事件数据，后续用于章节映射
     const events = planningDAO.listPlanningEvents(novelId)
@@ -88,6 +90,12 @@ function buildPlanningSummary({ novelId, chapterNumber }) {
     }
     if (chapterPlan.summary) {
       summary += `本章落点：${normalizeText(chapterPlan.summary)}\n`
+    }
+    if (emotionNode) {
+      summary += `情绪强度：${emotionNode.level ?? 50}（${normalizeText(emotionNode.label || '平稳')}）\n`
+      if (emotionNode.isBreath) {
+        summary += `缓冲章要求：允许节奏放缓，强化关系与细节，避免持续高压\n`
+      }
     }
     if (Array.isArray(chapterPlan.focus) && chapterPlan.focus.length) {
       summary += `本章偏重：${chapterPlan.focus.join('、')}\n`

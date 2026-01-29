@@ -363,7 +363,12 @@ function registerPlanningHandlers(ipcMain) {
         wordsPerChapter: normalizedWordsPerChapter,
         pacing: options.pacing || 'medium',
         startChapter: effectiveStart,
-        endChapter: effectiveEnd
+        endChapter: effectiveEnd,
+        emotionArc: Array.isArray(options.emotionArc)
+          ? options.emotionArc
+          : (Array.isArray(planningDAO.getPlanningMeta(options.novelId)?.emotionArc)
+            ? planningDAO.getPlanningMeta(options.novelId).emotionArc
+            : null)
       })
 
       console.log('[planning:generatePlan] 生成结果:', {

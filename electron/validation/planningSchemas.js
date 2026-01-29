@@ -53,6 +53,7 @@ const PlanningMetaSchema = z.object({
   targetChapters: z.number().nullable().optional(),
   wordsPerChapter: z.number().nullable().optional(),
   chapterBeats: z.array(z.any()).optional(),
+  emotionArc: z.array(z.any()).optional(),
   lockWritingTarget: z.boolean().optional()
 }).passthrough()
 

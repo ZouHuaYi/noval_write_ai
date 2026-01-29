@@ -83,7 +83,11 @@ async function generateChapterBeats({
   }
 
   if (!parsed || !Array.isArray(parsed.chapterBeats)) {
-    throw new Error('无法解析 ChapterBeats JSON')
+    const repaired = await repairChapterBeatsJSON(response, configOverride)
+    if (!repaired || !Array.isArray(repaired.chapterBeats)) {
+      throw new Error('无法解析 ChapterBeats JSON')
+    }
+    parsed = repaired
   }
 
   // 修正章范围（兜底补齐）
@@ -116,6 +120,8 @@ async function generateEventGraphFromBeats({
   knowledgeContext,
   progressSummary,
   repeatBans,
+  emotionArcSummary,
+  breathChapters,
   chapterBeats = [],
   existingEvents = [],
   startChapter = 1,
@@ -165,6 +171,8 @@ async function generateEventGraphFromBeats({
     synopsis: synopsis || '无',
     existingOutline: existingOutline || '无',
     knowledgeContext: knowledgeContext || '无',
+    emotionArcSummary: emotionArcSummary || '无',
+    breathChapters: breathChapters || '无',
     progressSummary: progressSummary || '无',
     repeatBans: repeatBans || '无',
     existingEventsContext: existingEventsContext || '',
@@ -218,6 +226,8 @@ async function generateEventGraph({
   knowledgeContext,
   progressSummary,
   repeatBans,
+  emotionArcSummary,
+  breathChapters,
   configOverride,
   targetChapters = 10,
   startChapter = 1,
@@ -257,6 +267,8 @@ async function generateEventGraph({
       knowledgeContext,
       progressSummary,
       repeatBans,
+      emotionArcSummary,
+      breathChapters,
       chapterBeats,
       existingEvents,
       startChapter,
@@ -276,6 +288,8 @@ async function generateEventGraph({
         knowledgeContext: `${knowledgeContext || ''}\n【额外约束】避免推进词复读，避免任务链事件，线索必须付代价。`,
         progressSummary,
         repeatBans,
+        emotionArcSummary,
+        breathChapters,
         chapterBeats,
         existingEvents,
         startChapter,
@@ -405,6 +419,40 @@ module.exports = {
   generateChapterBeats,
   generateEventGraphFromBeats,
   EVENT_TYPES
+}
+
+// 修复章级骨架 JSON 输出
+async function repairChapterBeatsJSON(rawText, configOverride) {
+  if (!rawText) return null
+  const { systemPrompt } = promptService.resolvePrompt('outline.repairJson.system')
+  const userPrompt = promptService.renderPrompt('outline.repairJson.user', '', {
+    rawText
+  })
+  try {
+    const response = await llmService.callChatModel({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.2,
+      maxTokens: 2000,
+      configOverride
+    })
+    const parsed = safeParseJSON(response)
+    if (parsed && Array.isArray(parsed.chapterBeats)) return parsed
+    const jsonMatch = response.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0])
+      } catch (error) {
+        return null
+      }
+    }
+    return null
+  } catch (error) {
+    console.error('ChapterBeats JSON 修复失败:', error)
+    return null
+  }
 }
 
 // 修复事件图谱 JSON 输出

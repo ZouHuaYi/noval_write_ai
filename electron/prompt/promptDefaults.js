@@ -279,6 +279,12 @@ dependencies 必须是真正的因果依赖，而不是时间顺序。
 【知识图谱要点】
 {{knowledgeContext}}
 
+【全书情绪曲线】
+{{emotionArcSummary}}
+
+【缓冲章节提醒】
+{{breathChapters}}
+
 【已写进度摘要】
 {{progressSummary}}
 
@@ -323,6 +329,7 @@ dependencies 必须是真正的因果依赖，而不是时间顺序。
 6) 至少 1 个事件为“错误线索/误导导致走弯路”
 7) dependencies 只写因果依赖，不要写“上一章”
 8) chapter 必须严格落在 ChapterBeats 给出的范围内
+9) 缓冲章必须减少强冲突事件，优先 character/transition 类型；避免硬推进与连续危机
 
 只输出 JSON。`
   },
@@ -376,6 +383,12 @@ dependencies 必须是真正的因果依赖，而不是时间顺序。
     userPrompt: `第 {{chapterNumber}} 章包含以下事件：
 {{eventDescriptions}}
 
+【本章情绪强度】
+{{emotionLabel}}（强度 {{emotionLevel}}）
+
+【缓冲章】
+{{isBreathChapter}}
+
 请给出 2-3 条写作建议，返回 JSON 数组格式。`
   },
   {
@@ -411,6 +424,12 @@ dependencies 必须是真正的因果依赖，而不是时间顺序。
 
 【世界观与规则】
 {{worldRules}}
+
+【情绪强度】
+{{emotionLabel}}（强度 {{emotionLevel}}）
+
+【缓冲章要求】
+{{breathRequirement}}
 
 【作者补充要求】
 {{extraPrompt}}

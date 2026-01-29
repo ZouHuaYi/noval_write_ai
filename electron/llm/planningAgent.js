@@ -57,6 +57,7 @@ async function generateChapterPlan({
   startChapter = 1,
   endChapter = null,
   mode = 'default',
+  emotionArc,
   configOverride
 }) {
   // 统一规范化目标字数，避免超过上限
@@ -87,6 +88,13 @@ async function generateChapterPlan({
       ? `主要事件：${eventLabels.join('、')}${eventsInChapter.length > 3 ? '...' : ''}`
       : ''
 
+    const emotionInfo = Array.isArray(emotionArc)
+      ? emotionArc.find(item => Number(item.chapter) === Number(i))
+      : null
+    const emotionLabel = emotionInfo?.label || '平稳'
+    const emotionLevel = Number.isFinite(Number(emotionInfo?.level)) ? Number(emotionInfo.level) : 50
+    const isBreathChapter = Boolean(emotionInfo?.isBreath)
+
     chapters.push({
       id: `ch_plan_${Date.now()}_${i}`,
       chapterNumber: i,
@@ -96,10 +104,13 @@ async function generateChapterPlan({
       targetWords: normalizedWordsPerChapter,
       status: eventsInChapter.length > 0 ? TASK_STATUS.PENDING : TASK_STATUS.BLOCKED,
       priority: determinePriority(i, totalChapters, eventsInChapter),
-      focus: determineFocus(eventsInChapter),
+      focus: determineFocus(eventsInChapter).concat([`情绪:${emotionLabel}`, `强度:${emotionLevel}`]).slice(0, 4),
       writingHints: [],
       lockWritingTarget: false,
-      progress: 0
+      progress: 0,
+      emotionLevel,
+      emotionLabel,
+      isBreathChapter
     })
   }
 
@@ -122,7 +133,10 @@ async function generateChapterPlan({
     try {
         const userPrompt = promptService.renderPrompt('planning.writingHints.user', '', {
           chapterNumber: chapter.chapterNumber,
-          eventDescriptions
+          eventDescriptions,
+          emotionLabel: chapter.emotionLabel || '平稳',
+          emotionLevel: chapter.emotionLevel || 50,
+          isBreathChapter: chapter.isBreathChapter ? '是' : '否'
         })
         const response = await llmService.callChatModel({
           messages: [

@@ -250,17 +250,19 @@ function upsertPlanningMeta(novelId, meta = {}) {
   const existing = db.prepare('SELECT novelId FROM planning_meta WHERE novelId = ?').get(novelId)
   const lockWritingTarget = meta.lockWritingTarget ? 1 : 0
   const chapterBeats = serialize(meta.chapterBeats)
+  const emotionArc = serialize(meta.emotionArc)
 
   if (existing) {
     db.prepare(`
       UPDATE planning_meta
-      SET synopsis = ?, targetChapters = ?, wordsPerChapter = ?, chapterBeats = ?, lockWritingTarget = ?, updatedAt = ?
+      SET synopsis = ?, targetChapters = ?, wordsPerChapter = ?, chapterBeats = ?, emotionArc = ?, lockWritingTarget = ?, updatedAt = ?
       WHERE novelId = ?
     `).run(
       meta.synopsis || null,
       meta.targetChapters || null,
       meta.wordsPerChapter || null,
       chapterBeats,
+      emotionArc,
       lockWritingTarget,
       now,
       novelId
@@ -269,14 +271,15 @@ function upsertPlanningMeta(novelId, meta = {}) {
   }
 
   db.prepare(`
-    INSERT INTO planning_meta (novelId, synopsis, targetChapters, wordsPerChapter, chapterBeats, lockWritingTarget, updatedAt)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO planning_meta (novelId, synopsis, targetChapters, wordsPerChapter, chapterBeats, emotionArc, lockWritingTarget, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     novelId,
     meta.synopsis || null,
     meta.targetChapters || null,
     meta.wordsPerChapter || null,
     chapterBeats,
+    emotionArc,
     lockWritingTarget,
     now
   )
@@ -289,6 +292,7 @@ function normalizeMeta(row) {
   return {
     ...row,
     chapterBeats: parseJson(row.chapterBeats, []),
+    emotionArc: parseJson(row.emotionArc, null),
     lockWritingTarget: Boolean(row.lockWritingTarget)
   }
 }

@@ -304,6 +304,57 @@ async function runWithConcurrency(items = [], limit = 2, handler) {
   return Promise.all(results)
 }
 
+function normalizeEmotionLabel(level) {
+  const value = Number(level)
+  if (value >= 85) return '高潮'
+  if (value >= 70) return '高压'
+  if (value >= 55) return '紧张'
+  if (value >= 40) return '平稳'
+  return '缓冲'
+}
+
+function buildEmotionArc(targetChapters = 10) {
+  const total = Math.max(1, Number(targetChapters) || 10)
+  const curve = []
+  const peak1 = Math.max(2, Math.round(total * 0.33))
+  const peak2 = Math.max(peak1 + 2, Math.round(total * 0.66))
+
+  for (let chapter = 1; chapter <= total; chapter += 1) {
+    let level = 50
+    if (chapter <= peak1) {
+      level = 30 + Math.round((chapter / peak1) * 40) // 30-70
+    } else if (chapter <= peak2) {
+      const ratio = (chapter - peak1) / Math.max(1, peak2 - peak1)
+      level = 45 + Math.round(ratio * 45) // 45-90
+    } else {
+      const ratio = (chapter - peak2) / Math.max(1, total - peak2)
+      level = 80 - Math.round(ratio * 30) // 80-50
+    }
+
+    const isBreath = level <= 40 || chapter % 3 === 0
+    curve.push({
+      chapter,
+      level,
+      label: normalizeEmotionLabel(level),
+      isBreath
+    })
+  }
+
+  return curve
+}
+
+function buildEmotionSummary(emotionArc = []) {
+  if (!Array.isArray(emotionArc) || emotionArc.length === 0) return '无'
+  const items = emotionArc.map(item => `第${item.chapter}章:${item.level}(${item.label}${item.isBreath ? ',缓冲' : ''})`)
+  return items.join('；')
+}
+
+function buildBreathChapters(emotionArc = []) {
+  if (!Array.isArray(emotionArc) || emotionArc.length === 0) return '无'
+  const chapters = emotionArc.filter(item => item.isBreath).map(item => item.chapter)
+  return chapters.length ? `缓冲章：${chapters.join('、')}` : '无'
+}
+
 // 分析评估输入
 async function analyzeInput({ novelId, inputWorldview, inputRules, inputOutline, settings, configOverride }) {
   const novel = novelDAO.getNovelById(novelId)
@@ -340,6 +391,20 @@ async function generateEventBatch({
 }) {
   const novel = novelDAO.getNovelById(novelId)
   const existingEvents = planningDAO.listPlanningEvents(novelId)
+  const currentMeta = planningDAO.getPlanningMeta(novelId) || {}
+  const emotionArc = Array.isArray(currentMeta.emotionArc)
+    ? currentMeta.emotionArc
+    : buildEmotionArc(targetChapters)
+
+  if (!Array.isArray(currentMeta.emotionArc) || currentMeta.emotionArc.length === 0) {
+    planningDAO.upsertPlanningMeta(novelId, {
+      ...currentMeta,
+      emotionArc
+    })
+  }
+
+  const emotionArcSummary = buildEmotionSummary(emotionArc)
+  const breathChapters = buildBreathChapters(emotionArc)
   // 构建知识图谱摘要，用于事件生成上下文
   const knowledgeContext = buildKnowledgeSummary({
     novelId,
@@ -363,6 +428,8 @@ async function generateEventBatch({
     knowledgeContext,
     progressSummary,
     repeatBans,
+    emotionArcSummary,
+    breathChapters,
     configOverride,
     targetChapters: targetChapters,
     startChapter,
@@ -391,6 +458,8 @@ async function generateEventBatch({
       knowledgeContext: `${knowledgeContext}\n【额外约束】必须引入新的冲突/代价/线索类型，禁止重复前序套路。`,
       progressSummary,
       repeatBans: retryRepeatBans,
+      emotionArcSummary,
+      breathChapters,
       configOverride,
       targetChapters: targetChapters,
       startChapter,
@@ -434,6 +503,17 @@ async function generatePlan({ novelId, settings, startChapter, endChapter, confi
     return Number.isFinite(chapter) && chapter >= rangeStart && chapter <= rangeEnd
   })
 
+  const currentMeta = planningDAO.getPlanningMeta(novelId) || {}
+  const emotionArc = Array.isArray(currentMeta.emotionArc)
+    ? currentMeta.emotionArc
+    : buildEmotionArc(targetChapters)
+  if (!Array.isArray(currentMeta.emotionArc) || currentMeta.emotionArc.length === 0) {
+    planningDAO.upsertPlanningMeta(novelId, {
+      ...currentMeta,
+      emotionArc
+    })
+  }
+
   const result = await planningAgent.generateChapterPlan({
     events: rangeEvents,
     targetChapters,
@@ -442,6 +522,7 @@ async function generatePlan({ novelId, settings, startChapter, endChapter, confi
     startChapter: rangeStart,
     endChapter: rangeEnd,
     mode: 'pipeline',
+    emotionArc,
     configOverride
   })
 
@@ -451,7 +532,8 @@ async function generatePlan({ novelId, settings, startChapter, endChapter, confi
     synopsis: settings?.synopsis || null,
     targetChapters,
     wordsPerChapter,
-    lockWritingTarget: false
+    lockWritingTarget: false,
+    emotionArc
   })
 
   return {
@@ -617,9 +699,10 @@ async function generateChapterBatch({ novelId, chapterNumbers, systemPrompt, con
     logVerbose(`[章节批次] 第 ${chapterNumber} 章状态已更新为 completed`)
   }
 
-  // 小并发执行，提升批次整体速度
-  const concurrency = 2
-  await runWithConcurrency(chapterNumbers, concurrency, processChapter)
+  // 顺序执行，保证章节过渡顺畅
+  for (const chapterNumber of chapterNumbers) {
+    await processChapter(chapterNumber)
+  }
 
   console.log(`[章节批次] 批次完成, 成功生成章节: [${completed.join(', ')}]`)
   return {

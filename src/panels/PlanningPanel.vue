@@ -92,6 +92,30 @@
           <el-empty description="暂无章节计划，请点击上方“生成计划”" />
         </div>
         <div v-else class="space-y-4">
+          <div class="bg-white border border-[var(--app-border)] rounded-lg p-4">
+            <div class="flex items-center justify-between mb-3">
+              <div class="font-semibold">全书情绪曲线</div>
+              <div class="flex items-center gap-2">
+                <el-button size="small" plain @click="() => { generateOptions.emotionArc = buildEmotionArc(generateOptions.targetChapters || 1) }">
+                  生成默认曲线
+                </el-button>
+                <el-button size="small" type="primary" plain @click="saveEmotionArc">
+                  保存情绪曲线
+                </el-button>
+              </div>
+            </div>
+            <div class="text-xs text-[var(--el-text-color-secondary)] mb-2">
+              说明：缓冲章将降低冲突密度，增强关系/细节，用于节奏回落。
+            </div>
+            <div class="space-y-3 max-h-64 overflow-y-auto custom-scrollbar pr-2">
+              <div v-for="node in generateOptions.emotionArc" :key="node.chapter" class="flex items-center gap-3">
+                <div class="w-16 text-sm text-[var(--el-text-color-secondary)]">第 {{ node.chapter }} 章</div>
+                <el-slider v-model="node.level" :min="0" :max="100" :step="5" class="flex-1" @change="node.label = normalizeEmotionLabel(node.level)" />
+                <el-tag size="small" type="info">{{ node.label }}</el-tag>
+                <el-checkbox v-model="node.isBreath">缓冲</el-checkbox>
+              </div>
+            </div>
+          </div>
           <div 
             v-for="chapter in chaptersArray" 
             :key="chapter.chapterNumber"
@@ -415,13 +439,77 @@ const showGenerateDialog = ref(false)
 const generateOptions = ref({
   targetChapters: 1,
   synopsis: '',
-  lockWritingTarget: false
+  lockWritingTarget: false,
+  emotionArc: [] as Array<{ chapter: number; level: number; label: string; isBreath: boolean }>
 })
 
 const eventGenerationMode = ref<'append' | 'override'>('append')
 const eventAppendCount = ref(6)
 const eventRangeStart = ref(1)
 const eventRangeEnd = ref(6)
+
+function normalizeEmotionLabel(level: number) {
+  if (level >= 85) return '高潮'
+  if (level >= 70) return '高压'
+  if (level >= 55) return '紧张'
+  if (level >= 40) return '平稳'
+  return '缓冲'
+}
+
+function buildEmotionArc(totalChapters: number) {
+  const total = Math.max(1, Number(totalChapters) || 1)
+  const arc = []
+  const peak1 = Math.max(2, Math.round(total * 0.33))
+  const peak2 = Math.max(peak1 + 2, Math.round(total * 0.66))
+
+  for (let chapter = 1; chapter <= total; chapter += 1) {
+    let level = 50
+    if (chapter <= peak1) {
+      level = 30 + Math.round((chapter / peak1) * 40)
+    } else if (chapter <= peak2) {
+      const ratio = (chapter - peak1) / Math.max(1, peak2 - peak1)
+      level = 45 + Math.round(ratio * 45)
+    } else {
+      const ratio = (chapter - peak2) / Math.max(1, total - peak2)
+      level = 80 - Math.round(ratio * 30)
+    }
+
+    const isBreath = level <= 40 || chapter % 3 === 0
+    arc.push({
+      chapter,
+      level,
+      label: normalizeEmotionLabel(level),
+      isBreath
+    })
+  }
+
+  return arc
+}
+
+function ensureEmotionArc() {
+  const total = generateOptions.value.targetChapters || chapters.value.length || 1
+  if (!Array.isArray(generateOptions.value.emotionArc) || generateOptions.value.emotionArc.length === 0) {
+    generateOptions.value.emotionArc = buildEmotionArc(total)
+    return
+  }
+  if (generateOptions.value.emotionArc.length !== total) {
+    generateOptions.value.emotionArc = buildEmotionArc(total)
+  }
+}
+
+async function saveEmotionArc() {
+  if (!props.novelId) return
+  try {
+    await window.electronAPI?.planning?.updateMeta(props.novelId, {
+      ...generateOptions.value,
+      emotionArc: generateOptions.value.emotionArc
+    })
+    ElMessage.success('情绪曲线已保存')
+  } catch (error) {
+    console.error('保存情绪曲线失败:', error)
+    ElMessage.error('保存情绪曲线失败')
+  }
+}
 
 // 事件编辑相关
 const showEventDialog = ref(false)
@@ -638,6 +726,7 @@ watch(
   () => generateOptions.value.targetChapters,
   (val) => {
     const count = Math.max(val || 1, 1)
+    ensureEmotionArc()
     if (eventGenerationMode.value === 'override') {
       // 根据目标章节数更新结束章节
       const newEnd = eventRangeStart.value + count - 1
@@ -736,10 +825,12 @@ async function loadData() {
       chapters.value = savedData.chapters || []
       if (savedData.generateOptions) {
         generateOptions.value = savedData.generateOptions
+        ensureEmotionArc()
       }
     } else {
       events.value = []
       chapters.value = []
+      ensureEmotionArc()
     }
 
     console.log('已加载规划数据:', {  
@@ -1181,7 +1272,9 @@ async function generatePlan() {
       wordsPerChapter,
       startChapter,
       endChapter,
-      targetChapters
+      targetChapters,
+      // 去除 Proxy，避免 DataCloneError
+      emotionArc: JSON.parse(JSON.stringify(generateOptions.value.emotionArc || []))
     }
     
     const result = await window.electronAPI?.planning?.generatePlan(params)

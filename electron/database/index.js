@@ -61,11 +61,17 @@ function initDatabase() {
   try {
     const tableInfo = db.pragma('table_info(planning_meta)')
     const hasChapterBeats = tableInfo.some(col => col.name === 'chapterBeats')
+    const hasEmotionArc = tableInfo.some(col => col.name === 'emotionArc')
 
     if (!hasChapterBeats) {
       console.log('检测到旧版数据库,正在添加 planning_meta.chapterBeats 列...')
       db.exec('ALTER TABLE planning_meta ADD COLUMN chapterBeats TEXT')
       console.log('planning_meta.chapterBeats 列已添加')
+    }
+    if (!hasEmotionArc) {
+      console.log('检测到旧版数据库,正在添加 planning_meta.emotionArc 列...')
+      db.exec('ALTER TABLE planning_meta ADD COLUMN emotionArc TEXT')
+      console.log('planning_meta.emotionArc 列已添加')
     }
   } catch (error) {
     console.error('数据库迁移失败:', error)

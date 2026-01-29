@@ -274,10 +274,17 @@ function buildParagraphPrompt({
   graphContext,
   extraPrompt,
   worldRules,
+  emotionNode,
   lastChapterContentEnd,
   // 单段目标字数区间与段落配置保持一致
   targetWords = [250, 500]
 }) {
+  const emotionLevel = Number.isFinite(Number(emotionNode?.level)) ? Number(emotionNode.level) : 50
+  const emotionLabel = emotionNode?.label || '平稳'
+  const breathRequirement = emotionNode?.isBreath
+    ? '本章为缓冲章：降低冲突密度，增加关系互动/细节观察/情感停顿，避免持续高压推进。'
+    : '本章为推进章：可以保持紧张与节奏，但需避免持续同类冲突。'
+
   const outputRequirements = `
 请生成本章的下一个段落，要求：
 【硬约束】
@@ -326,6 +333,9 @@ function buildParagraphPrompt({
     knowledgeContext: knowledgeContext || '无设定数据',
     graphContext: graphContext || '无',
     worldRules: worldRules || '无世界观数据',
+    emotionLabel,
+    emotionLevel,
+    breathRequirement,
     extraPrompt: extraPrompt || '无',
     outputRequirements
   })
@@ -536,6 +546,11 @@ async function buildGenerationContext({ novelId, chapterId }) {
     // 缓存世界观规则（多章共享）
     setCacheValue(worldRulesCache, worldRulesCacheKey, worldRules)
   }
+  // 读取情绪曲线配置
+  const planningDAO = require('../database/planningDAO')
+  const planningMeta = planningDAO.getPlanningMeta(novelId) || {}
+  const emotionArc = Array.isArray(planningMeta.emotionArc) ? planningMeta.emotionArc : []
+  const emotionNode = emotionArc.find(item => Number(item.chapter) === Number(chapterNumber)) || null
   // 获取上一章节最后一段内容（更有上下文意义）
   const lastChapter = chapterNumber > 1 ? await chapterDAO.getChapterByNovelAndNumber(novelId, chapterNumber - 1) : null
   const lastChapterContent = lastChapter?.content || ''
@@ -559,7 +574,8 @@ async function buildGenerationContext({ novelId, chapterId }) {
     chapterNumber,
     planningContext,
     worldRules,
-    lastChapterContentEnd
+    lastChapterContentEnd,
+    emotionNode
   }
 }
 
@@ -626,7 +642,7 @@ async function generateChapterChunks({
     console.error(`[分块生成] ❌ 构建生成上下文失败:`, error)
     throw error
   }
-  const { chapter, chapterNumber, planningContext, worldRules, lastChapterContentEnd } = generationContext
+  const { chapter, chapterNumber, planningContext, worldRules, lastChapterContentEnd, emotionNode } = generationContext
   console.log(`[分块生成] 章节号: ${chapterNumber}, 标题: ${chapter.title}`)
   console.log(`[分块生成] 规划上下文长度: ${planningContext?.length || 0} 字符`)
   console.log(`[分块生成] 世界规则长度: ${worldRules?.length || 0} 字符`)
@@ -684,6 +700,7 @@ async function generateChapterChunks({
       extraPrompt,
       systemPrompt,
       worldRules,
+      emotionNode,
       lastChapterContentEnd,
       targetWords: paragraphRange,
       configOverride
@@ -728,6 +745,7 @@ async function generateChapterChunks({
             extraPrompt: `${extraPrompt || ''}\n【上次问题】${validation.issues.map(i => i.description).join('; ')}`,
             systemPrompt,
             worldRules,
+            emotionNode,
             lastChapterContentEnd,
             targetWords: retryRange,
             configOverride
