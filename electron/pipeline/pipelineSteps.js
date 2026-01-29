@@ -474,13 +474,16 @@ function buildEmotionArc(targetChapters = 10) {
   for (let chapter = 1; chapter <= total; chapter += 1) {
     let level = 50
     if (chapter <= peak1) {
-      level = 30 + Math.round((chapter / peak1) * 40) // 30-70
+      // 整体下调 10 点，避免全书持续高压
+      level = 20 + Math.round((chapter / peak1) * 40) // 20-60
     } else if (chapter <= peak2) {
       const ratio = (chapter - peak1) / Math.max(1, peak2 - peak1)
-      level = 45 + Math.round(ratio * 45) // 45-90
+      // 整体下调 10 点，避免峰值过高
+      level = 35 + Math.round(ratio * 45) // 35-80
     } else {
       const ratio = (chapter - peak2) / Math.max(1, total - peak2)
-      level = 80 - Math.round(ratio * 30) // 80-50
+      // 整体下调 10 点，尾声更平缓
+      level = 70 - Math.round(ratio * 30) // 70-40
     }
 
     const isBreath = level <= 40 || chapter % 3 === 0
