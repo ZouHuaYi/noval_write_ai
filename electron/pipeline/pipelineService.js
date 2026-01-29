@@ -1,6 +1,7 @@
 const pipelineDAO = require('../database/pipelineDAO')
 const planningDAO = require('../database/planningDAO')
 const chapterDAO = require('../database/chapterDAO')
+const { setTimeout } = require('timers/promises')
 const {
   analyzeInput,
   generateEventBatch,
@@ -35,6 +36,22 @@ function getPipelineState(runId) {
     runningPipelines.set(runId, { running: false, paused: false })
   }
   return runningPipelines.get(runId)
+}
+
+// 停止正在运行的流水线（用于清空前保护）
+async function stopRunningPipeline(runId, timeoutMs = 5000) {
+  const state = getPipelineState(runId)
+  state.paused = true
+  pipelineDAO.updatePipelineRun(runId, { status: RUN_STATUS.PAUSED })
+
+  const start = Date.now()
+  while (state.running && (Date.now() - start) < timeoutMs) {
+    await setTimeout(200)
+  }
+
+  // 若仍在运行，强制标记为暂停（避免继续写 steps）
+  state.running = false
+  return pipelineDAO.getPipelineRun(runId)
 }
 
 // 启动时回收异常中断的运行状态
@@ -436,7 +453,7 @@ function listPipelinesByStatus(status) {
 }
 
 // 清空小说的流水线相关数据
-function clearPipelineData(novelId) {
+async function clearPipelineData(novelId) {
   if (!novelId) {
     throw new Error('清空流水线数据需要 novelId')
   }
@@ -447,6 +464,10 @@ function clearPipelineData(novelId) {
   const runs = pipelineDAO.listPipelineRuns(novelId)
   console.log(`[流水线] 找到 ${runs.length} 条流水线运行记录`)
   for (const run of runs) {
+    if (run.status === RUN_STATUS.RUNNING) {
+      console.warn(`[流水线] 检测到运行中任务，先暂停: runId=${run.id}`)
+      await stopRunningPipeline(run.id)
+    }
     pipelineDAO.deletePipelineRun(run.id)
   }
   // 说明：不再清空规划数据（事件/章节/元数据），避免历史生成内容丢失

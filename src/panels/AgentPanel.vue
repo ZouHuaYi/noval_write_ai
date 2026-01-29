@@ -838,10 +838,6 @@ const confirmCompletion = async (completionTargetChapter: { novelId: string; cha
     }
 }
 
-</script>
-
-
-
 // 加载 Prompt 配置（用于前端提示词可配置）
 async function loadPromptConfigs() {
   if (!window.electronAPI?.prompt) return
@@ -859,3 +855,5 @@ function getPromptText(id: string, field: 'systemPrompt' | 'userPrompt', fallbac
   const item = promptConfigs.value.find(p => p.id === id)
   return item?.[field] || fallback
 }
+
+</script>

@@ -9,6 +9,46 @@ const { getGraphManager } = require('../graph/graphManager')
 const { safeParseJSON } = require('../utils/helpers')
 const promptService = require('../prompt/promptService')
 
+// 上下文缓存（避免相邻章节重复计算）
+// 说明：仅缓存 1-2 章的规划/世界观/图谱摘要，减少重复开销
+const CONTEXT_CACHE_TTL = 5 * 60 * 1000
+const CONTEXT_CACHE_MAX = 6
+const planningContextCache = new Map()
+const worldRulesCache = new Map()
+const graphContextCache = new Map()
+
+function buildCacheKey(parts = []) {
+  return parts.filter(Boolean).join(':')
+}
+
+function getCacheValue(cacheMap, key) {
+  const cached = cacheMap.get(key)
+  if (!cached) return null
+  if (Date.now() - cached.updatedAt > CONTEXT_CACHE_TTL) {
+    cacheMap.delete(key)
+    return null
+  }
+  return cached.value
+}
+
+function setCacheValue(cacheMap, key, value) {
+  cacheMap.set(key, { value, updatedAt: Date.now() })
+  if (cacheMap.size > CONTEXT_CACHE_MAX) {
+    const firstKey = cacheMap.keys().next().value
+    if (firstKey) cacheMap.delete(firstKey)
+  }
+}
+
+function hashText(text) {
+  if (!text) return 'empty'
+  let hash = 0
+  for (let i = 0; i < text.length; i += 1) {
+    hash = (hash << 5) - hash + text.charCodeAt(i)
+    hash |= 0
+  }
+  return String(hash)
+}
+
 
 // 章节字数与分块配置（默认与上限）
 // 统一收敛为 1200 左右，强制控制章节总字数
@@ -93,6 +133,11 @@ function pickParagraphRange(config) {
  */
 async function getGraphContext(novelId, contextText = '') {
   try {
+    const cacheKey = buildCacheKey(['graph', novelId, hashText(contextText)])
+    const cached = getCacheValue(graphContextCache, cacheKey)
+    if (cached != null) {
+      return cached
+    }
     const manager = getGraphManager()
     const graphData = manager.exportForVisualization(novelId)
     if (!graphData || !graphData.nodes || graphData.nodes.length === 0) {
@@ -181,7 +226,10 @@ async function getGraphContext(novelId, contextText = '') {
     if (items) summary += `【物品状态】\n${items}\n`
     if (relations) summary += `【当前关系】\n${relations}\n`
     
-    return summary || ''
+    const result = summary || ''
+    // 缓存图谱摘要（相邻章节/重试可复用）
+    setCacheValue(graphContextCache, cacheKey, result)
+    return result
   } catch (error) {
     console.error('获取图谱上下文失败:', error)
     return ''
@@ -469,13 +517,25 @@ async function buildGenerationContext({ novelId, chapterId }) {
   }
   const chapterNumber = chapter.chapterNumber ?? null
 
-  const planningContext = chapterNumber != null
-    ? buildPlanningSummary({ novelId, chapterNumber })
-    : ''
+  const planningCacheKey = buildCacheKey(['planning', novelId, chapterNumber])
+  let planningContext = getCacheValue(planningContextCache, planningCacheKey)
+  if (planningContext == null) {
+    planningContext = chapterNumber != null
+      ? buildPlanningSummary({ novelId, chapterNumber })
+      : ''
+    // 缓存规划摘要（相邻章节可复用）
+    setCacheValue(planningContextCache, planningCacheKey, planningContext)
+  }
 
   // 获取世界观设定，规则设置
-  const worldview = worldviewDAO.getWorldviewByNovel(novelId)
-  const worldRules = `${worldview?.worldview || '无世界观数据'}\n${worldview?.rules || '无规则数据'}`
+  const worldRulesCacheKey = buildCacheKey(['worldRules', novelId])
+  let worldRules = getCacheValue(worldRulesCache, worldRulesCacheKey)
+  if (worldRules == null) {
+    const worldview = worldviewDAO.getWorldviewByNovel(novelId)
+    worldRules = `${worldview?.worldview || '无世界观数据'}\n${worldview?.rules || '无规则数据'}`
+    // 缓存世界观规则（多章共享）
+    setCacheValue(worldRulesCache, worldRulesCacheKey, worldRules)
+  }
   // 获取上一章节最后一段内容（更有上下文意义）
   const lastChapter = chapterNumber > 1 ? await chapterDAO.getChapterByNovelAndNumber(novelId, chapterNumber - 1) : null
   const lastChapterContent = lastChapter?.content || ''
@@ -540,6 +600,7 @@ async function generateChapterChunks({
   maxParagraphWords,
   maxParagraphs, // 最大段落数
   maxRetries = 2, // 每段最大重试次数
+  validateMode = 'per_paragraph', // 校验模式：per_paragraph | final
   configOverride,
   modelSource
 }) {
@@ -634,54 +695,57 @@ async function generateChapterChunks({
     }
 
     // 2. 校验段落
-    let validation = await validateParagraph({
-      paragraph,
-      chapterSoFar,
-      graphContext,
-      extraPrompt,
-      configOverride
-    })
-
     let finalParagraph = paragraph
+    let validation = { isValid: true, issues: [], fixedParagraph: '' }
 
-    // 3. 处理校验结果
-    if (validation.fixedParagraph && validation.fixedParagraph.trim().length > 0) {
-      // 有修正版本，使用修正后的
-      console.log(`[分块生成] 第 ${paragraphIndex} 段已修正`)
-      finalParagraph = validation.fixedParagraph
-    } else if (!validation.isValid) {
-      // 校验不通过且无修正，尝试重试
-      console.log(`[分块生成] 第 ${paragraphIndex} 段校验不通过，尝试重试...`)
-      for (let retry = 0; retry < maxRetries; retry++) {
-        const retryRange = pickParagraphRange(paragraphConfig)
-        paragraph = await generateParagraph({
-          novelTitle,
-          chapterTitle: chapter.title,
-          chapterNumber,
-          chapterSoFar,
-          knowledgeContext,
-          planningContext,
-          graphContext,
-          extraPrompt: `${extraPrompt || ''}\n【上次问题】${validation.issues.map(i => i.description).join('; ')}`,
-          systemPrompt,
-          worldRules,
-          lastChapterContentEnd,
-          targetWords: retryRange,
-          configOverride
-        })
+    if (validateMode === 'per_paragraph') {
+      validation = await validateParagraph({
+        paragraph,
+        chapterSoFar,
+        graphContext,
+        extraPrompt,
+        configOverride
+      })
 
-        validation = await validateParagraph({
-          paragraph,
-          chapterSoFar,
-          graphContext,
-          extraPrompt,
-          configOverride
-        })
+      // 3. 处理校验结果
+      if (validation.fixedParagraph && validation.fixedParagraph.trim().length > 0) {
+        // 有修正版本，使用修正后的
+        console.log(`[分块生成] 第 ${paragraphIndex} 段已修正`)
+        finalParagraph = validation.fixedParagraph
+      } else if (!validation.isValid) {
+        // 校验不通过且无修正，尝试重试
+        console.log(`[分块生成] 第 ${paragraphIndex} 段校验不通过，尝试重试...`)
+        for (let retry = 0; retry < maxRetries; retry++) {
+          const retryRange = pickParagraphRange(paragraphConfig)
+          paragraph = await generateParagraph({
+            novelTitle,
+            chapterTitle: chapter.title,
+            chapterNumber,
+            chapterSoFar,
+            knowledgeContext,
+            planningContext,
+            graphContext,
+            extraPrompt: `${extraPrompt || ''}\n【上次问题】${validation.issues.map(i => i.description).join('; ')}`,
+            systemPrompt,
+            worldRules,
+            lastChapterContentEnd,
+            targetWords: retryRange,
+            configOverride
+          })
 
-        if (validation.isValid || (validation.fixedParagraph && validation.fixedParagraph.trim().length > 0)) {
-          finalParagraph = validation.fixedParagraph || paragraph
-          console.log(`[分块生成] 第 ${paragraphIndex} 段重试成功`)
-          break
+          validation = await validateParagraph({
+            paragraph,
+            chapterSoFar,
+            graphContext,
+            extraPrompt,
+            configOverride
+          })
+
+          if (validation.isValid || (validation.fixedParagraph && validation.fixedParagraph.trim().length > 0)) {
+            finalParagraph = validation.fixedParagraph || paragraph
+            console.log(`[分块生成] 第 ${paragraphIndex} 段重试成功`)
+            break
+          }
         }
       }
     }
@@ -703,9 +767,27 @@ async function generateChapterChunks({
 
   // 将原有内容和新生成内容合并
   const existingContent = chapter.content || ''
-  const newContent = existingContent 
+  let newContent = existingContent 
     ? existingContent + '\n\n' + paragraphs.join('\n\n')
     : paragraphs.join('\n\n')
+
+  if (validateMode === 'final') {
+    // 最终章节校验（减少每段校验开销）
+    const finalGraphContext = await getGraphContext(novelId, `${planningContext}\n${newContent}`)
+    const finalValidation = await validateParagraph({
+      paragraph: newContent,
+      chapterSoFar: '',
+      graphContext: finalGraphContext,
+      extraPrompt,
+      configOverride
+    })
+
+    if (finalValidation.fixedParagraph && finalValidation.fixedParagraph.trim().length > 0) {
+      // 使用修正后的章节内容
+      newContent = finalValidation.fixedParagraph.trim()
+      console.log('[分块生成] 已应用最终章节修正')
+    }
+  }
 
   // 更新到章节
   await chapterDAO.updateChapter(chapter.id, { content: newContent })

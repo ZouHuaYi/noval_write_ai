@@ -279,6 +279,12 @@ dependencies 必须是真正的因果依赖，而不是时间顺序。
 【知识图谱要点】
 {{knowledgeContext}}
 
+【已写进度摘要】
+{{progressSummary}}
+
+【重复禁区】
+{{repeatBans}}
+
 {{existingEventsContext}}
 
 【章级骨架 ChapterBeats】
