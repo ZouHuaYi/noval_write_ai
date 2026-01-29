@@ -7,8 +7,8 @@ const { buildKnowledgeSummary } = require('./knowledgeContext')
 const { buildPlanningSummary } = require('./planningContext')
 const { getGraphManager } = require('../graph/graphManager')
 const { safeParseJSON } = require('../utils/helpers')
+const promptService = require('../prompt/promptService')
 
-const formatSection = (title, content) => `【${title}】\n${content || '无'}\n`
 
 // 章节字数与分块配置（默认与上限）
 // 统一收敛为 1200 左右，强制控制章节总字数
@@ -230,16 +230,7 @@ function buildParagraphPrompt({
   // 单段目标字数区间与段落配置保持一致
   targetWords = [250, 500]
 }) {
-  return [
-    formatSection('小说信息', `标题：${novelTitle || '未命名'}\n章节：第 ${chapterNumber ?? '?'} 章 · ${chapterTitle || '未命名'}`),
-    formatSection('上一章节结尾', lastChapterContentEnd || '无'),
-    formatSection('本章已写内容', chapterSoFar || '无'),
-    formatSection('章节计划', planningContext || '无'),
-    formatSection('知识与设定', knowledgeContext || '无设定数据'),
-    formatSection('图谱上下文', graphContext || '无'),
-    formatSection('世界观与规则', worldRules || '无世界观数据'),
-    formatSection('作者补充要求', extraPrompt || '无'),
-    formatSection('输出要求', `
+  const outputRequirements = `
 请生成本章的下一个段落，要求：
 【硬约束】
 1) 字数控制在 ${targetWords[0]}-${targetWords[1]} 字之间（宁可短一点，不要硬凑满）
@@ -275,8 +266,21 @@ function buildParagraphPrompt({
    你自行判断当前段落属于哪一种。
 2）章末留钩子，但不要强行升高强度
 
-只输出正文内容，不要任何解释。`)
-  ].join('\n')
+只输出正文内容，不要任何解释。`
+
+  return promptService.renderPrompt('chapter.generator.user', '', {
+    novelTitle: novelTitle || '未命名',
+    chapterNumber: chapterNumber ?? '?',
+    chapterTitle: chapterTitle || '未命名',
+    lastChapterContentEnd: lastChapterContentEnd || '无',
+    chapterSoFar: chapterSoFar || '无',
+    planningContext: planningContext || '无',
+    knowledgeContext: knowledgeContext || '无设定数据',
+    graphContext: graphContext || '无',
+    worldRules: worldRules || '无世界观数据',
+    extraPrompt: extraPrompt || '无',
+    outputRequirements
+  })
 }
 
 /**
@@ -299,6 +303,10 @@ async function generateParagraph({
   targetWords = [250, 500],
   configOverride
 }) {
+  const override = promptService.getPromptOverride('chapter.generator.system')
+  const defaultPrompt = promptService.resolvePrompt('chapter.generator.system').systemPrompt
+  const overridePrompt = override?.systemPrompt?.trim()
+  const finalSystemPrompt = overridePrompt || systemPrompt || defaultPrompt || ''
   const userPrompt = buildParagraphPrompt({
     novelTitle,
     chapterTitle,
@@ -315,7 +323,7 @@ async function generateParagraph({
 
   const content = await llmService.callChatModel({
     messages: [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: finalSystemPrompt },
       { role: 'user', content: userPrompt }
     ],
     temperature: 0.75, // 高温度，保持创意和灵性
@@ -342,35 +350,13 @@ async function validateParagraph({
     return { isValid: true, issues: [], fixedParagraph: '' }
   }
 
-  const systemPrompt = `你是小说一致性审校AI。你只负责检查"硬性矛盾"，并进行最小修改修复。
-
-【重要规则】
-1. 只修硬性冲突（角色设定矛盾、时间线错误、地点冲突、关系冲突、逻辑断裂）
-2. 不要润色文风，不要改写成更普通的表达
-3. 不要增加额外剧情，不要删除有效内容
-4. 修复时保留原段落的风格与节奏，只做最小必要修改
-
-【输出要求】
-你必须输出严格 JSON，不要输出任何额外文字。
-如果没有发现硬性矛盾，isValid 设为 true，fixedParagraph 留空。`
-
-  const userPrompt = `【已生成章节内容】
-${chapterSoFar || '无'}
-
-【知识图谱/已知设定】
-${graphContext || '无'}
-
-【新生成段落（待校验）】
-${paragraph}
-
-${extraPrompt ? `【额外约束】\n${extraPrompt}` : ''}
-
-请输出 JSON：
-{
-  "isValid": true或false,
-  "issues": [{"type":"角色冲突|时间冲突|逻辑断裂|地点冲突|关系冲突","description":"问题描述","suggestedFix":"修复建议"}],
-  "fixedParagraph": "如需修复，请给出修复后的完整段落；若无需修复则为空字符串"
-}`
+  const { systemPrompt } = promptService.resolvePrompt('chapter.validateParagraph.system')
+  const userPrompt = promptService.renderPrompt('chapter.validateParagraph.user', '', {
+    chapterSoFar: chapterSoFar || '无',
+    graphContext: graphContext || '无',
+    paragraph,
+    extraConstraint: extraPrompt ? `【额外约束】\n${extraPrompt}` : ''
+  })
 
   try {
     const response = await llmService.callChatModel({
@@ -405,24 +391,10 @@ ${extraPrompt ? `【额外约束】\n${extraPrompt}` : ''}
 async function reviewChapterStyle({ content, configOverride }) {
   if (!content) return { needRewrite: false, issues: [], suggestion: '' }
 
-  const systemPrompt = `你是小说质量审校助手，只检查 AI 痕迹并输出 JSON。
-不要改写正文，只给出是否需要重写与问题列表。`
-  const userPrompt = `请审查下面章节内容是否存在：
-1. 提纲式小标题扩写
-2. 高频模板句或局部复读
-3. 直接点名情绪（如“压抑/紧张”）
-4. 参数化数字点缀（无意义数值）
-5. 时间戳规律重复
-
-只输出 JSON：
-{
-  "needRewrite": true/false,
-  "issues": ["问题描述"],
-  "suggestion": "一句话修复建议"
-}
-
-章节内容：
-${content}`
+  const { systemPrompt } = promptService.resolvePrompt('chapter.reviewStyle.system')
+  const userPrompt = promptService.renderPrompt('chapter.reviewStyle.user', '', {
+    content
+  })
 
   try {
     const response = await llmService.callChatModel({
@@ -451,14 +423,11 @@ ${content}`
 async function rewriteChapterStyle({ content, issues = [], configOverride }) {
   if (!content) return ''
 
-  const systemPrompt = `你是小说修订助手，目标是降低 AI 痕迹。
-你必须保留所有事实与剧情，不允许新增情节。
-禁止比喻，禁止情绪直给，避免时间戳与模板句。`
-  const userPrompt = `请根据以下问题对章节做最小改写：
-${issues.length ? issues.map(item => `- ${item}`).join('\n') : '- 无具体问题，但需要降 AI 痕迹'}
-
-只输出修订后的正文：
-${content}`
+  const { systemPrompt } = promptService.resolvePrompt('chapter.rewriteStyle.system')
+  const userPrompt = promptService.renderPrompt('chapter.rewriteStyle.user', '', {
+    issues: issues.length ? issues.map(item => `- ${item}`).join('\n') : '- 无具体问题，但需要降 AI 痕迹',
+    content
+  })
 
   const response = await llmService.callChatModel({
     messages: [

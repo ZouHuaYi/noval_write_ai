@@ -9,6 +9,7 @@ const { safeParseJSON } = require('../utils/helpers')
 const { buildKnowledgeSummary } = require('../llm/knowledgeContext')
 const llmService = require('../llm/llmService')
 const { getGraphManager } = require('../graph/graphManager')
+const promptService = require('../prompt/promptService')
 
 // 章节生成默认系统提示
 const DEFAULT_CHAPTER_SYSTEM_PROMPT = '你是小说写作助手，只负责产出草稿式正文。保持原文叙事视角与文风，语言精炼克制，避免赘述与空泛描写，不重复已有内容，不输出标题或说明，只输出章节正文。禁止比喻与情绪直给，允许出现未说完的话与轻微误判，避免模板句与时间戳化表达。'
@@ -98,8 +99,13 @@ async function resolvePipelineConfig(settings = {}, stage = 'default') {
 // 分析评估输入
 async function analyzeInput({ novelId, inputWorldview, inputRules, inputOutline, settings, configOverride }) {
   const novel = novelDAO.getNovelById(novelId)
-  const systemPrompt = '你是小说策划评估助手，请根据输入的世界观、规则与章节大纲，估算章节数、每章字数、节奏与分批策略。每章目标字数建议在 1500-2000 之间。必须输出 JSON。'
-  const userPrompt = `【小说标题】\n${novel?.title || '未命名'}\n\n【世界观设定】\n${inputWorldview || '无'}\n\n【规则设定】\n${inputRules || '无'}\n\n【章节大纲】\n${inputOutline || '无'}\n\n请输出 JSON：\n{\n  "synopsis": "一句话梗概",\n  "targetChapters": 预计章节数(数字),\n  "wordsPerChapter": 每章目标字数(数字，建议 1500-2000),\n  "pacing": "fast|medium|slow",\n  "eventBatchSize": 事件生成每批覆盖章节数(数字),\n  "chapterBatchSize": 章节生成每批章节数(数字),\n  "notes": "可选备注"\n}`
+  const { systemPrompt } = promptService.resolvePrompt('pipeline.analyzeInput.system')
+  const userPrompt = promptService.renderPrompt('pipeline.analyzeInput.user', '', {
+    novelTitle: novel?.title || '未命名',
+    inputWorldview: inputWorldview || '无',
+    inputRules: inputRules || '无',
+    inputOutline: inputOutline || '无'
+  })
 
   const response = await llmService.callChatModel({
     messages: [
@@ -284,12 +290,14 @@ async function generateChapterBatch({ novelId, chapterNumbers, systemPrompt, con
     console.log(`[章节批次] 开始生成内容, 目标字数: ${targetWords}`)
 
     try {
+    const resolved = promptService.resolvePrompt('chapter.generator.system', { systemPrompt: systemPrompt || DEFAULT_CHAPTER_SYSTEM_PROMPT })
+    const finalSystemPrompt = resolved.systemPrompt || systemPrompt || DEFAULT_CHAPTER_SYSTEM_PROMPT
     const generationResult = await chapterGenerator.generateChapterChunks({
       novelId,
       chapterId: chapter.id,
       novelTitle: novel?.title || '未命名',
       extraPrompt: '',
-      systemPrompt: systemPrompt || DEFAULT_CHAPTER_SYSTEM_PROMPT,
+      systemPrompt: finalSystemPrompt,
       targetWords,
       configOverride,
       modelSource: 'pipeline'

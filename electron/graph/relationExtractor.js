@@ -4,6 +4,7 @@
  */
 const llmService = require('../llm/llmService')
 const { safeParseJSON } = require('../utils/helpers')
+const promptService = require('../prompt/promptService')
 
 /**
  * 实体类型映射
@@ -63,38 +64,14 @@ const RELATION_TYPES = {
  * @returns {Promise<Array>}
  */
 async function extractEntities(text, context = {}, configOverride) {
-  const systemPrompt = `你是一个专业的命名实体识别专家，负责从小说文本中提取实体。
-
-请识别以下类型的实体：
-1. 角色 (character): 人物、生物、有名字的存在
-2. 地点 (location): 地名、场所、区域
-3. 物品 (item): 重要道具、武器、物件
-4. 组织 (organization): 门派、势力、团体
-5. 事件 (event): 重要事件、战斗、仪式
-6. 概念 (concept): 武功、法术、重要概念
-
-请以 JSON 数组格式返回，每个实体包含：
-{
-  "name": "实体名称",
-  "type": "character|location|item|organization|event|concept",
-  "aliases": ["别名1", "别名2"],
-  "description": "简短描述",
-  "properties": { "相关属性" }
-}
-
-注意：
-- 只提取明确提到的实体
-- 区分同名但不同的实体
-- 记录实体的别名和称号`
-
-  const userPrompt = `请从以下小说片段中提取实体：
-
-${context.existingEntities ? `【已知实体】\n${context.existingEntities.join('、')}\n\n` : ''}
-
-【文本内容】
-${text.slice(0, 4000)}
-
-请返回 JSON 数组格式的实体列表。`
+  const { systemPrompt } = promptService.resolvePrompt('graph.extractEntities.system')
+  const existingEntitiesBlock = context.existingEntities
+    ? `【已知实体】\n${context.existingEntities.join('、')}\n\n`
+    : ''
+  const userPrompt = promptService.renderPrompt('graph.extractEntities.user', '', {
+    existingEntitiesBlock,
+    content: text.slice(0, 4000)
+  })
 
   // 若 LLM 调用失败，直接抛出错误，避免误判为“已分析完成”
   const response = await llmService.callChatModel({
@@ -125,42 +102,13 @@ async function extractRelations(text, entities = [], context = {}, configOverrid
 
   const entityNames = entities.map(e => e.name).join('、')
 
-  const systemPrompt = `你是一个关系提取专家，负责从文本中识别实体之间的关系。
-
-关系类型包括：
-【角色关系】friend(朋友), enemy(敌人), family(亲属), lover(恋人), ally(盟友), rival(对手), master(师傅), student(徒弟)
-【位置关系】at(所在), travels_to(前往), lives_in(居住)
-【所属关系】has(拥有), owns(所有), belongs_to(属于), member_of(成员)
-【行为关系】attacks(攻击), saves(拯救), betrays(背叛), helps(帮助), meets(相遇)
-【状态关系】transforms(转变), becomes(成为), dies(死亡)
-
-请以 JSON 数组格式返回关系，每个关系包含：
-{
-  "source": "源实体名称",
-  "target": "目标实体名称", 
-  "type": "关系类型",
-  "label": "关系描述（如：击败了、成为了朋友）",
-  "description": "详细说明",
-  "bidirectional": false,
-  "confidence": 0.9
-}
-
-注意：
-- 只提取文本中明确表述的关系
-- 区分单向关系和双向关系
-- 给出置信度评分`
-
-  const userPrompt = `请从以下文本中提取实体之间的关系：
-
-【已识别实体】
-${entityNames}
-
-【文本内容】
-${text.slice(0, 4000)}
-
-${context.chapter ? `【章节】第 ${context.chapter} 章` : ''}
-
-请返回 JSON 数组格式的关系列表。`
+  const { systemPrompt } = promptService.resolvePrompt('graph.extractRelations.system')
+  const chapterBlock = context.chapter ? `【章节】第 ${context.chapter} 章` : ''
+  const userPrompt = promptService.renderPrompt('graph.extractRelations.user', '', {
+    entityNames,
+    content: text.slice(0, 4000),
+    chapterBlock
+  })
 
   // 若 LLM 调用失败，直接抛出错误，交由上层统一处理
   const response = await llmService.callChatModel({
@@ -201,39 +149,11 @@ async function extractStateChanges(text, entities = [], configOverride) {
     return `${name}(${type})`
   }).slice(0, 50) // 限制数量防止 Prompt 过长
 
-  const systemPrompt = `你是一个状态变化分析专家，负责从文本中识别实体的重要状态变化。
-
-请识别以下类型的状态变化：
-1. 生死/存在状态：死亡、复活、损坏、销毁、丢失
-2. 位置/归属变化：到达新地点、被获取、易主
-3. 关系/阵营变化：结盟、反目、相遇、背叛
-4. 自身属性变化：突破、受伤、修复、强化、黑化
-
-请以 JSON 数组格式返回：
-{
-  "entity": "实体名称",
-  "changeType": "status|location|possession|condition|power",
-  "fromState": "原状态（如有）",
-  "toState": "新状态",
-  "description": "变化描述",
-  "significance": "high|medium|low"
-}
-
-注意：
-- 对于物品：关注"损坏"、"修复"、"获得"、"丢失"
-- 对于地点：关注"毁灭"、"封锁"、"开启"
-- 对于角色：关注"受伤"、"死亡"、"突破"
-`
-
-  const userPrompt = `请从以下文本中分析实体状态变化：
-
-【关注实体】
-${names.join('、')}
-
-【文本内容】
-${text.slice(0, 4000)}
-
-请返回 JSON 数组格式的状态变化列表。`
+  const { systemPrompt } = promptService.resolvePrompt('graph.extractStateChanges.system')
+  const userPrompt = promptService.renderPrompt('graph.extractStateChanges.user', '', {
+    candidateNames: names.join('、'),
+    content: text.slice(0, 4000)
+  })
 
   // 若 LLM 调用失败，直接抛出错误，避免记录错误的分析状态
   const response = await llmService.callChatModel({

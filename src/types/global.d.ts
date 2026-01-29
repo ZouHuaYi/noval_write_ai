@@ -66,6 +66,25 @@ declare global {
         set: (key: string, value: any, description?: string) => Promise<string>
       }
 
+      prompt: {
+        list: () => Promise<Array<{
+          id: string
+          name: string
+          domain: string
+          description: string
+          enabled: boolean
+          systemPrompt: string
+          userPrompt: string
+          defaultSystemPrompt: string
+          defaultUserPrompt: string
+          overrideSystemPrompt: string
+          overrideUserPrompt: string
+          updatedAt: number | null
+          source: 'default' | 'override' | 'custom'
+        }>>
+        saveAll: (overrides: Array<any>) => Promise<string>
+      }
+
       worldview: {
         get: (novelId: string) => Promise<any>
         save: (novelId: string, data: { worldview: string; rules: string }) => Promise<any>

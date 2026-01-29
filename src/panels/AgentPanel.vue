@@ -279,6 +279,8 @@
 <script setup lang="ts">
 import { callChatModel } from '@/llm/client'
 import { chapterSkills } from '@/llm/prompts/chapter'
+import type { PromptConfigItem } from '@/llm/promptClient'
+import { listPrompts, renderTemplate } from '@/llm/promptClient'
 import { Brush, Calendar, Cpu, Loading, Plus, Refresh, Search, Warning, List } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { onMounted, ref } from 'vue'
@@ -303,6 +305,7 @@ onMounted(() => {
   if (props.novelId) {
     loadReIOStats()
   }
+  loadPromptConfigs()
 })
 
 const props = defineProps<{
@@ -339,6 +342,8 @@ const previewContext = ref<{
   worldviewContext: string
 } | null>(null)
 const loadingContext = ref(false)
+const promptConfigs = ref<PromptConfigItem[]>([])
+const promptLoading = ref(false)
 
 // Completion Dialog
 const dontShowCompletionPrompt = ref(false)
@@ -584,7 +589,7 @@ const executeContinue = async () => {
   }
 
   const prompt = dialogPrompt.value.trim()
-  const systemPrompt = chapterSkills.continue.systemPrompt
+  const systemPrompt = getPromptText('chapter.continue.system', 'systemPrompt', chapterSkills.continue.systemPrompt)
 
   if (!props.novelId || !window.electronAPI?.chapter?.generateChunks) {
     ElMessage.warning('写作服务未就绪，请稍后重试')
@@ -637,11 +642,17 @@ const executePolish = async () => {
   const prompt = dialogPrompt.value.trim()
   const textToPolish = props.selectedText || props.chapterContent
 
-  const systemPrompt = chapterSkills.polish.systemPrompt
-  const userPrompt = chapterSkills.polish.buildUserPrompt({
-    text: textToPolish,
-    extraPrompt: prompt
-  })
+  const systemPrompt = getPromptText('chapter.polish.system', 'systemPrompt', chapterSkills.polish.systemPrompt)
+  const polishTemplate = getPromptText('chapter.polish.user', 'userPrompt', '')
+  const userPrompt = polishTemplate
+    ? renderTemplate(polishTemplate, {
+      text: textToPolish,
+      extraPrompt: prompt || '无'
+    })
+    : chapterSkills.polish.buildUserPrompt({
+      text: textToPolish,
+      extraPrompt: prompt
+    })
 
   const polishedText = (await callChatModel(systemPrompt, userPrompt)).trim()
   if (!polishedText) {
@@ -831,3 +842,20 @@ const confirmCompletion = async (completionTargetChapter: { novelId: string; cha
 
 
 
+// 加载 Prompt 配置（用于前端提示词可配置）
+async function loadPromptConfigs() {
+  if (!window.electronAPI?.prompt) return
+  promptLoading.value = true
+  try {
+    promptConfigs.value = await listPrompts()
+  } catch (error) {
+    console.error('加载 Prompt 配置失败:', error)
+  } finally {
+    promptLoading.value = false
+  }
+}
+
+function getPromptText(id: string, field: 'systemPrompt' | 'userPrompt', fallback = '') {
+  const item = promptConfigs.value.find(p => p.id === id)
+  return item?.[field] || fallback
+}

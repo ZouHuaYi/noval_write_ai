@@ -4,6 +4,7 @@
  */
 const llmService = require('./llmService')
 const { safeParseJSON } = require('../utils/helpers')
+const promptService = require('../prompt/promptService')
 
 /**
  * 事件类型定义
@@ -46,71 +47,22 @@ async function generateChapterBeats({
   endChapter = null,
   configOverride
 }) {
-  const systemPrompt = `你是小说分章策划编辑。
-你的任务是先生成“章级骨架”，让故事节奏像人写，而不是任务列表。
-
-【语言要求】
-- 必须使用中文输出
-- 除了 JSON 字段名，其余内容均用中文
-
-【必须避免】
-- 每章都一样的结构（发现线索->被追->得到新线索）
-- 每章都强行2-3件事
-- 只写推进，不写代价/误判
-
-【每章必须包含】
-- purpose: 本章目的（引爆/追查/试探/失手/反击/收束等）
-- turningPoint: 本章转折点（发生了什么具体事）
-- cost: 本章代价（失去什么、暴露什么、关系变化）
-- misconception: 本章误判（角色当下相信但可能错误的一句话）
-- nextHook: 下一章钩子（不一定是“明天去XX”，也可以是未说破的决定）
-
-只输出严格 JSON，不要解释。`
+  const { systemPrompt } = promptService.resolvePrompt('outline.chapterBeats.system')
 
   const rangeStart = startChapter
   const rangeEnd = endChapter != null ? endChapter : (startChapter + targetChapters - 1)
   const rangeLabel = `第 ${rangeStart} 章 - 第 ${rangeEnd} 章`
 
-  const userPrompt = `请为小说生成章级骨架（ChapterBeats）：
-
-【小说标题】
-${novelTitle}
-
-【类型】
-${genre || '未指定'}
-
-【梗概】
-${synopsis || '无'}
-
-【现有大纲】
-${existingOutline || '无'}
-
-【知识图谱要点】
-${knowledgeContext || '无'}
-
-【章节范围】
-${rangeLabel}
-
-输出 JSON 格式：
-{
-  "chapterBeats": [
-    {
-      "chapter": 1,
-      "purpose": "",
-      "turningPoint": "",
-      "cost": "",
-      "misconception": "",
-      "nextHook": ""
-    }
-  ]
-}
-
-要求：
-1) chapter 必须覆盖 ${rangeStart} 到 ${rangeEnd}，每章 1 条
-2) 节奏允许不均衡：有的章推进快，有的章停顿/失手/误判
-3) 至少 2 章出现“失手/误判/走弯路”
-4) 至少 1 章出现“主角主动布局/反击”
-5) 不要写成全知总结，要像作者排章法。`
+  const userPrompt = promptService.renderPrompt('outline.chapterBeats.user', '', {
+    novelTitle: novelTitle || '未命名',
+    genre: genre || '未指定',
+    synopsis: synopsis || '无',
+    existingOutline: existingOutline || '无',
+    knowledgeContext: knowledgeContext || '无',
+    rangeLabel,
+    rangeStart,
+    rangeEnd
+  })
 
   const response = await llmService.callChatModel({
     messages: [
@@ -168,24 +120,7 @@ async function generateEventGraphFromBeats({
   endChapter = null,
   configOverride
 }) {
-  const systemPrompt = `你是专业小说故事架构师。
-你将把“章级骨架”拆解成 EventNode 事件图谱。
-
-【语言要求】
-- 必须使用中文输出
-- 除了 JSON 字段名，其余内容均用中文
-
-【反AI关键规则】
-每个事件必须包含四要素：
-- 目标（角色想要什么）
-- 行动（做了什么）
-- 代价（失去/暴露/误会/伤口/信任破裂）
-- 误判（角色当下相信但可能错误的一句话）
-
-禁止把事件写成“发现线索->去下一个地点”的任务链。
-dependencies 必须是真正的因果依赖，而不是时间顺序。
-
-只输出严格 JSON。`
+  const { systemPrompt } = promptService.resolvePrompt('outline.eventGraph.system')
 
   let existingEventsContext = ''
   if (existingEvents && existingEvents.length) {
@@ -222,63 +157,15 @@ dependencies 必须是真正的因果依赖，而不是时间顺序。
     }
   }
 
-  const userPrompt = `请基于以下“章级骨架”，生成事件图谱 EventNode：
-
-【小说标题】
-${novelTitle}
-
-【类型】
-${genre || '未指定'}
-
-【梗概】
-${synopsis || '无'}
-
-【现有大纲】
-${existingOutline || '无'}
-
-【知识图谱要点】
-${knowledgeContext || '无'}
-
-  ${existingEventsContext}
-
-【章级骨架 ChapterBeats】
-${JSON.stringify(chapterBeats, null, 2)}
-
-【语言要求】
-- label/description/summary/mainCharacters/mainConflicts 必须为中文
-- label 必须为中文短标题，不得为空或仅空白
-
-输出 JSON：
-{
-  "events": [
-    {
-      "id": "event_1",
-      "label": "",
-      "eventType": "plot|character|conflict|resolution|transition",
-      "description": "",
-      "chapter": 1,
-      "characters": [],
-      "preconditions": [],
-      "postconditions": [],
-      "dependencies": []
-    }
-  ],
-  "summary": "",
-  "mainCharacters": [],
-  "mainConflicts": []
-}
-
-要求：
-1) 每章 2-4 个事件（允许少数章只有 1 个关键事件）
-2) 每个事件 description 必须写出：目标/行动/代价/误判（用一句话串起来也行）
-3) 至少 25% 事件为 character 或 transition
-4) 每个事件 description 里都要包含一段“无关/喘息”描写（与主线推进无关，作为节奏缓冲）
-5) 至少 1 个事件为“主角主动布局/反击”
-6) 至少 1 个事件为“错误线索/误导导致走弯路”
-7) dependencies 只写因果依赖，不要写“上一章”
-8) chapter 必须严格落在 ChapterBeats 给出的范围内
-
-只输出 JSON。`
+  const userPrompt = promptService.renderPrompt('outline.eventGraph.user', '', {
+    novelTitle: novelTitle || '未命名',
+    genre: genre || '未指定',
+    synopsis: synopsis || '无',
+    existingOutline: existingOutline || '无',
+    knowledgeContext: knowledgeContext || '无',
+    existingEventsContext: existingEventsContext || '',
+    chapterBeatsJson: JSON.stringify(chapterBeats, null, 2)
+  })
 
   const response = await llmService.callChatModel({
     messages: [
@@ -513,8 +400,10 @@ module.exports = {
 // 修复事件图谱 JSON 输出
 async function repairEventGraphJSON(rawText, configOverride) {
   if (!rawText) return null
-  const systemPrompt = '你是 JSON 修复助手。请把用户提供的内容修复为严格 JSON，只输出 JSON，不要解释。'
-  const userPrompt = `请将以下内容修复为严格 JSON：\n\n${rawText}`
+  const { systemPrompt } = promptService.resolvePrompt('outline.repairJson.system')
+  const userPrompt = promptService.renderPrompt('outline.repairJson.user', '', {
+    rawText
+  })
   try {
     const response = await llmService.callChatModel({
       messages: [

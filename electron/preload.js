@@ -29,6 +29,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     set: (key, value, description) => ipcRenderer.invoke('settings:set', key, value, description),
   },
 
+  prompt: {
+    list: () => ipcRenderer.invoke('prompt:list'),
+    saveAll: (overrides) => ipcRenderer.invoke('prompt:saveAll', overrides),
+  },
+
   worldview: {
     get: (novelId) => ipcRenderer.invoke('worldview:get', novelId),
     save: (novelId, data) => ipcRenderer.invoke('worldview:save', novelId, data)

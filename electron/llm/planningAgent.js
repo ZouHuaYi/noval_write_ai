@@ -4,6 +4,7 @@
  */
 const llmService = require('./llmService')
 const { safeParseJSON } = require('../utils/helpers')
+const promptService = require('../prompt/promptService')
 
 // 章节计划字数配置（默认与上限）
 // 统一收敛为 1200 左右，避免计划与生成不一致
@@ -105,20 +106,10 @@ async function generateChapterPlan({
 
   // 生成写作提示
   // 写作提示改为“可执行约束”，避免抽象建议与空话
-  const systemPrompt = mode === 'pipeline'
-    ? `你是小说写作规划师。你只输出“可落地的写作约束”，不是建议。
-
-要求：
-- 每条提示必须是可执行动作约束（例如“让主角说谎一次”）
-- 不许出现抽象词：氛围、张力、节奏、情绪、压迫感
-- 不许出现“加强/突出/增强”这类空话
-- 输出 2-3 条，JSON 数组。`
-    : `你是小说写作规划师。你只输出“可落地的写作约束”，不是建议。
-
-要求：
-- 每条提示必须是可执行动作约束
-- 不许抽象词与空话
-- 输出 2-3 条，JSON 数组。`
+  const promptId = mode === 'pipeline'
+    ? 'planning.writingHints.system.pipeline'
+    : 'planning.writingHints.system'
+  const { systemPrompt } = promptService.resolvePrompt(promptId)
 
   for (const chapter of chapters) {
     if (chapter.events.length === 0) continue
@@ -129,10 +120,14 @@ async function generateChapterPlan({
       .join('\n')
 
     try {
+        const userPrompt = promptService.renderPrompt('planning.writingHints.user', '', {
+          chapterNumber: chapter.chapterNumber,
+          eventDescriptions
+        })
         const response = await llmService.callChatModel({
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: `第 ${chapter.chapterNumber} 章包含以下事件：\n${eventDescriptions}\n\n请给出 2-3 条写作建议，返回 JSON 数组格式。` }
+            { role: 'user', content: userPrompt }
           ],
           temperature: 0.6,
           maxTokens: 500,

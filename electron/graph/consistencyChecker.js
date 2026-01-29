@@ -4,6 +4,7 @@
  */
 const llmService = require('../llm/llmService')
 const { safeParseJSON } = require('../utils/helpers')
+const promptService = require('../prompt/promptService')
 
 /**
  * 冲突严重程度
@@ -416,33 +417,14 @@ class GraphConsistencyChecker {
     const issues = []
 
     // 使用 LLM 提取内容中的实体和关系
-    const systemPrompt = `你是一个故事一致性校验专家。请分析以下内容，检查是否与已知信息存在冲突。
-
-已知信息：
-${this.buildContextFromGraph()}
-
-请检查新内容中：
-1. 是否有角色做了与其设定不符的事
-2. 是否有死亡角色出现
-3. 是否有位置/时间矛盾
-4. 是否有关系矛盾
-
-返回 JSON 格式：
-{
-  "hasConflict": true/false,
-  "conflicts": [
-    {
-      "type": "冲突类型",
-      "description": "冲突描述",
-      "excerpt": "相关文本片段",
-      "suggestion": "修改建议"
-    }
-  ]
-}`
-
-    const userPrompt = `请检查以下第 ${chapter} 章内容是否与已知故事信息冲突：
-
-${content.slice(0, 3000)}`
+    const graphContext = this.buildContextFromGraph()
+    const resolved = promptService.resolvePrompt('graph.consistencyCheck.system')
+    const systemPrompt = promptService.renderTemplate(resolved.systemPrompt, { graphContext })
+    const userPrompt = promptService.renderPrompt('graph.consistencyCheck.user', '', {
+      chapter,
+      content: content.slice(0, 3000),
+      graphContext
+    })
 
     try {
       const response = await llmService.callChatModel({

@@ -1,4 +1,5 @@
 const chapterGenerator = require('../llm/chapterGenerator')
+const promptService = require('../prompt/promptService')
 
 function registerChapterGenerationHandlers(ipcMain) {
 
@@ -44,51 +45,12 @@ function registerChapterGenerationHandlers(ipcMain) {
       const novel = novelDAO.getNovelById(novelId)
       const novelTitle = novel?.title || '未命名'
 
-      const systemPrompt = `你是小说一致性检查助手。请检查章节内容的人物、时间线、设定与逻辑漏洞。
-
-对于每个发现的问题,你需要:
-1. 找出原文中存在问题的具体片段(50-200字)
-2. **计算该片段在章节中的起始和结束位置(字符索引,从0开始)**
-3. 提供修改后的文本建议
-4. 说明修改理由
-
-返回 JSON 格式:
-{
-  "summary": "总体检查摘要",
-  "suggestions": [
-    {
-      "id": "唯一标识(如 suggestion-1)",
-      "category": "问题分类(如'人物年龄与行为表现')",
-      "issue": "不一致点描述",
-      "originalText": "原文片段(精确摘录,不要修改)",
-      "suggestedText": "建议修改后的文本",
-      "reason": "修改理由",
-      "startIndex": 起始位置(数字),
-      "endIndex": 结束位置(数字)
-    }
-  ]
-}
-
-**重要说明**:
-- originalText 必须是原文的精确片段,方便后续替换
-- startIndex 和 endIndex 必须精确对应 originalText 在章节中的位置
-- 位置索引从 0 开始计数,endIndex 是结束位置的下一个字符(不包含)
-- 可以通过在章节内容中搜索 originalText 来确定位置
-- 如果无法确定精确位置,可以省略 startIndex 和 endIndex
-- suggestedText 应该是完整的替换文本,保持上下文连贯
-- 每个建议应该独立,不要相互依赖`
-
-      const userPrompt = `【小说标题】
-${novelTitle}
-
-【章节内容】
-${content || '无'}
-
-【检查重点】
-${extraPrompt || '全面检查'}
-
-【输出要求】
-严格按照 JSON 格式返回检查结果。`
+      const { systemPrompt } = promptService.resolvePrompt('chapter.consistencyDiff.system')
+      const userPrompt = promptService.renderPrompt('chapter.consistencyDiff.user', '', {
+        novelTitle,
+        content: content || '无',
+        extraPrompt: extraPrompt || '全面检查'
+      })
 
       const response = await llmService.callChatModel({
         messages: [

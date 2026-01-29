@@ -5,6 +5,7 @@
 
 const llmService = require('./llmService')
 const reioStatsDAO = require('../database/reioStatsDAO')
+const promptService = require('../prompt/promptService')
 
 // ReIO 检查统计
 const reioStats = {
@@ -132,46 +133,14 @@ async function checkContent({
     worldRules = await extractWorldRules(novelId)
   }
 
-  const systemPrompt = `你是一个专业的小说内容审查员，负责检查 AI 生成的小说内容是否符合要求。
-
-你需要从以下几个维度进行检查：
-
-1. **目标一致性**: 内容是否围绕事件/章节目标展开，是否偏题？
-2. **逻辑连贯性**: 情节发展是否合理，是否存在前后矛盾？
-3. **角色一致性**: 角色行为是否符合其性格设定，是否突兀
-4. **世界观一致性**: 是否违反了已建立的世界规则？
-
-请以 JSON 格式返回检查结果：
-{
-  "passed": true/false,
-  "score": 1-10,
-  "deviatesFromGoal": true/false,
-  "hasLogicConflict": true/false,
-  "hasCharacterInconsistency": true/false,
-  "hasWorldRuleViolation": true/false,
-  "issues": ["问题1", "问题2"],
-  "rewriteSuggestion": "具体的修改建议",
-  "highlights": ["亮点1", "亮点2"]
-}`
-
-  const userPrompt = `请检查以下 AI 生成的小说内容：
-
-【事件/章节目标】
-${eventGoal || '无明确目标'}
-
-【记忆上下文（已确认的人物状态和历史事件）】
-${memoryContext || '无可用记忆'}
-
-【当前场景活跃角色】
-${activeCharacters.length > 0 ? activeCharacters.join('、') : '未指定'}
-
-【世界规则约束】
-${worldRules.length > 0 ? worldRules.map((r, i) => `${i + 1}. ${r}`).join('\n') : '无特殊规则'}
-
-【待检查的生成内容】
-${generatedText}
-
-请进行全面检查并返回 JSON 格式结果。对于通过的内容，score 应大于 7；对于需要重写的内容，请给出具体的修改建议。`
+  const { systemPrompt } = promptService.resolvePrompt('reio.check.system')
+  const userPrompt = promptService.renderPrompt('reio.check.user', '', {
+    eventGoal: eventGoal || '无明确目标',
+    memoryContext: memoryContext || '无可用记忆',
+    activeCharacters: activeCharacters.length > 0 ? activeCharacters.join('、') : '未指定',
+    worldRules: worldRules.length > 0 ? worldRules.map((r, i) => `${i + 1}. ${r}`).join('\n') : '无特殊规则',
+    generatedText
+  })
 
   try {
     const response = await llmService.callChatModel({

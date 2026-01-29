@@ -230,6 +230,84 @@
               </div>
             </div>
           </el-tab-pane>
+
+          <!-- Prompt 配置 Tab -->
+          <el-tab-pane label="Prompt 模板" name="prompt">
+            <div class="space-y-4">
+              <div class="flex items-center justify-between mb-2 px-2">
+                <div class="flex items-center text-sm font-medium">
+                  <el-icon class="mr-2 text-indigo-500"><Edit /></el-icon>
+                  <span>Prompt 模板列表</span>
+                </div>
+                <el-button
+                  type="primary"
+                  size="small"
+                  @click="loadPromptConfigs"
+                  :loading="promptLoading"
+                >
+                  <el-icon class="mr-1"><Refresh /></el-icon>
+                  刷新
+                </el-button>
+              </div>
+
+              <div v-if="promptGroups.length === 0" class="app-card py-12 text-center app-muted">
+                <el-icon class="text-4xl mb-2 opacity-20"><Box /></el-icon>
+                <div class="text-sm">暂无 Prompt 配置，可点击刷新加载默认模板</div>
+              </div>
+
+              <div v-else class="grid grid-cols-1 gap-4 pb-10">
+                <div
+                  v-for="prompt in promptGroups"
+                  :key="prompt.baseId"
+                  class="app-card p-5 group transition-all hover:border-[var(--app-primary)]"
+                >
+                  <div class="flex items-start justify-between">
+                    <div class="flex-1 space-y-2">
+                      <div class="flex items-center space-x-2">
+                        <span class="font-bold text-base">{{ prompt.name }}</span>
+                        <el-tag size="small" type="info" effect="plain">{{ prompt.domain }}</el-tag>
+                        <el-tag
+                          v-if="prompt.systemItem?.source === 'override' || prompt.userItem?.source === 'override'"
+                          size="small"
+                          type="success"
+                          effect="dark"
+                        >
+                          已覆盖
+                        </el-tag>
+                      </div>
+                      <div class="text-xs text-[var(--app-text-muted)]">{{ prompt.description || '未填写描述' }}</div>
+                      <div class="text-xs text-[var(--app-text-muted)]">
+                        系统提示词：{{ (prompt.systemItem?.systemPrompt || '').slice(0, 60) }}{{ (prompt.systemItem?.systemPrompt || '').length > 60 ? '...' : '' }}
+                      </div>
+                      <div class="text-xs text-[var(--app-text-muted)]">
+                        用户提示词：{{ (prompt.userItem?.userPrompt || '').slice(0, 60) }}{{ (prompt.userItem?.userPrompt || '').length > 60 ? '...' : '' }}
+                      </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                      <el-switch
+                        v-model="prompt.enabled"
+                        active-text="启用"
+                        inactive-text="停用"
+                        @change="() => {
+                          if (prompt.systemItem) prompt.systemItem.enabled = prompt.enabled
+                          if (prompt.userItem) prompt.userItem.enabled = prompt.enabled
+                          savePromptConfigs()
+                        }"
+                      />
+                      <el-button
+                        type="primary"
+                        size="small"
+                        plain
+                        @click="openPromptEditor(prompt)"
+                      >
+                        编辑
+                      </el-button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </el-tab-pane>
         </el-tabs>
       </div>
     </div>
@@ -331,6 +409,73 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- Prompt 编辑对话框 -->
+    <el-dialog
+      v-model="showPromptDialog"
+      :title="editingPromptGroup ? `编辑 Prompt：${editingPromptGroup.name}` : '编辑 Prompt'"
+      width="720px"
+      append-to-body
+      @close="resetPromptForm"
+    >
+      <div class="space-y-4">
+        <div class="text-xs app-muted">
+          提示：留空表示使用默认模板；停用会回退默认模板但保留覆盖内容。
+        </div>
+
+        <el-form label-position="top" class="mt-2">
+          <el-form-item label="启用状态">
+            <el-switch v-model="promptForm.enabled" active-text="启用" inactive-text="停用" />
+          </el-form-item>
+
+          <el-form-item label="默认系统提示词（只读）">
+            <el-input
+              type="textarea"
+              :rows="6"
+              :model-value="editingPromptGroup?.systemItem?.defaultSystemPrompt || ''"
+              readonly
+            />
+          </el-form-item>
+
+          <el-form-item label="默认用户提示词（只读）">
+            <el-input
+              type="textarea"
+              :rows="6"
+              :model-value="editingPromptGroup?.userItem?.defaultUserPrompt || ''"
+              readonly
+            />
+          </el-form-item>
+
+          <el-form-item label="覆盖系统提示词">
+            <el-input
+              v-model="promptForm.systemPrompt"
+              type="textarea"
+              :rows="6"
+              placeholder="留空则使用默认系统提示词"
+            />
+          </el-form-item>
+
+          <el-form-item label="覆盖用户提示词">
+            <el-input
+              v-model="promptForm.userPrompt"
+              type="textarea"
+              :rows="6"
+              placeholder="留空则使用默认用户提示词"
+            />
+          </el-form-item>
+        </el-form>
+      </div>
+
+      <template #footer>
+        <div class="flex justify-end space-x-3">
+          <el-button @click="clearPromptOverrides">重置覆盖</el-button>
+          <el-button @click="showPromptDialog = false">取消</el-button>
+          <el-button type="primary" :loading="promptSaving" @click="savePromptForm">
+            保存
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -342,10 +487,13 @@ import {
   Delete,
   Edit,
   Plus,
+  Refresh,
   Setting,
   Star
 } from '@element-plus/icons-vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
+import type { PromptConfigItem } from '@/llm/promptClient'
+import { listPrompts, savePromptOverrides } from '@/llm/promptClient'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
@@ -405,6 +553,27 @@ const vectorRules: FormRules = {
   model: [{ required: true, message: '请输入向量模型名称', trigger: 'blur' }]
 }
 
+// Prompt 配置相关状态
+const promptConfigs = ref<PromptConfigItem[]>([])
+const promptLoading = ref(false)
+const promptSaving = ref(false)
+const showPromptDialog = ref(false)
+const editingPrompt = ref<PromptConfigItem | null>(null)
+const editingPromptGroup = ref<{
+  baseId: string
+  name: string
+  domain: string
+  description: string
+  enabled: boolean
+  systemItem?: PromptConfigItem
+  userItem?: PromptConfigItem
+} | null>(null)
+const promptForm = ref({
+  enabled: true,
+  systemPrompt: '',
+  userPrompt: ''
+})
+
 const sortedLLMConfigs = computed(() => {
   return [...llmConfigs.value].sort((a, b) => {
     const aDef = a.isDefault ? 1 : 0
@@ -425,8 +594,58 @@ onMounted(async () => {
   await loadAllConfigs()
 })
 
+// Prompt 分组展示（system + user 合并）
+const promptGroups = computed(() => {
+  const groups = new Map<string, {
+    baseId: string
+    name: string
+    domain: string
+    description: string
+    enabled: boolean
+    systemItem?: PromptConfigItem
+    userItem?: PromptConfigItem
+  }>()
+
+  const normalizeName = (name: string) => {
+    return name.replace(/-系统提示词|-用户提示词/g, '').trim()
+  }
+
+  promptConfigs.value.forEach(item => {
+    const baseId = item.id.replace(/\.system$|\.user$/, '')
+    const group = groups.get(baseId) || {
+      baseId,
+      name: normalizeName(item.name || item.id),
+      domain: item.domain || 'general',
+      description: item.description || '',
+      enabled: item.enabled !== false
+    }
+
+    if (item.id.endsWith('.system')) {
+      group.systemItem = item
+    } else if (item.id.endsWith('.user')) {
+      group.userItem = item
+    } else {
+      group.systemItem = item
+    }
+
+    const enabled = (group.systemItem?.enabled !== false) && (group.userItem?.enabled !== false)
+    group.enabled = enabled
+
+    if (!group.description && item.description) {
+      group.description = item.description
+    }
+    if (!group.domain && item.domain) {
+      group.domain = item.domain
+    }
+
+    groups.set(baseId, group)
+  })
+
+  return Array.from(groups.values())
+})
+
 async function loadAllConfigs() {
-  await Promise.all([loadLLMConfigs(), loadVectorConfigs()])
+  await Promise.all([loadLLMConfigs(), loadVectorConfigs(), loadPromptConfigs()])
 }
 
 async function loadLLMConfigs() {
@@ -449,6 +668,117 @@ async function loadVectorConfigs() {
   } catch (error) {
     console.error('加载向量模型配置失败:', error)
   }
+}
+
+// 加载 Prompt 配置
+async function loadPromptConfigs() {
+  if (!window.electronAPI?.prompt) return
+  promptLoading.value = true
+  try {
+    promptConfigs.value = await listPrompts()
+  } catch (error) {
+    console.error('加载 Prompt 配置失败:', error)
+  } finally {
+    promptLoading.value = false
+  }
+}
+
+function openPromptEditor(group: {
+  baseId: string
+  name: string
+  domain: string
+  description: string
+  enabled: boolean
+  systemItem?: PromptConfigItem
+  userItem?: PromptConfigItem
+}) {
+  editingPrompt.value = group.systemItem || group.userItem || null
+  editingPromptGroup.value = group
+  promptForm.value = {
+    enabled: group.enabled !== false,
+    systemPrompt: group.systemItem?.overrideSystemPrompt || '',
+    userPrompt: group.userItem?.overrideUserPrompt || ''
+  }
+  showPromptDialog.value = true
+}
+
+function resetPromptForm() {
+  editingPrompt.value = null
+  editingPromptGroup.value = null
+  promptForm.value = { enabled: true, systemPrompt: '', userPrompt: '' }
+  showPromptDialog.value = false
+}
+
+function clearPromptOverrides() {
+  promptForm.value = { enabled: true, systemPrompt: '', userPrompt: '' }
+}
+
+function buildPromptOverrides(list: PromptConfigItem[]) {
+  return list
+    .map(item => {
+      const systemPrompt = item.overrideSystemPrompt?.trim() || ''
+      const userPrompt = item.overrideUserPrompt?.trim() || ''
+      const hasOverride = Boolean(systemPrompt) || Boolean(userPrompt) || item.enabled === false || item.source === 'custom'
+      if (!hasOverride) return null
+
+      return {
+        id: item.id,
+        name: item.name,
+        domain: item.domain,
+        description: item.description,
+        enabled: item.enabled !== false,
+        systemPrompt: systemPrompt || undefined,
+        userPrompt: userPrompt || undefined,
+        updatedAt: Date.now()
+      }
+    })
+    .filter(Boolean)
+}
+
+async function savePromptConfigs() {
+  if (!window.electronAPI?.prompt) return
+  promptSaving.value = true
+  try {
+    const overrides = buildPromptOverrides(promptConfigs.value)
+    await savePromptOverrides(overrides as Array<any>)
+    await loadPromptConfigs()
+    ElMessage.success('Prompt 配置已保存')
+  } catch (error: any) {
+    ElMessage.error('保存 Prompt 失败: ' + (error?.message || '未知错误'))
+  } finally {
+    promptSaving.value = false
+  }
+}
+
+async function savePromptForm() {
+  if (!editingPromptGroup.value) return
+  const baseId = editingPromptGroup.value.baseId
+  // 同步表单到列表（同时更新 system / user）
+  const updated = promptConfigs.value.map(item => {
+    if (!item.id.startsWith(baseId)) return item
+    const enabled = promptForm.value.enabled !== false
+    const isSystem = item.id.endsWith('.system')
+    const isUser = item.id.endsWith('.user')
+    const overrideSystemPrompt = isSystem ? promptForm.value.systemPrompt : item.overrideSystemPrompt
+    const overrideUserPrompt = isUser ? promptForm.value.userPrompt : item.overrideUserPrompt
+
+    return {
+      ...item,
+      enabled,
+      overrideSystemPrompt,
+      overrideUserPrompt,
+      systemPrompt: enabled
+        ? (overrideSystemPrompt || item.defaultSystemPrompt)
+        : item.defaultSystemPrompt,
+      userPrompt: enabled
+        ? (overrideUserPrompt || item.defaultUserPrompt)
+        : item.defaultUserPrompt,
+      source: (overrideSystemPrompt || overrideUserPrompt) ? 'override' : item.source
+    }
+  })
+  promptConfigs.value = updated
+  await savePromptConfigs()
+  showPromptDialog.value = false
 }
 
 async function saveLLMConfig() {
