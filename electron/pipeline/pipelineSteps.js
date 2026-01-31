@@ -177,6 +177,118 @@ function buildProgressSummary({ novelId, existingEvents = [], startChapter }) {
   ].join('\n')
 }
 
+// 构建“全局事实表/角色状态表”，用于跨批次承接与防止设定断裂
+function buildGlobalFactsSummary({ novelId, maxCharacters = 8, maxLocations = 6, maxItems = 6 }) {
+  if (!novelId) return ''
+
+  try {
+    const manager = getGraphManager()
+    const graph = manager.getGraph(novelId)
+    if (!graph) return ''
+
+    const formatProps = (props = {}) => {
+      const parts = []
+      if (props.status) parts.push(`状态:${props.status}`)
+      if (props.condition) parts.push(`状况:${props.condition}`)
+      if (props.currentLocation) parts.push(`位置:${props.currentLocation}`)
+      if (props.owner) parts.push(`归属:${props.owner}`)
+      if (props.title) parts.push(`头衔:${props.title}`)
+      if (props.powerLevel) parts.push(`层级:${props.powerLevel}`)
+      return parts.length ? `（${parts.join('，')}）` : ''
+    }
+
+    const scoreNode = (node) => {
+      const lastMention = Number(node.lastMention) || 0
+      const props = node.properties || {}
+      const hasStatus = props.status || props.condition || props.currentLocation
+      const hasDesc = node.description && String(node.description).trim().length > 0
+      return (hasStatus ? 50 : 0) + (hasDesc ? 5 : 0) + lastMention
+    }
+
+    const pickNodes = (type, limit) => {
+      const nodes = graph.getAllNodes(type) || []
+      return nodes
+        .map(node => ({ ...node, _score: scoreNode(node) }))
+        .sort((a, b) => b._score - a._score)
+        .slice(0, Math.max(1, Number(limit) || 1))
+    }
+
+    const formatLine = (node) => {
+      const name = (node.label || node.id || '').trim()
+      if (!name) return ''
+      const desc = (node.description || '').trim()
+      const descText = desc ? `：${desc.slice(0, 32)}` : ''
+      const mention = Number(node.lastMention) ? `（最后出现:第${Number(node.lastMention)}章）` : ''
+      return `- ${name}${formatProps(node.properties)}${mention}${descText}`
+    }
+
+    const characters = pickNodes('character', maxCharacters).map(formatLine).filter(Boolean).join('\n')
+    const locations = pickNodes('location', maxLocations).map(formatLine).filter(Boolean).join('\n')
+    const items = pickNodes('item', maxItems).map(formatLine).filter(Boolean).join('\n')
+
+    const sections = []
+    if (characters) sections.push(`【角色状态表】\n${characters}`)
+    if (locations) sections.push(`【地点状态表】\n${locations}`)
+    if (items) sections.push(`【物品状态表】\n${items}`)
+
+    if (!sections.length) return ''
+    return `【全局事实表】\n${sections.join('\n')}`
+  } catch (error) {
+    console.warn('[buildGlobalFactsSummary] 构建全局事实表失败:', error?.message || error)
+    return ''
+  }
+}
+
+// 构建“批次承接清单”，显式提醒上一批次遗留事项与状态
+function buildBatchHandoffSummary({ novelId, startChapter, existingEvents = [], maxEvents = 8, maxChapters = 3 }) {
+  if (!novelId || !Number.isFinite(Number(startChapter)) || Number(startChapter) <= 1) return ''
+
+  const cutoff = Number(startChapter) - 1
+  const chapters = chapterDAO.getChaptersByNovel(novelId) || []
+  const doneChapters = chapters
+    .filter(ch => Number(ch.chapterNumber) <= cutoff)
+    .sort((a, b) => (a.chapterNumber || 0) - (b.chapterNumber || 0))
+
+  const recentChapters = doneChapters.slice(-Math.max(1, Number(maxChapters) || 1))
+  const recentChapterLines = recentChapters.length
+    ? recentChapters.map(ch => {
+      const title = ch.title || '未命名'
+      const summary = (ch.summary || ch.description || ch.content || '').replace(/\s+/g, ' ').trim()
+      const snippet = summary ? summary.slice(0, 50) : '无摘要'
+      return `- 第${ch.chapterNumber}章《${title}》：${snippet}`
+    }).join('\n')
+    : '无'
+
+  const historyEvents = existingEvents.filter(evt => Number(evt.chapter) <= cutoff)
+  const recentEvents = historyEvents.slice(-Math.max(1, Number(maxEvents) || 1))
+  const recentEventLines = recentEvents.length
+    ? recentEvents.map(evt => {
+      const label = evt.label || '未命名事件'
+      const desc = (evt.description || '').replace(/\s+/g, ' ').trim().slice(0, 40)
+      return `- 第${evt.chapter || '?'}章 ${label}${desc ? `：${desc}` : ''}`
+    }).join('\n')
+    : '无'
+
+  const conflictEvents = historyEvents.filter(evt => evt.eventType === 'conflict')
+  const unresolvedLines = conflictEvents.slice(-5).map(evt => `- ${evt.label || evt.id}`).join('\n') || '无'
+
+  const postconditions = historyEvents
+    .filter(evt => Array.isArray(evt.postconditions) && evt.postconditions.length)
+    .slice(-5)
+    .map(evt => evt.postconditions.map(item => `- ${item}`).join('\n'))
+    .join('\n')
+
+  const postconditionLines = postconditions || '无'
+
+  return [
+    '【批次承接清单】',
+    `【最近章节摘要】\n${recentChapterLines}`,
+    `【上批次关键事件】\n${recentEventLines}`,
+    `【未解冲突/悬念】\n${unresolvedLines}`,
+    `【已形成事实/后置条件】\n${postconditionLines}`
+  ].join('\n')
+}
+
 function buildRepeatBans(existingEvents = [], options = {}) {
   const { novelId, recentWindow = 6, maxLocations = 8 } = options || {}
 
@@ -573,6 +685,12 @@ async function generateEventBatch({
     existingEvents,
     startChapter
   })
+  // 增加全局事实表与批次承接清单，降低跨批次断裂
+  const globalFactsSummary = buildGlobalFactsSummary({ novelId })
+  const handoffSummary = buildBatchHandoffSummary({ novelId, startChapter, existingEvents })
+  const progressSummaryWithHandoff = [progressSummary, globalFactsSummary, handoffSummary]
+    .filter(Boolean)
+    .join('\n\n')
   const repeatBans = buildRepeatBans(existingEvents, { novelId })
 
   let result = await outlineAgent.generateEventGraph({
@@ -581,7 +699,7 @@ async function generateEventBatch({
     synopsis: novel?.description || '',
     existingOutline: inputOutline || '',
     knowledgeContext,
-    progressSummary,
+    progressSummary: progressSummaryWithHandoff,
     repeatBans,
     emotionArcSummary,
     breathChapters,
@@ -611,7 +729,7 @@ async function generateEventBatch({
       synopsis: novel?.description || '',
       existingOutline: inputOutline || '',
       knowledgeContext: `${knowledgeContext}\n【额外约束】必须引入新的冲突/代价/线索类型，禁止重复前序套路。`,
-      progressSummary,
+      progressSummary: progressSummaryWithHandoff,
       repeatBans: retryRepeatBans,
       emotionArcSummary,
       breathChapters,
@@ -780,6 +898,14 @@ async function generateChapterBatch({ novelId, chapterNumbers, systemPrompt, con
       let attempt = 0
       let generationResult = null
       let progressCheck = null
+      // 批次承接：准备全局事实表与承接清单（用于跨批次一致性）
+      const baseGlobalFacts = buildGlobalFactsSummary({ novelId })
+      const baseHandoff = buildBatchHandoffSummary({
+        novelId,
+        startChapter: numChapterNumber,
+        existingEvents: planningDAO.listPlanningEvents(novelId)
+      })
+      const baseExtraPrompt = [baseGlobalFacts, baseHandoff].filter(Boolean).join('\n\n')
 
       while (attempt <= maxRetries) {
         if (attempt > 0) {
@@ -797,12 +923,16 @@ async function generateChapterBatch({ novelId, chapterNumbers, systemPrompt, con
           existingEvents: planningDAO.listPlanningEvents(novelId),
           startChapter: numChapterNumber
         })
+        const progressSummaryWithHandoff = [progressSummary, baseGlobalFacts, baseHandoff]
+          .filter(Boolean)
+          .join('\n\n')
         const retryHint = attempt > 0 && progressCheck?.retryHint
           ? `\n\n${progressCheck.retryHint}`
           : ''
-        const extraPrompt = attempt === 0
+        const retryPrompt = attempt === 0
           ? ''
-          : `【推进度拦截：请强制推进】\n${progressSummary}\n\n必须引入不可逆变化（身份暴露/关系决裂/关键证据获取或损失/关键地点或资源发生变化），并避免复用最近章节的冲突与场景套路。${retryHint}`
+          : `【推进度拦截：请强制推进】\n${progressSummaryWithHandoff}\n\n必须引入不可逆变化（身份暴露/关系决裂/关键证据获取或损失/关键地点或资源发生变化），并避免复用最近章节的冲突与场景套路。${retryHint}`
+        const extraPrompt = [baseExtraPrompt, retryPrompt].filter(Boolean).join('\n\n')
 
         generationResult = await chapterGenerator.generateChapterChunks({
           novelId,

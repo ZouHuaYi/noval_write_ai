@@ -6,6 +6,48 @@ const llmService = require('./llmService')
 const { safeParseJSON } = require('../utils/helpers')
 const promptService = require('../prompt/promptService')
 
+// 截断文本，避免上下文过长导致 JSON 输出失败
+function clampText(text, maxLength) {
+  if (!text) return ''
+  if (!maxLength || text.length <= maxLength) return text
+  return text.slice(0, maxLength)
+}
+
+// 清理 LLM 输出中的代码围栏与多余空白
+function normalizeRawJsonText(text) {
+  if (!text) return ''
+  let cleaned = text.trim()
+  cleaned = cleaned.replace(/```json[\s\r\n]?/gi, '```')
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```/, '').replace(/```$/, '').trim()
+  }
+  return cleaned
+}
+
+// 尝试从文本中提取可解析的 JSON（优先取最长可解析片段）
+function tryParseJsonFromText(text) {
+  if (!text) return null
+  const cleaned = normalizeRawJsonText(text)
+  const direct = safeParseJSON(cleaned)
+  if (direct) return direct
+
+  const candidates = []
+  const greedy = cleaned.match(/\{[\s\S]*\}/)
+  if (greedy) candidates.push(greedy[0])
+  const nonGreedyMatches = cleaned.match(/\{[\s\S]*?\}/g)
+  if (nonGreedyMatches) {
+    nonGreedyMatches.forEach(item => candidates.push(item))
+  }
+  if (!candidates.length) return null
+
+  const unique = Array.from(new Set(candidates)).sort((a, b) => b.length - a.length)
+  for (const candidate of unique) {
+    const parsed = safeParseJSON(candidate)
+    if (parsed) return parsed
+  }
+  return null
+}
+
 /**
  * 事件类型定义
  */
@@ -170,13 +212,13 @@ async function generateEventGraphFromBeats({
     genre: genre || '未指定',
     synopsis: synopsis || '无',
     existingOutline: existingOutline || '无',
-    knowledgeContext: knowledgeContext || '无',
+    knowledgeContext: clampText(knowledgeContext || '无', 1600),
     emotionArcSummary: emotionArcSummary || '无',
     breathChapters: breathChapters || '无',
-    progressSummary: progressSummary || '无',
-    repeatBans: repeatBans || '无',
-    existingEventsContext: existingEventsContext || '',
-    chapterBeatsJson: JSON.stringify(chapterBeats, null, 2)
+    progressSummary: clampText(progressSummary || '无', 1800),
+    repeatBans: clampText(repeatBans || '无', 1200),
+    existingEventsContext: clampText(existingEventsContext || '', 1200),
+    chapterBeatsJson: clampText(JSON.stringify(chapterBeats, null, 2), 6000)
   })
 
   const response = await llmService.callChatModel({
@@ -189,13 +231,7 @@ async function generateEventGraphFromBeats({
     configOverride
   })
 
-  let result = safeParseJSON(response)
-  if (!result || !result.events) {
-    const jsonMatch = response.match(/\{[\s\S]*\}/)
-    if (jsonMatch) {
-      result = safeParseJSON(jsonMatch[0])
-    }
-  }
+  let result = tryParseJsonFromText(response)
 
   if (!result || !Array.isArray(result.events)) {
     const repaired = await repairEventGraphJSON(response, configOverride)
@@ -459,8 +495,10 @@ async function repairChapterBeatsJSON(rawText, configOverride) {
 async function repairEventGraphJSON(rawText, configOverride) {
   if (!rawText) return null
   const { systemPrompt } = promptService.resolvePrompt('outline.repairJson.system')
+  // 修复时截断原始文本，避免模型被噪声干扰
+  const trimmed = clampText(normalizeRawJsonText(rawText), 8000)
   const userPrompt = promptService.renderPrompt('outline.repairJson.user', '', {
-    rawText
+    rawText: trimmed
   })
   try {
     const response = await llmService.callChatModel({
@@ -472,16 +510,8 @@ async function repairEventGraphJSON(rawText, configOverride) {
       maxTokens: 2000,
       configOverride
     })
-    const parsed = safeParseJSON(response)
+    const parsed = tryParseJsonFromText(response)
     if (parsed && parsed.events) return parsed
-    const jsonMatch = response.match(/\{[\s\S]*\}/)
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[0])
-      } catch (error) {
-        return null
-      }
-    }
     return null
   } catch (error) {
     console.error('事件图谱 JSON 修复失败:', error)

@@ -75,11 +75,14 @@ function upsertPlanningEvents(novelId, events = []) {
   `)
 
   const getExisting = db.prepare(`SELECT id FROM planning_event WHERE id = ? AND novelId = ?`)
+  const getExistingById = db.prepare(`SELECT novelId FROM planning_event WHERE id = ?`)
 
   const transaction = db.transaction(() => {
     events.forEach(raw => {
       const event = normalizeEvent({ ...raw, novelId })
-      const exists = getExisting.get(event.id, novelId)
+      const exists = event.id ? getExisting.get(event.id, novelId) : null
+      // 避免跨小说复用同一个 id 触发主键冲突
+      const existsById = event.id ? getExistingById.get(event.id) : null
       const characters = serialize(event.characters)
       const preconditions = serialize(event.preconditions)
       const postconditions = serialize(event.postconditions)
@@ -100,7 +103,7 @@ function upsertPlanningEvents(novelId, events = []) {
           novelId
         )
       } else {
-        const id = event.id || randomUUID()
+        const id = existsById && existsById.novelId !== novelId ? randomUUID() : (event.id || randomUUID())
         insert.run(
           id,
           novelId,
