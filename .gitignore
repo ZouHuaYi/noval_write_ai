@@ -12,6 +12,7 @@ dist
 dist-electron
 release
 .DS_Store
+.tmp
 *.local
 
 # Editor directories and files
